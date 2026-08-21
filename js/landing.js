@@ -1,288 +1,856 @@
 /* ==========================================================================
-   Kontra-Africa — Landing page interactions
+   Kontra-Africa — Landing page
    ========================================================================== */
-document.addEventListener('DOMContentLoaded', () => {
-  initYear();
-  initHeaderScroll();
-  initMobileNav();
-  initRevealOnScroll();
-  initInstallCarousel();
-  initCountriesCarousel();
-});
 
-/* Respecte prefers-reduced-motion partout où on choisit un comportement de scroll/anim */
-function prefersReducedMotion() {
-  return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+:root {
+  color-scheme: light;
 }
 
-/* --- Année dynamique dans le footer --- */
-function initYear() {
-  const yearEl = document.getElementById('year');
-  if (yearEl) yearEl.textContent = new Date().getFullYear();
+html {
+  background: #fafafb;
 }
 
-/* --- Header : ombre/bordure au scroll --- */
-function initHeaderScroll() {
-  const header = document.getElementById('siteHeader');
-  if (!header) return;
-  const onScroll = () => {
-    header.classList.toggle('is-scrolled', window.scrollY > 8);
-  };
-  onScroll();
-  window.addEventListener('scroll', onScroll, { passive: true });
+body {
+  background: #fafafb;
 }
 
-/* ==========================================================================
-   Menu mobile — panneau latéral depuis la droite
-   ========================================================================== */
-function initMobileNav() {
-  const toggle = document.getElementById('navToggle');
-  const panel = document.getElementById('mobileNavPanel');
-  const closeBtn = document.getElementById('mobileNavClose');
-  const overlay = document.getElementById('mobileNavOverlay');
-  if (!toggle || !panel) return;
-
-  let isOpen = false;
-  let lastFocusedEl = null;
-
-  const getFocusableElements = () =>
-    Array.from(
-      panel.querySelectorAll(
-        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    );
-
-  const openPanel = () => {
-    if (isOpen) return;
-    isOpen = true;
-    lastFocusedEl = document.activeElement;
-
-    panel.classList.add('is-open');
-    panel.setAttribute('aria-hidden', 'false');
-    toggle.setAttribute('aria-expanded', 'true');
-    if (overlay) {
-      overlay.classList.add('is-open');
-      overlay.setAttribute('aria-hidden', 'false');
-    }
-    document.body.classList.add('nav-open');
-    document.body.style.overflow = 'hidden';
-
-    const focusTarget = closeBtn || getFocusableElements()[0];
-    if (focusTarget) focusTarget.focus();
-  };
-
-  const closePanel = () => {
-    if (!isOpen) return;
-    isOpen = false;
-
-    panel.classList.remove('is-open');
-    panel.setAttribute('aria-hidden', 'true');
-    toggle.setAttribute('aria-expanded', 'false');
-    if (overlay) {
-      overlay.classList.remove('is-open');
-      overlay.setAttribute('aria-hidden', 'true');
-    }
-    document.body.classList.remove('nav-open');
-    document.body.style.overflow = 'auto';
-
-    const refocusTarget = lastFocusedEl || toggle;
-    if (refocusTarget) refocusTarget.focus();
-  };
-
-  toggle.setAttribute('aria-expanded', 'false');
-  panel.setAttribute('aria-hidden', 'true');
-  if (overlay) overlay.setAttribute('aria-hidden', 'true');
-
-  toggle.addEventListener('click', () => {
-    if (isOpen) {
-      closePanel();
-    } else {
-      openPanel();
-    }
-  });
-
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closePanel);
-  }
-
-  if (overlay) {
-    overlay.addEventListener('click', closePanel);
-  }
-
-  panel.querySelectorAll('a').forEach((link) => {
-    link.addEventListener('click', closePanel);
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (!isOpen) return;
-
-    if (event.key === 'Escape') {
-      closePanel();
-      return;
-    }
-
-    if (event.key === 'Tab') {
-      const focusable = getFocusableElements();
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-  });
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: var(--space-4);
+  background: var(--color-primary);
+  color: #fff;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
+  z-index: 10101;
+  transition: top var(--duration-fast) var(--ease-standard);
 }
 
-/* --- Animation d'apparition au scroll --- */
-function initRevealOnScroll() {
-  const items = document.querySelectorAll('.reveal');
-  if (!items.length) return;
-  if (!('IntersectionObserver' in window)) {
-    items.forEach((el) => el.classList.add('is-visible'));
-    return;
-  }
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
-  );
-  items.forEach((el) => observer.observe(el));
+.skip-link:focus {
+  top: var(--space-4);
 }
 
-/* ==========================================================================
-   Carrousel auto-défilant générique ("marquee")
-   - duplique une fois le contenu du track pour permettre une boucle sans saut
-   - fait défiler viewport.scrollLeft en continu via requestAnimationFrame
-   - se met en pause au survol (desktop) et pendant une interaction tactile/souris,
-     puis reprend automatiquement après un court délai
-   - reste utilisable au swipe/drag natif du navigateur (overflow-x: auto)
-   ========================================================================== */
-function createAutoScrollCarousel({ viewport, track, speed = 36, pauseOnHover = true }) {
-  if (!viewport || !track) return null;
-
-  const originalItems = Array.from(track.children);
-  if (!originalItems.length) return null;
-
-  // Duplique une seule fois les éléments pour créer une boucle continue fluide
-  if (!track.dataset.duplicated) {
-    originalItems.forEach((item) => {
-      const clone = item.cloneNode(true);
-      clone.setAttribute('aria-hidden', 'true');
-      track.appendChild(clone);
-    });
-    track.dataset.duplicated = 'true';
-  }
-
-  let loopWidth = 0;
-  function measure() {
-    loopWidth = track.scrollWidth / 2;
-  }
-  measure();
-  window.addEventListener('resize', measure);
-
-  const reduceMotion = prefersReducedMotion();
-  let isHovered = false;
-  let isInteracting = false;
-  let resumeTimer = null;
-  let lastTimestamp = null;
-  let rafId = null;
-
-  function pauseTemporarily(duration = 2200) {
-    isInteracting = true;
-    if (resumeTimer) clearTimeout(resumeTimer);
-    resumeTimer = setTimeout(() => {
-      isInteracting = false;
-    }, duration);
-  }
-
-  function step(timestamp) {
-    if (lastTimestamp === null) lastTimestamp = timestamp;
-    const delta = (timestamp - lastTimestamp) / 1000;
-    lastTimestamp = timestamp;
-
-    if (!isHovered && !isInteracting && loopWidth > 0) {
-      viewport.scrollLeft += speed * delta;
-      if (viewport.scrollLeft >= loopWidth) {
-        viewport.scrollLeft -= loopWidth;
-      }
-    }
-    rafId = requestAnimationFrame(step);
-  }
-
-  if (!reduceMotion) {
-    rafId = requestAnimationFrame(step);
-  }
-
-  if (pauseOnHover) {
-    viewport.addEventListener('mouseenter', () => { isHovered = true; });
-    viewport.addEventListener('mouseleave', () => { isHovered = false; });
-  }
-
-  // Interaction tactile / souris : on laisse le swipe natif agir, puis on reprend
-  viewport.addEventListener('touchstart', () => pauseTemporarily(3000), { passive: true });
-  viewport.addEventListener('touchend', () => pauseTemporarily(1500), { passive: true });
-  viewport.addEventListener('pointerdown', () => pauseTemporarily(3000));
-  viewport.addEventListener('wheel', () => pauseTemporarily(1800), { passive: true });
-
-  return {
-    scrollByAmount(amount) {
-      pauseTemporarily(2500);
-      viewport.scrollBy({ left: amount, behavior: reduceMotion ? 'auto' : 'smooth' });
-    },
-    destroy() {
-      if (rafId) cancelAnimationFrame(rafId);
-      if (resumeTimer) clearTimeout(resumeTimer);
-      window.removeEventListener('resize', measure);
-    }
-  };
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: var(--space-3);
 }
 
-/* ==========================================================================
-   Carrousel "Comment l'installer" — défilement automatique en boucle
-   ========================================================================== */
-function initInstallCarousel() {
-  const viewport = document.getElementById('installCarousel');
-  const track = document.getElementById('installTrack');
-  createAutoScrollCarousel({ viewport, track, speed: 34, pauseOnHover: true });
+/* ---------------------------------- Header ---------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  background: rgba(250, 250, 251, 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--duration-base) var(--ease-standard);
 }
 
-/* ==========================================================================
-   Carrousel "Pays accessibles" — défilement automatique continu en boucle,
-   avec boutons précédent/suivant en complément
-   ========================================================================== */
-function initCountriesCarousel() {
-  const viewport = document.getElementById('countriesViewport');
-  const track = document.getElementById('countriesTrack');
-  const prevBtn = document.getElementById('countriesPrev');
-  const nextBtn = document.getElementById('countriesNext');
-  if (!viewport || !track) return;
+.site-header.is-scrolled {
+  border-bottom-color: var(--color-border);
+}
 
-  const controller = createAutoScrollCarousel({ viewport, track, speed: 30, pauseOnHover: true });
-  if (!controller) return;
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
 
-  function cardStep() {
-    const card = track.querySelector('.country-card');
-    if (!card) return 160;
-    const style = window.getComputedStyle(card);
-    const gap = parseInt(style.marginRight, 10) || 16;
-    return card.getBoundingClientRect().width + gap;
+.brand__logo {
+  height: 32px;
+  width: auto;
+}
+
+.main-nav {
+  display: none;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.main-nav a {
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.main-nav a:hover {
+  color: var(--color-text);
+}
+
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.header-login {
+  display: none;
+}
+
+.header-cta {
+  min-height: 40px;
+  padding: 0 var(--space-5);
+  font-size: var(--fs-sm);
+}
+
+/* Hamburger — 3 traits horizontaux, zone tactile 44x44 */
+.nav-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-toggle__bar {
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-text);
+  transition: transform var(--duration-fast) var(--ease-standard),
+              opacity var(--duration-fast) var(--ease-standard);
+}
+
+.nav-toggle[aria-expanded="true"] .nav-toggle__bar:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.nav-toggle[aria-expanded="true"] .nav-toggle__bar:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-toggle[aria-expanded="true"] .nav-toggle__bar:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+@media (min-width: 900px) {
+  .main-nav { display: flex; }
+  .header-login { display: inline-flex; }
+  .nav-toggle { display: none; }
+}
+
+/* ---------------------------------- Menu mobile : panneau latéral ---------------------------------- */
+
+.mobile-nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 12, 28, 0.5);
+  opacity: 0;
+  z-index: 10098;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.mobile-nav-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-nav-overlay[hidden] {
+  display: block;
+}
+
+.mobile-nav-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(88vw, 380px);
+  max-width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  z-index: 10099;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5) var(--space-6) var(--space-7);
+  transform: translateX(100%);
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.mobile-nav-panel.is-open {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-panel,
+  .mobile-nav-overlay,
+  .nav-toggle__bar {
+    transition: none;
   }
+}
 
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => controller.scrollByAmount(cardStep()));
+@media (min-width: 900px) {
+  .mobile-nav-panel,
+  .mobile-nav-overlay {
+    display: none;
   }
-  if (prevBtn) {
-    prevBtn.addEventListener('click', () => controller.scrollByAmount(-cardStep()));
+}
+
+.mobile-nav-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+}
+
+.mobile-nav-panel__logo {
+  height: 28px;
+  width: auto;
+}
+
+.mobile-nav-panel__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.mobile-nav-panel__close:hover {
+  background: var(--color-border);
+}
+
+.mobile-nav-panel__close:active {
+  transform: scale(0.92);
+}
+
+.mobile-nav-panel__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mobile-nav-panel__links a {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mobile-nav-panel__actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-7);
+}
+
+.mobile-nav-panel__actions .btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+body.nav-open {
+  overflow: hidden;
+}
+
+/* ---------------------------------- Hero ---------------------------------- */
+
+.hero {
+  padding-block: var(--space-9) var(--space-9);
+  overflow: hidden;
+}
+
+.hero__inner {
+  display: grid;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.hero__title {
+  font-size: var(--fs-3xl);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.signature-wrap {
+  position: relative;
+  display: inline-block;
+  color: var(--color-primary);
+}
+
+.signature-stroke {
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 20px;
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  animation: draw-signature 1.1s var(--ease-standard) 0.4s forwards;
+}
+
+@keyframes draw-signature {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signature-stroke {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+.hero__subtitle {
+  margin-top: var(--space-5);
+  font-size: var(--fs-md);
+  color: var(--color-text-muted);
+  max-width: 46ch;
+}
+
+.hero__actions {
+  margin-top: var(--space-7);
+}
+
+.hero__hint {
+  margin-top: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--color-text-faint);
+}
+
+.hero__media {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.hero__image {
+  width: 100%;
+  height: auto;
+}
+
+/* ---------------------------------- Sections ---------------------------------- */
+
+.section {
+  padding-block: var(--space-10);
+}
+
+.section--tinted {
+  background: var(--color-surface-alt);
+}
+
+.section__header {
+  max-width: 60ch;
+  margin-bottom: var(--space-8);
+}
+
+.section__header--center {
+  max-width: 60ch;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.section__title {
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+}
+
+/* ---------------------------------- Steps (comment ça marche) ---------------------------------- */
+
+.steps {
+  display: grid;
+  gap: var(--space-7);
+}
+
+.steps__item {
+  display: grid;
+  gap: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.steps__media {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-alt);
+}
+
+.steps__media img {
+  width: 100%;
+  height: auto;
+}
+
+.steps__number {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-accent-dark);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.steps__copy h3 {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.steps__copy p {
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 900px) {
+  .steps__item {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: var(--space-7);
+  }
+}
+
+/* ---------------------------------- Feature split (finances / sécurité / install) ---------------------------------- */
+
+.feature-split {
+  display: grid;
+  gap: var(--space-7);
+  align-items: center;
+}
+
+.feature-split__media {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.feature-split__media img {
+  width: 100%;
+  height: auto;
+}
+
+.feature-split__text {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  max-width: 50ch;
+}
+
+.check-list {
+  margin-top: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.check-list li {
+  position: relative;
+  padding-left: var(--space-6);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.check-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+@media (min-width: 900px) {
+  .feature-split {
+    grid-template-columns: 1fr 1fr;
+  }
+  .feature-split--reverse .feature-split__media {
+    order: 2;
+  }
+}
+
+/* ---------------------------------- Installation : carrousel auto-défilant ---------------------------------- */
+
+.install-guide {
+  margin-top: var(--space-10);
+}
+
+.install-guide__title {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  margin-bottom: var(--space-6);
+}
+
+.install-carousel {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.install-carousel:active {
+  cursor: grabbing;
+}
+
+.install-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.install-carousel__track {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
+  width: max-content;
+}
+
+.install-slide {
+  flex: 0 0 168px;
+  width: 168px;
+  margin: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.install-slide img {
+  display: block;
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--color-surface-alt);
+  pointer-events: none;
+}
+
+.install-slide figcaption {
+  padding: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.install-slide figcaption span {
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+  margin-right: var(--space-2);
+}
+
+@media (min-width: 700px) {
+  .install-slide { flex-basis: 188px; width: 188px; }
+  .install-slide img { height: 336px; }
+}
+
+@media (min-width: 1100px) {
+  .install-slide { flex-basis: 208px; width: 208px; }
+  .install-slide img { height: 372px; }
+}
+
+/* ---------------------------------- Tarif ---------------------------------- */
+
+.pricing-card {
+  display: grid;
+  gap: var(--space-8);
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+}
+
+.pricing-card .eyebrow {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.pricing-card .section__title {
+  color: #fff;
+}
+
+.pricing-card .feature-split__text {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pricing-card__box {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-md);
+  padding: var(--space-7);
+  text-align: center;
+}
+
+.pricing-card__amount {
+  font-family: var(--font-display);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+}
+
+.pricing-card__currency {
+  font-size: var(--fs-lg);
+  vertical-align: top;
+  margin-right: 2px;
+}
+
+.pricing-card__period {
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pricing-card__trial {
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.pricing-card__cta {
+  margin-top: var(--space-6);
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .pricing-card {
+    grid-template-columns: 1.2fr 1fr;
+    align-items: center;
+  }
+}
+
+/* ---------------------------------- Pays accessibles : carrousel auto-défilant ---------------------------------- */
+
+.countries-carousel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.countries-carousel__viewport {
+  flex: 1;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.countries-carousel__viewport:active {
+  cursor: grabbing;
+}
+
+.countries-carousel__viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.countries-carousel__track {
+  display: flex;
+  gap: var(--space-4);
+  padding-block: var(--space-1);
+  width: max-content;
+}
+
+.countries-carousel__arrow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.countries-carousel__arrow:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.countries-carousel__arrow:active {
+  transform: scale(0.94);
+}
+
+.country-card {
+  flex: 0 0 132px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+  transition: transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+}
+
+.country-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary);
+}
+
+.country-card__flag {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin: 0 auto var(--space-3);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+.country-card__name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.country-card__badge {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--color-accent-dark);
+  background: var(--color-surface-alt);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-full);
+}
+
+@media (min-width: 900px) {
+  .country-card { flex-basis: 152px; }
+  .country-card__flag { width: 72px; height: 72px; }
+}
+
+/* ---------------------------------- Contact ---------------------------------- */
+
+.contact-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  text-align: center;
+}
+
+.contact-block__email {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.contact-block__email:hover {
+  color: var(--color-primary);
+}
+
+.social-links {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.social-links__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  transition: color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+}
+
+.social-links__item:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  transform: scale(1.06);
+}
+
+.social-links__item svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-links__item,
+  .country-card,
+  .countries-carousel__arrow {
+    transition: none;
+  }
+}
+
+/* ---------------------------------- Footer ---------------------------------- */
+
+.site-footer {
+  padding-block: var(--space-8);
+  border-top: 1px solid var(--color-border);
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.site-footer__logo {
+  height: 24px;
+  opacity: 0.7;
+}
+
+.site-footer__copy {
+  font-size: var(--fs-sm);
+  color: var(--color-text-faint);
+}
+
+/* ---------------------------------- Reveal on scroll ---------------------------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--duration-slow) var(--ease-standard),
+              transform var(--duration-slow) var(--ease-standard);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ---------------------------------- Responsive: hero image order ---------------------------------- */
+
+@media (min-width: 900px) {
+  .hero__inner {
+    grid-template-columns: 1fr 1fr;
   }
 }
