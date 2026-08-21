@@ -220,6 +220,131 @@
   font-size: var(--fs-sm);
 }
 
+/* ---------------------------------- Cartes statistiques ---------------------------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.stat-card--wide {
+  grid-column: 1 / -1;
+}
+
+.stat-card__label {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.stat-card__value {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.stat-card__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.stat-card__savings-amounts {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.stat-card__hint {
+  margin-top: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+
+@media (min-width: 640px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .stat-card--wide {
+    grid-column: span 4;
+  }
+}
+
+@media (min-width: 900px) {
+  .stat-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .stat-card--wide {
+    grid-column: span 3;
+  }
+}
+
+/* ---------------------------------- Carte graphique ---------------------------------- */
+
+.chart-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.chart-card__header {
+  margin-bottom: var(--space-5);
+}
+
+.chart-card__header h2 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.chart-card__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.chart-card__body {
+  position: relative;
+  height: 220px;
+}
+
+.chart-card__empty {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  max-width: 42ch;
+  margin-inline: auto;
+}
+
 /* ---------------------------------- Bottom nav (mobile) ---------------------------------- */
 
 .app-bottomnav {
