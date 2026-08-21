@@ -827,20 +827,28 @@ body.nav-open {
 
 /* ---------------------------------- Reveal on scroll ---------------------------------- */
 
+/* Par défaut (sans JS, ou si le JS échoue), le contenu est visible.
+   L'animation ne s'active que si le petit script inline dans <head>
+   a pu ajouter la classe "has-js" sur <html>. */
 .reveal {
+  opacity: 1;
+  transform: none;
+}
+
+.has-js .reveal {
   opacity: 0;
   transform: translateY(16px);
   transition: opacity var(--duration-slow) var(--ease-standard),
               transform var(--duration-slow) var(--ease-standard);
 }
 
-.reveal.is-visible {
+.has-js .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
+  .has-js .reveal {
     opacity: 1;
     transform: none;
     transition: none;
