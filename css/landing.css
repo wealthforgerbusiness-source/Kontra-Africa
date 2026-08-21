@@ -521,7 +521,7 @@ body.nav-open {
 }
 
 .install-slide {
-  flex: 0 0 78%;
+  flex: 0 0 220px;
   margin: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -530,13 +530,14 @@ body.nav-open {
 }
 
 .install-slide img {
-  display: block;
   width: 100%;
-  height: 480px;
-  max-height: 480px;
+  height: auto;
+  max-height: 320px;
   object-fit: contain;
   background: var(--color-surface-alt);
   pointer-events: none;
+  display: block;
+  margin: 0 auto;
 }
 
 .install-slide figcaption {
@@ -553,16 +554,13 @@ body.nav-open {
 }
 
 @media (min-width: 700px) {
-  .install-slide { flex-basis: 32%; }
+  .install-slide { flex: 0 0 240px; }
+  .install-slide img { max-height: 360px; }
 }
 
 @media (min-width: 1100px) {
-  .install-slide { flex-basis: 22%; }
-
-  .install-slide img {
-    height: 560px;
-    max-height: 560px;
-  }
+  .install-slide { flex: 0 0 260px; }
+  .install-slide img { max-height: 400px; }
 }
 
 /* ---------------------------------- Tarif ---------------------------------- */
