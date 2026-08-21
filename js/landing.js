@@ -7,7 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initMobileNav();
   initRevealOnScroll();
   initInstallCarousel();
+  initCountriesCarousel();
 });
+
+/* Respecte prefers-reduced-motion partout où on choisit un comportement de scroll/anim */
+function prefersReducedMotion() {
+  return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 /* --- Année dynamique dans le footer --- */
 function initYear() {
@@ -26,30 +32,73 @@ function initHeaderScroll() {
   window.addEventListener('scroll', onScroll, { passive: true });
 }
 
-/* --- Menu mobile plein écran --- */
+/* ==========================================================================
+   Menu mobile — panneau latéral depuis la droite
+   IDs attendus dans le HTML :
+     #navToggle        -> bouton hamburger (3 traits), aria-controls="mobileNavPanel"
+     #mobileNavPanel    -> panneau latéral (aside/nav), role="dialog", aria-hidden="true"
+     #mobileNavClose     -> bouton X à l'intérieur du panneau
+     #mobileNavOverlay  -> overlay sombre derrière le panneau
+   ========================================================================== */
 function initMobileNav() {
   const toggle = document.getElementById('navToggle');
   const panel = document.getElementById('mobileNavPanel');
   const closeBtn = document.getElementById('mobileNavClose');
+  const overlay = document.getElementById('mobileNavOverlay');
   if (!toggle || !panel) return;
 
+  let isOpen = false;
+  let lastFocusedEl = null;
+
+  const getFocusableElements = () =>
+    Array.from(
+      panel.querySelectorAll(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    );
+
   const openPanel = () => {
+    if (isOpen) return;
+    isOpen = true;
+    lastFocusedEl = document.activeElement;
+
     panel.classList.add('is-open');
     panel.setAttribute('aria-hidden', 'false');
     toggle.setAttribute('aria-expanded', 'true');
+    if (overlay) {
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
     document.body.classList.add('nav-open');
-    if (closeBtn) closeBtn.focus();
+    document.body.style.overflow = 'hidden';
+
+    const focusTarget = closeBtn || getFocusableElements()[0];
+    if (focusTarget) focusTarget.focus();
   };
 
   const closePanel = () => {
+    if (!isOpen) return;
+    isOpen = false;
+
     panel.classList.remove('is-open');
     panel.setAttribute('aria-hidden', 'true');
     toggle.setAttribute('aria-expanded', 'false');
+    if (overlay) {
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
     document.body.classList.remove('nav-open');
+    document.body.style.overflow = 'auto';
+
+    const refocusTarget = lastFocusedEl || toggle;
+    if (refocusTarget) refocusTarget.focus();
   };
 
+  toggle.setAttribute('aria-expanded', 'false');
+  panel.setAttribute('aria-hidden', 'true');
+  if (overlay) overlay.setAttribute('aria-hidden', 'true');
+
   toggle.addEventListener('click', () => {
-    const isOpen = panel.classList.contains('is-open');
     if (isOpen) {
       closePanel();
     } else {
@@ -61,14 +110,37 @@ function initMobileNav() {
     closeBtn.addEventListener('click', closePanel);
   }
 
+  if (overlay) {
+    overlay.addEventListener('click', closePanel);
+  }
+
+  // Fermeture après clic sur un lien du panneau
   panel.querySelectorAll('a').forEach((link) => {
     link.addEventListener('click', closePanel);
   });
 
+  // Fermeture avec Escape + piège de focus basique (Tab reste dans le panneau)
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && panel.classList.contains('is-open')) {
+    if (!isOpen) return;
+
+    if (event.key === 'Escape') {
       closePanel();
-      toggle.focus();
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      const focusable = getFocusableElements();
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
   });
 }
@@ -95,44 +167,152 @@ function initRevealOnScroll() {
   items.forEach((el) => observer.observe(el));
 }
 
-/* --- Carousel des captures d'installation --- */
+/* ==========================================================================
+   Carrousel des captures d'écran de l'application
+   IDs / classes attendus dans le HTML :
+     #installCarousel     -> conteneur global
+     .install-slide       -> chaque capture (contient une <img>), une seule visible à la fois
+     #installNextBtn       -> le bouton violet, passe à la capture suivante
+     #installDots          -> conteneur des indicateurs (généré dynamiquement)
+   Chaque slide doit avoir sa propre image, ex :
+     <div class="install-slide is-active"><img src="assets/images/app-screenshot-1.png" alt="..."></div>
+     <div class="install-slide"><img src="assets/images/app-screenshot-2.png" alt="..."></div>
+     <div class="install-slide"><img src="assets/images/app-screenshot-3.png" alt="..."></div>
+   ========================================================================== */
 function initInstallCarousel() {
-  const track = document.getElementById('installTrack');
+  const carousel = document.getElementById('installCarousel');
+  const nextBtn = document.getElementById('installNextBtn');
   const dotsContainer = document.getElementById('installDots');
-  if (!track || !dotsContainer) return;
-  const slides = Array.from(track.children);
+  if (!carousel) return;
+
+  const slides = Array.from(carousel.querySelectorAll('.install-slide'));
   if (!slides.length) return;
-  slides.forEach((_, index) => {
-    const dot = document.createElement('button');
-    dot.type = 'button';
-    dot.setAttribute('role', 'tab');
-    dot.setAttribute('aria-label', `Aller à l'étape ${index + 1}`);
-    dot.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
-    dot.addEventListener('click', () => {
-      slides[index].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+
+  let currentIndex = slides.findIndex((slide) => slide.classList.contains('is-active'));
+  if (currentIndex < 0) currentIndex = 0;
+
+  // Génère les indicateurs si un conteneur est présent
+  let dots = [];
+  if (dotsContainer) {
+    dotsContainer.innerHTML = '';
+    slides.forEach((_, index) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'install-dot';
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', `Aller à la capture ${index + 1}`);
+      dot.addEventListener('click', () => goToSlide(index));
+      dotsContainer.appendChild(dot);
     });
-    dotsContainer.appendChild(dot);
-  });
-  const dots = Array.from(dotsContainer.children);
-  const updateActiveDot = () => {
-    const trackRect = track.getBoundingClientRect();
-    let closestIndex = 0;
-    let closestDistance = Infinity;
+    dots = Array.from(dotsContainer.children);
+  }
+
+  function render() {
     slides.forEach((slide, index) => {
-      const slideRect = slide.getBoundingClientRect();
-      const distance = Math.abs(slideRect.left - trackRect.left);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestIndex = index;
-      }
+      slide.classList.toggle('is-active', index === currentIndex);
+      slide.setAttribute('aria-hidden', String(index !== currentIndex));
     });
     dots.forEach((dot, index) => {
-      dot.setAttribute('aria-selected', String(index === closestIndex));
+      dot.setAttribute('aria-selected', String(index === currentIndex));
     });
-  };
-  let scrollTimeout;
-  track.addEventListener('scroll', () => {
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(updateActiveDot, 100);
-  }, { passive: true });
+  }
+
+  function goToSlide(index) {
+    currentIndex = ((index % slides.length) + slides.length) % slides.length;
+    render();
+  }
+
+  function goToNext() {
+    goToSlide(currentIndex + 1);
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener('click', goToNext);
+  }
+
+  render();
+}
+
+/* ==========================================================================
+   Carrousel "Pays accessibles"
+   IDs attendus dans le HTML :
+     #countriesTrack   -> conteneur scrollable horizontal (overflow-x: auto, scroll-snap-type: x)
+                           contenant les cartes pays (une par pays, ex: .country-card)
+     #countriesPrev    -> bouton précédent (‹)
+     #countriesNext    -> bouton suivant (›)
+   ========================================================================== */
+function initCountriesCarousel() {
+  const track = document.getElementById('countriesTrack');
+  const prevBtn = document.getElementById('countriesPrev');
+  const nextBtn = document.getElementById('countriesNext');
+  if (!track) return;
+
+  const cards = Array.from(track.children);
+  if (!cards.length) return;
+
+  const smoothBehavior = prefersReducedMotion() ? 'auto' : 'smooth';
+
+  function scrollByCard(direction) {
+    const card = cards[0];
+    const cardStyle = window.getComputedStyle(card);
+    const gap = parseInt(cardStyle.marginRight, 10) || 16;
+    const amount = card.getBoundingClientRect().width + gap;
+    track.scrollBy({ left: amount * direction, behavior: smoothBehavior });
+  }
+
+  function isAtStart() {
+    return track.scrollLeft <= 4;
+  }
+
+  function isAtEnd() {
+    return track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+  }
+
+  function goNext() {
+    if (isAtEnd()) {
+      track.scrollTo({ left: 0, behavior: smoothBehavior });
+    } else {
+      scrollByCard(1);
+    }
+  }
+
+  function goPrev() {
+    if (isAtStart()) {
+      track.scrollTo({ left: track.scrollWidth, behavior: smoothBehavior });
+    } else {
+      scrollByCard(-1);
+    }
+  }
+
+  if (nextBtn) nextBtn.addEventListener('click', goNext);
+  if (prevBtn) prevBtn.addEventListener('click', goPrev);
+
+  // Drag / glisser à la souris sur desktop (en plus du swipe tactile natif sur mobile)
+  let isDragging = false;
+  let startX = 0;
+  let startScrollLeft = 0;
+
+  track.addEventListener('mousedown', (event) => {
+    isDragging = true;
+    track.classList.add('is-dragging');
+    startX = event.pageX;
+    startScrollLeft = track.scrollLeft;
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    track.classList.remove('is-dragging');
+  });
+
+  track.addEventListener('mouseleave', () => {
+    isDragging = false;
+    track.classList.remove('is-dragging');
+  });
+
+  track.addEventListener('mousemove', (event) => {
+    if (!isDragging) return;
+    event.preventDefault();
+    const delta = event.pageX - startX;
+    track.scrollLeft = startScrollLeft - delta;
+  });
 }
