@@ -1,0 +1,366 @@
+/* ==========================================================================
+   Kontra-Africa — Shell de l'application (post-connexion)
+   Utilisé par dashboard.html et toutes les pages protégées à venir.
+   ========================================================================== */
+
+/* ---------------------------------- Écran de chargement ---------------------------------- */
+
+.app-loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+}
+
+.app-loading .spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.spinner {
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: app-spin 0.8s linear infinite;
+}
+
+@keyframes app-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.6s; }
+}
+
+/* ---------------------------------- Shell layout ---------------------------------- */
+
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+/* ---------------------------------- Sidebar (desktop) ---------------------------------- */
+
+.app-sidebar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 248px;
+    padding: var(--space-6) var(--space-5);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+
+  .app-main {
+    margin-left: 248px;
+  }
+}
+
+.app-sidebar__brand {
+  display: inline-block;
+  margin-bottom: var(--space-8);
+}
+
+.app-sidebar__logo {
+  height: 28px;
+  width: auto;
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.app-nav__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+
+.app-nav__link svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.app-nav__link:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.app-nav__link.is-active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.app-sidebar__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-sidebar__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.app-sidebar__user-info {
+  min-width: 0;
+}
+
+.app-sidebar__user-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-sidebar__logout {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.app-sidebar__logout:hover {
+  color: var(--color-error);
+}
+
+/* ---------------------------------- Topbar (mobile) ---------------------------------- */
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  padding-inline: var(--space-5);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.app-topbar__logo {
+  height: 26px;
+}
+
+.app-topbar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+@media (min-width: 900px) {
+  .app-topbar { display: none; }
+}
+
+/* ---------------------------------- Contenu principal ---------------------------------- */
+
+.app-main {
+  padding: var(--space-6) var(--space-5) calc(var(--bottom-nav-height) + var(--space-8));
+  max-width: 960px;
+}
+
+@media (min-width: 900px) {
+  .app-main {
+    padding: var(--space-8) var(--space-8);
+  }
+}
+
+.app-page-header {
+  margin-bottom: var(--space-7);
+}
+
+.app-page-header h1 {
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+}
+
+.app-page-header__subtitle {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.dashboard-placeholder {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* ---------------------------------- Bottom nav (mobile) ---------------------------------- */
+
+.app-bottomnav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  display: flex;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  z-index: 20;
+}
+
+.app-bottomnav__link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-faint);
+  min-height: 48px;
+}
+
+.app-bottomnav__link svg {
+  width: 22px;
+  height: 22px;
+}
+
+.app-bottomnav__link.is-active {
+  color: var(--color-primary);
+}
+
+@media (min-width: 900px) {
+  .app-bottomnav { display: none; }
+}
+
+/* ==========================================================================
+   Paywall
+   ========================================================================== */
+
+.paywall {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-bg);
+}
+
+.paywall__card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.paywall__logo {
+  height: 28px;
+  margin-bottom: var(--space-6);
+  margin-inline: auto;
+}
+
+.paywall__title {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.paywall__text {
+  color: var(--color-text-muted);
+  max-width: 36ch;
+  margin-inline: auto;
+}
+
+.paywall__price {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-top: var(--space-6);
+}
+
+.paywall__currency {
+  font-size: var(--fs-lg);
+  vertical-align: top;
+}
+
+.paywall__period {
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.paywall__zone {
+  margin-top: var(--space-6);
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paywall__cta {
+  width: 100%;
+}
+
+.paywall__logout {
+  margin-top: var(--space-5);
+  font-size: var(--fs-sm);
+  color: var(--color-text-faint);
+}
+
+.paywall-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.paywall-state p {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.paywall-state--error p {
+  color: var(--color-error);
+  font-weight: 500;
+}
+
+.paywall-state .spinner {
+  width: 26px;
+  height: 26px;
+}
