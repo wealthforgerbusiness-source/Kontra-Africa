@@ -1,61 +1,34 @@
 /**
- * Gestionnaire pour l'initiation des paiements et abonnements via Chariow.
+ * Contrôleur pour initier une session de paiement Chariow.
  */
+const { CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID } = require("./config");
 
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
-const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID } = require("./config");
-
-/**
- * Fonction callable déclenchée par le frontend pour initier une session de paiement Chariow.
- */
-exports.initiateCheckout = onCall({ secrets: ["CHARIOW_API_KEY"] }, async (request) => {
-  // 1. Vérification de l'authentification de l'utilisateur
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "L'utilisateur doit être connecté pour effectuer cette action."
-    );
-  }
-
-  const uid = request.auth.uid;
-
+exports.checkout = async (req, res) => {
   try {
-    // 2. Récupération des informations de l'utilisateur depuis Firestore
-    const userDoc = await db.collection("users").doc(uid).get();
-    const userData = userDoc.exists ? userDoc.data() : {};
+    const { firebaseUid, email, firstName, lastName } = req.body;
 
-    const email = request.auth.token.email || userData.email || "";
-    const displayName = userData.displayName || request.auth.token.name || "";
-    
-    // Extraction simplifiée du prénom et du nom
-    const nameParts = displayName.trim().split(" ");
-    const firstName = nameParts[0] || "Client";
-    const lastName = nameParts.slice(1).join(" ") || "Inconnu";
+    if (!firebaseUid) {
+      return res.status(400).json({ error: "Le firebaseUid est requis." });
+    }
 
-    const phone = request.data?.phone || userData.phone || "000000000";
-
-    // 3. Appel à l'API Chariow
     const payload = {
       product_id: CHARIOW_PRODUCT_ID,
-      email: email,
-      first_name: firstName,
-      last_name: lastName,
+      email: email || "",
+      first_name: firstName || "Client",
+      last_name: lastName || "Inconnu",
       phone: {
-        number: phone,
+        number: "000000000",
         country_code: "CD"
       },
       custom_metadata: {
-        firebase_uid: uid
+        firebase_uid: firebaseUid
       }
     };
-
-    const apiKey = CHARIOW_API_KEY || process.env.CHARIOW_API_KEY;
 
     const response = await fetch(`${CHARIOW_API_URL}/checkout`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${CHARIOW_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
@@ -63,40 +36,23 @@ exports.initiateCheckout = onCall({ secrets: ["CHARIOW_API_KEY"] }, async (reque
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error("Erreur renvoyée par l'API Chariow:", { status: response.status, body: errorText });
-      throw new HttpsError(
-        "internal",
-        `Erreur lors de la communication avec le service de paiement (Code ${response.status}).`
-      );
+      console.error("Erreur API Chariow:", response.status, errorText);
+      return res.status(502).json({ error: "Erreur de communication avec le service de paiement." });
     }
 
     const responseData = await response.json();
     const data = responseData.data || responseData;
 
-    // 4. Traitement du statut de la réponse Chariow
     if (data.step === "payment") {
-      return { checkoutUrl: data.payment.checkout_url };
+      return res.status(200).json({ checkoutUrl: data.payment.checkout_url });
     } else if (data.step === "already_purchased") {
-      return { alreadyPurchased: true };
+      return res.status(200).json({ alreadyPurchased: true });
     } else {
-      logger.warn("Étape de paiement Chariow non reconnue:", data);
-      return {
-        checkoutUrl: data.payment?.checkout_url || null,
-        step: data.step
-      };
+      console.warn("Étape inattendue:", data.step);
+      return res.status(200).json({ checkoutUrl: data.payment?.checkout_url || null, step: data.step });
     }
-
   } catch (error) {
-    logger.error("Erreur dans initiateCheckout pour l'utilisateur " + uid + ":", error);
-
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-
-    throw new HttpsError(
-      "internal",
-      "Une erreur est survenue lors de l'initialisation du paiement.",
-      error.message
-    );
+    console.error("Erreur dans checkout:", error);
+    return res.status(500).json({ error: "Erreur serveur interne." });
   }
-});
+};
