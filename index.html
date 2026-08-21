@@ -39,7 +39,8 @@
       <div class="site-header__actions">
         <a href="/login.html" class="btn btn-ghost header-login">Se connecter</a>
         <a href="/login.html" class="btn btn-primary header-cta">Essai gratuit</a>
-        <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
+        <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
+          <span class="nav-toggle__bar"></span>
           <span class="nav-toggle__bar"></span>
           <span class="nav-toggle__bar"></span>
         </button>
@@ -47,11 +48,13 @@
     </div>
   </header>
 
-  <!-- ==================== MENU MOBILE PLEIN ÉCRAN ==================== -->
-  <div class="mobile-nav-panel" id="mobileNavPanel" aria-hidden="true">
+  <!-- ==================== MENU MOBILE — PANNEAU LATÉRAL ==================== -->
+  <div class="mobile-nav-overlay" id="mobileNavOverlay" hidden></div>
+
+  <div class="mobile-nav-panel" id="mobileNavPanel" role="dialog" aria-modal="true" aria-label="Menu de navigation" aria-hidden="true">
     <div class="mobile-nav-panel__header">
       <img src="/logo.webp" alt="Kontra-Africa" class="mobile-nav-panel__logo">
-      <button class="mobile-nav-panel__close" id="mobileNavClose" aria-label="Fermer le menu">
+      <button class="mobile-nav-panel__close" id="mobileNavClose" type="button" aria-label="Fermer le menu">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
@@ -272,6 +275,40 @@
       </div>
     </section>
 
+    <!-- ============================= CAPTURES DE L'APPLICATION ============================= -->
+    <section class="section" id="captures-application">
+      <div class="container">
+        <div class="section__header reveal">
+          <p class="eyebrow">L'application</p>
+          <h2 class="section__title">Découvrez Kontra-Africa en images</h2>
+        </div>
+
+        <div class="app-showcase reveal">
+          <div class="app-showcase__viewport">
+            <div class="app-showcase__track" id="showcaseTrack">
+              <figure class="app-showcase__slide" data-index="0">
+                <img src="assets/images/app-screenshot-1.png" alt="Capture d'écran 1 de l'application Kontra Africa" loading="lazy">
+              </figure>
+              <figure class="app-showcase__slide" data-index="1">
+                <img src="assets/images/app-screenshot-2.png" alt="Capture d'écran 2 de l'application Kontra Africa" loading="lazy">
+              </figure>
+              <figure class="app-showcase__slide" data-index="2">
+                <img src="assets/images/app-screenshot-3.png" alt="Capture d'écran 3 de l'application Kontra Africa" loading="lazy">
+              </figure>
+            </div>
+
+            <button type="button" class="app-showcase__next" id="showcaseNext" aria-label="Voir la capture suivante">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="app-showcase__dots" id="showcaseDots" role="tablist" aria-label="Choisir une capture"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ============================= PAYS ACCESSIBLES ============================= -->
     <section class="section section--tinted" id="pays-accessibles">
       <div class="container">
@@ -283,57 +320,75 @@
           </p>
         </div>
 
-        <div class="countries-grid reveal">
-          <div class="country-card">
-            <img src="assets/flags/benin.png" alt="Drapeau du Bénin" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Bénin</p>
-            <span class="country-card__badge">Disponible</span>
+        <div class="countries-carousel reveal">
+          <button type="button" class="countries-carousel__arrow countries-carousel__arrow--prev" id="countriesPrev" aria-label="Pays précédent">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <div class="countries-carousel__viewport" id="countriesViewport">
+            <div class="countries-carousel__track" id="countriesTrack">
+
+              <div class="country-card">
+                <img src="assets/flags/benin.png" alt="Drapeau du Bénin" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Bénin</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/cote-ivoire.png" alt="Drapeau de la Côte d'Ivoire" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Côte d'Ivoire</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/cameroun.png" alt="Drapeau du Cameroun" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Cameroun</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/senegal.png" alt="Drapeau du Sénégal" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Sénégal</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/togo.png" alt="Drapeau du Togo" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Togo</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/burkina-faso.png" alt="Drapeau du Burkina Faso" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Burkina Faso</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/mali.png" alt="Drapeau du Mali" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Mali</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/gabon.png" alt="Drapeau du Gabon" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">Gabon</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/congo-brazzaville.png" alt="Drapeau de la République du Congo" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">République du Congo</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+              <div class="country-card">
+                <img src="assets/flags/rdc.png" alt="Drapeau de la République Démocratique du Congo" class="country-card__flag" loading="lazy">
+                <p class="country-card__name">RDC</p>
+                <span class="country-card__badge">Disponible</span>
+              </div>
+
+            </div>
           </div>
-          <div class="country-card">
-            <img src="assets/flags/cote-ivoire.png" alt="Drapeau de la Côte d'Ivoire" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Côte d'Ivoire</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/cameroun.png" alt="Drapeau du Cameroun" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Cameroun</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/senegal.png" alt="Drapeau du Sénégal" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Sénégal</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/togo.png" alt="Drapeau du Togo" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Togo</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/burkina-faso.png" alt="Drapeau du Burkina Faso" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Burkina Faso</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/mali.png" alt="Drapeau du Mali" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Mali</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/gabon.png" alt="Drapeau du Gabon" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">Gabon</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/congo-brazzaville.png" alt="Drapeau de la République du Congo" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">République du Congo</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
-          <div class="country-card">
-            <img src="assets/flags/rdc.png" alt="Drapeau de la République Démocratique du Congo" class="country-card__flag" loading="lazy">
-            <p class="country-card__name">RDC</p>
-            <span class="country-card__badge">Disponible</span>
-          </div>
+
+          <button type="button" class="countries-carousel__arrow countries-carousel__arrow--next" id="countriesNext" aria-label="Pays suivant">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
     </section>
