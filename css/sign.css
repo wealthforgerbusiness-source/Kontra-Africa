@@ -1,0 +1,176 @@
+body {
+  background: var(--color-bg, #FFF8F0);
+  margin: 0;
+  font-family: inherit;
+}
+
+.sign-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.sign-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.sign-logo {
+  height: 36px;
+  width: auto;
+}
+
+.state-card {
+  background: #fff;
+  border-radius: var(--radius-lg, 14px);
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--color-text, #2A2140);
+}
+
+.contract-view {
+  background: #fff;
+  border-radius: var(--radius-lg, 14px);
+  padding: 24px 20px;
+}
+
+.contract-view-title {
+  font-size: 1.375rem;
+  margin: 0 0 4px;
+  color: var(--color-text, #2A2140);
+}
+
+.contract-view-meta {
+  color: var(--color-text-muted, #6B6480);
+  font-size: 0.875rem;
+  margin: 0 0 20px;
+}
+
+.contract-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--color-text, #2A2140);
+  border: 1px solid #EFEBFA;
+  border-radius: var(--radius-md, 10px);
+  padding: 16px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 24px;
+}
+
+.sign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-top: 1px solid #EFEBFA;
+  padding-top: 20px;
+}
+
+.terms-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9375rem;
+  color: var(--color-text, #2A2140);
+  cursor: pointer;
+}
+
+.terms-checkbox input {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  margin-top: 1px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text, #2A2140);
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6B6480);
+  margin: 0;
+}
+
+.signature-pad-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 180px;
+  border: 1px dashed #C9BEED;
+  border-radius: var(--radius-md, 10px);
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.form-field input[type="text"] {
+  border: 1px solid #DED7F5;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+.form-error {
+  background: #FBE7E7;
+  color: #B23434;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md, 10px);
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--color-primary, #5B3FE0);
+  color: #fff;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-text {
+  background: transparent;
+  color: var(--color-text-muted, #6B6480);
+  text-decoration: underline;
+  padding: 0 8px;
+  min-height: auto;
+}
