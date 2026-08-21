@@ -2,6 +2,18 @@
    Kontra-Africa — Landing page
    ========================================================================== */
 
+:root {
+  color-scheme: light;
+}
+
+html {
+  background: #fafafb;
+}
+
+body {
+  background: #fafafb;
+}
+
 .skip-link {
   position: absolute;
   top: -48px;
@@ -472,7 +484,7 @@ body.nav-open {
   }
 }
 
-/* ---------------------------------- Installation ---------------------------------- */
+/* ---------------------------------- Installation : carrousel auto-défilant ---------------------------------- */
 
 .install-guide {
   margin-top: var(--space-10);
@@ -486,9 +498,14 @@ body.nav-open {
 
 .install-carousel {
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.install-carousel:active {
+  cursor: grabbing;
 }
 
 .install-carousel::-webkit-scrollbar {
@@ -499,11 +516,11 @@ body.nav-open {
   display: flex;
   gap: var(--space-4);
   padding-bottom: var(--space-2);
+  width: max-content;
 }
 
 .install-slide {
   flex: 0 0 78%;
-  scroll-snap-align: start;
   margin: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -517,6 +534,7 @@ body.nav-open {
   aspect-ratio: 9 / 16;
   object-fit: cover;
   background: var(--color-surface-alt);
+  pointer-events: none;
 }
 
 .install-slide figcaption {
@@ -529,29 +547,6 @@ body.nav-open {
   font-family: var(--font-mono);
   color: var(--color-primary);
   margin-right: var(--space-2);
-}
-
-.install-carousel__dots {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-  justify-content: center;
-}
-
-.install-carousel__dots button {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: none;
-  background: var(--color-border-strong);
-  padding: 0;
-  transition: background var(--duration-fast) var(--ease-standard), width var(--duration-fast) var(--ease-standard);
-}
-
-.install-carousel__dots button[aria-selected="true"] {
-  background: var(--color-primary);
-  width: 22px;
-  border-radius: var(--radius-full);
 }
 
 @media (min-width: 700px) {
@@ -629,108 +624,7 @@ body.nav-open {
   }
 }
 
-/* ---------------------------------- Captures de l'application ---------------------------------- */
-
-.app-showcase {
-  max-width: 720px;
-  margin-inline: auto;
-}
-
-.app-showcase__viewport {
-  position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-}
-
-.app-showcase__track {
-  display: flex;
-  transition: transform var(--duration-slow) var(--ease-standard);
-}
-
-.app-showcase__slide {
-  flex: 0 0 100%;
-  margin: 0;
-  min-height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.app-showcase__slide img {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.app-showcase__next {
-  position: absolute;
-  right: var(--space-5);
-  bottom: var(--space-5);
-  width: 52px;
-  height: 52px;
-  min-width: 44px;
-  min-height: 44px;
-  border: none;
-  border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: var(--shadow-md);
-  transition: transform var(--duration-fast) var(--ease-standard),
-              background var(--duration-fast) var(--ease-standard);
-}
-
-.app-showcase__next:hover {
-  transform: translateX(3px);
-  background: var(--color-accent-dark);
-}
-
-.app-showcase__next:active {
-  transform: translateX(1px) scale(0.96);
-}
-
-.app-showcase__dots {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-  justify-content: center;
-}
-
-.app-showcase__dots button {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: none;
-  background: var(--color-border-strong);
-  padding: 0;
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-standard), width var(--duration-fast) var(--ease-standard);
-}
-
-.app-showcase__dots button[aria-selected="true"] {
-  background: var(--color-primary);
-  width: 22px;
-  border-radius: var(--radius-full);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-showcase__track {
-    transition: none;
-  }
-}
-
-@media (min-width: 900px) {
-  .app-showcase__slide {
-    min-height: 460px;
-  }
-}
-
-/* ---------------------------------- Pays accessibles : carrousel ---------------------------------- */
+/* ---------------------------------- Pays accessibles : carrousel auto-défilant ---------------------------------- */
 
 .countries-carousel {
   display: flex;
@@ -741,10 +635,10 @@ body.nav-open {
 .countries-carousel__viewport {
   flex: 1;
   overflow-x: auto;
-  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   cursor: grab;
+  user-select: none;
 }
 
 .countries-carousel__viewport:active {
@@ -759,6 +653,7 @@ body.nav-open {
   display: flex;
   gap: var(--space-4);
   padding-block: var(--space-1);
+  width: max-content;
 }
 
 .countries-carousel__arrow {
@@ -789,7 +684,6 @@ body.nav-open {
 
 .country-card {
   flex: 0 0 132px;
-  scroll-snap-align: start;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -895,7 +789,6 @@ body.nav-open {
 @media (prefers-reduced-motion: reduce) {
   .social-links__item,
   .country-card,
-  .app-showcase__next,
   .countries-carousel__arrow {
     transition: none;
   }
