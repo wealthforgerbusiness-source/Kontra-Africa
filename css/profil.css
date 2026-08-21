@@ -1,0 +1,176 @@
+.page-header { margin-bottom: 20px; }
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text, #2A2140);
+  margin: 0;
+}
+
+.page-subtitle {
+  color: var(--color-text-muted, #6B6480);
+  margin: 4px 0 0;
+  font-size: 0.9375rem;
+}
+
+/* Carte identité */
+.profile-card {
+  background: #fff;
+  border: 1px solid #EFEBFA;
+  border-radius: var(--radius-lg, 14px);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.profile-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #EFEBFA;
+  flex-shrink: 0;
+}
+
+.profile-identity {
+  min-width: 0;
+}
+
+.profile-name {
+  font-weight: 700;
+  font-size: 1.0625rem;
+  color: var(--color-text, #2A2140);
+  margin: 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-email {
+  color: var(--color-text-muted, #6B6480);
+  font-size: 0.875rem;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Panneaux */
+.panel {
+  background: #fff;
+  border: 1px solid #EFEBFA;
+  border-radius: var(--radius-lg, 14px);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.panel-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text, #2A2140);
+  margin: 0 0 14px;
+}
+
+/* Statut abonnement */
+.subscription-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.subscription-message {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--color-text, #2A2140);
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 10px);
+  width: 100%;
+}
+
+.subscription-message.status-trial {
+  background: #FFF0DE;
+  color: #B96A11;
+}
+
+.subscription-message.status-active {
+  background: #E4F7EA;
+  color: #1E7A3D;
+}
+
+.subscription-message.status-expired {
+  background: #FBE7E7;
+  color: #B23434;
+}
+
+.form-error {
+  background: #FBE7E7;
+  color: #B23434;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  margin: 0;
+  width: 100%;
+}
+
+/* Réglages */
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-primary, #5B3FE0);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.settings-link:hover,
+.settings-link:focus-visible {
+  text-decoration: underline;
+}
+
+.settings-link:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 2px;
+}
+
+/* Boutons */
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md, 10px);
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary, #5B3FE0);
+  color: #fff;
+}
+
+.btn-logout {
+  background: #FBE7E7;
+  color: #B23434;
+}
+
+.btn-block {
+  width: 100%;
+}
