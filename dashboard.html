@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tableau de bord — Kontra-Africa</title>
+  <meta name="theme-color" content="#5B3FE0">
+
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+  <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
+  <div class="app-loading" id="appLoading">
+    <span class="spinner" aria-hidden="true"></span>
+  </div>
+
+  <div class="app-shell" id="appShell" hidden>
+
+    <!-- ============================= SIDEBAR (desktop) ============================= -->
+    <aside class="app-sidebar">
+      <a href="/" class="app-sidebar__brand">
+        <img src="/logo.webp" alt="Kontra-Africa" class="app-sidebar__logo">
+      </a>
+
+      <nav class="app-nav" aria-label="Navigation de l'application">
+        <a href="/dashboard.html" class="app-nav__link is-active" data-page="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          <span>Tableau de bord</span>
+        </a>
+        <a href="/contrats.html" class="app-nav__link" data-page="contrats">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+          <span>Contrats</span>
+        </a>
+        <a href="/finances.html" class="app-nav__link" data-page="finances">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+          <span>Finances</span>
+        </a>
+        <a href="/profil.html" class="app-nav__link" data-page="profil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+          <span>Profil</span>
+        </a>
+      </nav>
+
+      <div class="app-sidebar__user" id="sidebarUser">
+        <img src="" alt="" class="app-sidebar__avatar" id="sidebarAvatar" hidden>
+        <div class="app-sidebar__user-info">
+          <p class="app-sidebar__user-name" id="sidebarUserName">—</p>
+          <button type="button" class="app-sidebar__logout" id="sidebarLogout">Se déconnecter</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================= TOPBAR (mobile) ============================= -->
+    <header class="app-topbar">
+      <img src="/logo.webp" alt="Kontra-Africa" class="app-topbar__logo">
+      <img src="" alt="" class="app-topbar__avatar" id="topbarAvatar" hidden>
+    </header>
+
+    <!-- ============================= CONTENU ============================= -->
+    <main class="app-main" id="appMain">
+      <div class="app-page-header">
+        <h1 id="dashboardGreeting">Bonjour</h1>
+        <p class="app-page-header__subtitle">Voici un aperçu de votre activité.</p>
+      </div>
+
+      <div class="dashboard-placeholder">
+        <p>Le tableau de bord complet (solde, objectif d'épargne, contrats en attente) arrive dans la prochaine étape.</p>
+      </div>
+    </main>
+
+    <!-- ============================= BOTTOM NAV (mobile) ============================= -->
+    <nav class="app-bottomnav" aria-label="Navigation de l'application">
+      <a href="/dashboard.html" class="app-bottomnav__link is-active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span>Accueil</span>
+      </a>
+      <a href="/contrats.html" class="app-bottomnav__link" data-page="contrats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+        <span>Contrats</span>
+      </a>
+      <a href="/finances.html" class="app-bottomnav__link" data-page="finances">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <span>Finances</span>
+      </a>
+      <a href="/profil.html" class="app-bottomnav__link" data-page="profil">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+        <span>Profil</span>
+      </a>
+    </nav>
+
+  </div>
+
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>
