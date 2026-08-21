@@ -39,13 +39,37 @@
       <div class="site-header__actions">
         <a href="/login.html" class="btn btn-ghost header-login">Se connecter</a>
         <a href="/login.html" class="btn btn-primary header-cta">Essai gratuit</a>
-        <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Ouvrir le menu">
+        <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
           <span class="nav-toggle__bar"></span>
           <span class="nav-toggle__bar"></span>
         </button>
       </div>
     </div>
   </header>
+
+  <!-- ==================== MENU MOBILE PLEIN ÉCRAN ==================== -->
+  <div class="mobile-nav-panel" id="mobileNavPanel" aria-hidden="true">
+    <div class="mobile-nav-panel__header">
+      <img src="/logo.webp" alt="Kontra-Africa" class="mobile-nav-panel__logo">
+      <button class="mobile-nav-panel__close" id="mobileNavClose" aria-label="Fermer le menu">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="mobile-nav-panel__links" aria-label="Navigation mobile">
+      <a href="#comment-ca-marche">Comment ça marche</a>
+      <a href="#finances">Suivi financier</a>
+      <a href="#securite">Sécurité</a>
+      <a href="#tarif">Tarif</a>
+    </nav>
+
+    <div class="mobile-nav-panel__actions">
+      <a href="/login.html" class="btn btn-ghost btn-lg">Se connecter</a>
+      <a href="/login.html" class="btn btn-primary btn-lg">Essai gratuit</a>
+    </div>
+  </div>
 
   <main id="main">
 
@@ -243,6 +267,98 @@
             <p class="pricing-card__amount"><span class="pricing-card__currency">$</span>5<span class="pricing-card__period">/mois</span></p>
             <p class="pricing-card__trial">3 jours d'essai gratuit</p>
             <a href="/login.html" class="btn btn-primary btn-lg pricing-card__cta">Commencer l'essai gratuit</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= PAYS ACCESSIBLES ============================= -->
+    <section class="section section--tinted" id="pays-accessibles">
+      <div class="container">
+        <div class="section__header reveal">
+          <p class="eyebrow">Disponibilité</p>
+          <h2 class="section__title">Disponible dans plusieurs pays d'Afrique francophone</h2>
+          <p class="feature-split__text">
+            Accédez à Kontra Africa depuis votre pays et utilisez les solutions de paiement adaptées à votre marché.
+          </p>
+        </div>
+
+        <div class="countries-grid reveal">
+          <div class="country-card">
+            <img src="assets/flags/benin.png" alt="Drapeau du Bénin" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Bénin</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/cote-ivoire.png" alt="Drapeau de la Côte d'Ivoire" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Côte d'Ivoire</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/cameroun.png" alt="Drapeau du Cameroun" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Cameroun</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/senegal.png" alt="Drapeau du Sénégal" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Sénégal</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/togo.png" alt="Drapeau du Togo" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Togo</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/burkina-faso.png" alt="Drapeau du Burkina Faso" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Burkina Faso</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/mali.png" alt="Drapeau du Mali" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Mali</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/gabon.png" alt="Drapeau du Gabon" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">Gabon</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/congo-brazzaville.png" alt="Drapeau de la République du Congo" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">République du Congo</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+          <div class="country-card">
+            <img src="assets/flags/rdc.png" alt="Drapeau de la République Démocratique du Congo" class="country-card__flag" loading="lazy">
+            <p class="country-card__name">RDC</p>
+            <span class="country-card__badge">Disponible</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= CONTACT ============================= -->
+    <section class="section" id="contact">
+      <div class="container">
+        <div class="section__header section__header--center reveal">
+          <p class="eyebrow">Contact</p>
+          <h2 class="section__title">Restons en contact</h2>
+        </div>
+
+        <div class="contact-block reveal">
+          <a href="mailto:contact@kontra-africa.com" class="contact-block__email">contact@kontra-africa.com</a>
+
+          <div class="social-links">
+            <a href="#" class="social-links__item" aria-label="Suivez-nous sur Facebook">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-8.2h2.75l.41-3.2H13.5V7.4c0-.93.26-1.56 1.6-1.56h1.7V2.98A22.7 22.7 0 0 0 14.4 2.9c-2.55 0-4.3 1.55-4.3 4.4v2.3H7.35v3.2h2.75V21h3.4Z"/></svg>
+            </a>
+            <a href="#" class="social-links__item" aria-label="Contactez-nous sur WhatsApp">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.02 2C6.5 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.07-1.33A9.96 9.96 0 0 0 12.02 22C17.53 22 22 17.52 22 12S17.53 2 12.02 2Zm0 18.1c-1.63 0-3.14-.48-4.4-1.3l-.32-.19-3.01.79.8-2.93-.2-.3A8.08 8.08 0 0 1 3.9 12c0-4.48 3.65-8.11 8.12-8.11 4.48 0 8.11 3.63 8.11 8.11 0 4.48-3.63 8.1-8.11 8.1Zm4.45-6.07c-.24-.12-1.44-.71-1.67-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28Z"/></svg>
+            </a>
+            <a href="#" class="social-links__item" aria-label="Suivez-nous sur TikTok">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 2h-3.1v13.3a2.7 2.7 0 1 1-2.1-2.63v-3.15A5.85 5.85 0 1 0 16.6 15V8.9a7.1 7.1 0 0 0 4.1 1.3V7.1a4.05 4.05 0 0 1-4.1-5.1Z"/></svg>
+            </a>
           </div>
         </div>
       </div>
