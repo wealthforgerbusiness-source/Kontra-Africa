@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signer le contrat — Kontra-Africa</title>
+  <link rel="icon" href="/public/icons/icon-192.png" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/sign.css" />
+</head>
+<body>
+  <main class="sign-page">
+    <header class="sign-header">
+      <img src="/public/logo.webp" alt="Kontra-Africa" class="sign-logo" />
+    </header>
+
+    <div id="state-loading" class="state-card">
+      <p>Chargement du contrat…</p>
+    </div>
+
+    <div id="state-error" class="state-card" hidden>
+      <p id="error-message">Ce lien de signature est invalide ou a expiré.</p>
+    </div>
+
+    <div id="state-already-signed" class="state-card" hidden>
+      <p>Ce contrat a déjà été signé le <span id="already-signed-date"></span>.</p>
+      <a id="link-download-pdf" class="btn btn-primary" hidden target="_blank" rel="noopener">
+        Télécharger le PDF
+      </a>
+    </div>
+
+    <article id="contract-view" class="contract-view" hidden>
+      <h1 id="contract-title" class="contract-view-title"></h1>
+      <p class="contract-view-meta">
+        Proposé par <span id="contract-creator-name"></span>
+      </p>
+
+      <div id="contract-content" class="contract-content"></div>
+
+      <div class="sign-form">
+        <label class="terms-checkbox">
+          <input type="checkbox" id="checkbox-terms" />
+          <span>J'ai lu et j'accepte les termes de ce contrat</span>
+        </label>
+
+        <div class="form-field">
+          <label>Votre signature</label>
+          <p class="field-hint">Dessinez votre signature avec le doigt ou la souris</p>
+          <div class="signature-pad-wrap">
+            <canvas id="signature-canvas" class="signature-canvas" width="600" height="180"></canvas>
+            <button type="button" id="btn-clear-signature" class="btn btn-text">Effacer</button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="input-typed-name">Ou tapez votre nom en signature</label>
+          <input type="text" id="input-typed-name" maxlength="80" />
+        </div>
+
+        <p id="sign-error" class="form-error" role="alert" hidden></p>
+
+        <button type="button" id="btn-sign" class="btn btn-primary btn-block">
+          Signer le contrat
+        </button>
+      </div>
+    </article>
+
+    <div id="state-success" class="state-card" hidden>
+      <p>Contrat signé avec succès.</p>
+      <a id="link-download-pdf-success" class="btn btn-primary" target="_blank" rel="noopener">
+        Télécharger votre PDF
+      </a>
+    </div>
+  </main>
+
+  <script type="module" src="/js/sign.js"></script>
+</body>
+</html>
