@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profil — Kontra-Africa</title>
+  <link rel="icon" href="/public/icons/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/profil.css" />
+</head>
+<body>
+  <div id="app-shell" class="app-shell">
+    <nav id="app-sidebar" class="app-sidebar" aria-label="Navigation principale"></nav>
+
+    <main class="app-main" id="main-content">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Profil</h1>
+          <p class="page-subtitle">Vos informations et votre abonnement</p>
+        </div>
+      </header>
+
+      <!-- Carte identité -->
+      <section class="profile-card">
+        <img id="profile-photo" class="profile-photo" src="/public/icons/icon-192.png" alt="" />
+        <div class="profile-identity">
+          <p id="profile-name" class="profile-name">—</p>
+          <p id="profile-email" class="profile-email">—</p>
+        </div>
+      </section>
+
+      <!-- Statut abonnement -->
+      <section class="panel">
+        <h2 class="panel-title">Abonnement</h2>
+        <div id="subscription-status" class="subscription-status">
+          <p id="subscription-message" class="subscription-message">Chargement…</p>
+          <button type="button" id="btn-resubscribe" class="btn btn-primary" hidden>
+            Se réabonner
+          </button>
+          <p id="subscription-error" class="form-error" role="alert" hidden></p>
+        </div>
+      </section>
+
+      <!-- Réglages -->
+      <section class="panel">
+        <h2 class="panel-title">Réglages</h2>
+        <a href="/finances.html" class="settings-link">
+          Modifier la devise et le taux de change
+        </a>
+      </section>
+
+      <!-- Déconnexion -->
+      <section class="panel">
+        <button type="button" id="btn-logout" class="btn btn-logout btn-block">
+          Se déconnecter
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/js/firebase-config.js"></script>
+  <script type="module" src="/js/auth-guard.js"></script>
+  <script type="module" src="/js/profil.js"></script>
+</body>
+</html>
