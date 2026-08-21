@@ -1,0 +1,358 @@
+/*
+  Styles du module Contrats.
+  Suppose que css/tokens.css définit déjà des variables de couleur/typo.
+  Si tes noms de variables diffèrent, remplace les fallbacks ci-dessous
+  (ex: var(--color-primary, #5B3FE0)) par tes vrais tokens.
+*/
+
+.offline-banner {
+  background: #fff3e0;
+  color: #8a5a1f;
+  border: 1px solid #ffcf99;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 16px;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text, #2A2140);
+  margin: 0;
+}
+
+.page-subtitle {
+  color: var(--color-text-muted, #6B6480);
+  margin: 4px 0 0;
+  font-size: 0.9375rem;
+}
+
+/* Filtres de statut */
+.status-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 20px;
+}
+
+.status-filter {
+  flex: 0 0 auto;
+  border: 1px solid #E4DFF5;
+  background: #fff;
+  color: var(--color-text-muted, #6B6480);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  min-height: 44px;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.status-filter.is-active {
+  background: var(--color-primary, #5B3FE0);
+  border-color: var(--color-primary, #5B3FE0);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-filter { transition: none; }
+}
+
+/* Liste */
+.contracts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contract-card {
+  background: #fff;
+  border: 1px solid #EFEBFA;
+  border-radius: var(--radius-lg, 14px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contract-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.contract-title {
+  font-weight: 600;
+  color: var(--color-text, #2A2140);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.contract-signer {
+  color: var(--color-text-muted, #6B6480);
+  font-size: 0.875rem;
+  margin: 2px 0 0;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge.status-draft { background: #EEECF7; color: #5A5470; }
+.status-badge.status-pending { background: #FFF0DE; color: #B96A11; }
+.status-badge.status-signed { background: #E4F7EA; color: #1E7A3D; }
+.status-badge.status-rejected { background: #FBE7E7; color: #B23434; }
+
+.contract-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6B6480);
+}
+
+.contract-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.state-message {
+  text-align: center;
+  color: var(--color-text-muted, #6B6480);
+  padding: 40px 16px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Boutons */
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md, 10px);
+  border: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: filter 0.15s ease, background-color 0.15s ease;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--color-primary, #5B3FE0);
+  color: #fff;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn-secondary {
+  background: #F0EDFB;
+  color: var(--color-primary, #5B3FE0);
+}
+
+.btn-text {
+  background: transparent;
+  color: var(--color-text-muted, #6B6480);
+  padding: 0 8px;
+  min-height: auto;
+  text-decoration: underline;
+}
+
+.btn-whatsapp {
+  background: #25D366;
+  color: #fff;
+  width: 100%;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}
+
+/* Modale */
+.modal {
+  border: none;
+  border-radius: var(--radius-lg, 16px);
+  padding: 0;
+  width: min(560px, 92vw);
+  max-height: 90vh;
+  background: var(--color-bg, #FFF8F0);
+}
+
+.modal::backdrop {
+  background: rgba(42, 33, 64, 0.45);
+}
+
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 20px 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted, #6B6480);
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid #EFEBFA;
+}
+
+/* Formulaire */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text, #2A2140);
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6B6480);
+  margin: 0;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+.form-field input,
+.form-field textarea {
+  border: 1px solid #DED7F5;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  min-height: 44px;
+  background: #fff;
+  color: var(--color-text, #2A2140);
+}
+
+.form-field textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.form-field input:focus-visible,
+.form-field textarea:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 1px;
+}
+
+.form-error {
+  background: #FBE7E7;
+  color: #B23434;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.signature-pad-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 180px;
+  border: 1px dashed #C9BEED;
+  border-radius: var(--radius-md, 10px);
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.copy-row {
+  display: flex;
+  gap: 8px;
+}
+
+.copy-row input {
+  flex: 1;
+  border: 1px solid #DED7F5;
+  border-radius: var(--radius-md, 10px);
+  padding: 10px 12px;
+  min-height: 44px;
+  font-size: 0.875rem;
+}
