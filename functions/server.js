@@ -9,6 +9,7 @@ const cors = require("cors");
 const { initUser } = require("./src/auth");
 const { checkout } = require("./src/checkout");
 const { chariowWebhook } = require("./src/webhook");
+const contractsRouter = require("./src/contracts");
 
 const app = express();
 
@@ -25,8 +26,9 @@ app.use(bodyParser.json());
 app.post("/api/init-user", initUser);
 app.post("/api/checkout", checkout);
 app.post("/api/chariow-webhook", chariowWebhook);
+app.use("/api/contracts", contractsRouter);
 
 // Démarrage du serveur
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur démarré et en écoute sur le port ${PORT}`);
+  console.log(`Serveur démarré et en écoute sur le port ${PORT}`);
 });
