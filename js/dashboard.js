@@ -17,9 +17,9 @@
      - createdAt : Timestamp
 
    users/{uid}/transactions/{transactionId}
-     - amount : number
-     - type   : 'in' | 'out'
-     - date   : Timestamp
+     - amount    : number
+     - type      : 'credit' | 'debit'
+     - createdAt : Timestamp
    ========================================================================== */
 
 import { requireAppAccess, logout } from '/js/auth-guard.js';
@@ -147,10 +147,11 @@ async function loadBalanceChart(uid, userData) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - CHART_DAYS);
 
+    // FIX : le champ écrit par finances.js s'appelle "createdAt", pas "date".
     const transactionsQuery = query(
       collection(db, 'users', uid, 'transactions'),
-      where('date', '>=', cutoff),
-      orderBy('date', 'asc')
+      where('createdAt', '>=', cutoff),
+      orderBy('createdAt', 'asc')
     );
 
     const snap = await getDocs(transactionsQuery);
@@ -177,11 +178,13 @@ function buildDailySeries(transactionsSnap, userData, cutoff) {
 
   transactionsSnap.forEach((docSnap) => {
     const data = docSnap.data();
-    const date = toDate(data.date);
+    // FIX : le champ écrit par finances.js s'appelle "createdAt", pas "date".
+    const date = toDate(data.createdAt);
     if (!date) return;
 
     const key = date.toISOString().slice(0, 10);
-    const signedAmount = data.type === 'out' ? -Math.abs(data.amount || 0) : Math.abs(data.amount || 0);
+    // FIX : finances.js écrit type: 'credit' | 'debit', pas 'in' | 'out'.
+    const signedAmount = data.type === 'debit' ? -Math.abs(data.amount || 0) : Math.abs(data.amount || 0);
     dailyNet.set(key, (dailyNet.get(key) || 0) + signedAmount);
   });
 
