@@ -345,6 +345,133 @@
   margin-inline: auto;
 }
 
+/* ---------------------------------- Dashboard : grille de cartes ---------------------------------- */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.dashboard-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.dashboard-card__label {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.dashboard-card__value {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.dashboard-card__amounts {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.dashboard-card__hint {
+  margin-top: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+/* ---------------------------------- Dashboard : barre de progression épargne ---------------------------------- */
+
+.savings-progress {
+  margin-top: var(--space-4);
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.savings-progress__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+
+/* ---------------------------------- Dashboard : stats contrats ---------------------------------- */
+
+.dashboard-card__stats {
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-6);
+}
+
+.dashboard-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dashboard-stat__value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.dashboard-stat__label {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------- Dashboard : carte graphique ---------------------------------- */
+
+.dashboard-card--chart {
+  padding: var(--space-6);
+}
+
+.dashboard-chart-wrapper {
+  position: relative;
+  height: 220px;
+  margin-top: var(--space-4);
+}
+
+.dashboard-chart-empty {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  max-width: 42ch;
+  margin-inline: auto;
+}
+
+/* ---------------------------------- Dashboard : responsive ---------------------------------- */
+
+@media (min-width: 640px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dashboard-card--chart {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .dashboard-card--chart {
+    grid-column: span 3;
+  }
+}
+
 /* ---------------------------------- Bottom nav (mobile) ---------------------------------- */
 
 .app-bottomnav {
