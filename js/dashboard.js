@@ -11,7 +11,8 @@
      - savingsGoalAmount    : number   (objectif d'épargne, optionnel)
      - savingsCurrentAmount : number   (épargne actuelle, optionnel)
 
-   users/{uid}/contracts/{contractId}
+   contracts/{contractId}
+     - creatorId : string    (uid du créateur — filtré via where('creatorId', '==', uid))
      - status    : 'draft' | 'pending' | 'signed' | 'rejected'
      - createdAt : Timestamp
 
@@ -113,7 +114,11 @@ async function loadContractsSummary(uid) {
   const signedEl = document.getElementById('signedContractsValue');
 
   try {
-    const snap = await getDocs(collection(db, 'users', uid, 'contracts'));
+    const contractsQuery = query(
+      collection(db, 'contracts'),
+      where('creatorId', '==', uid)
+    );
+    const snap = await getDocs(contractsQuery);
 
     let pending = 0;
     let signed = 0;
