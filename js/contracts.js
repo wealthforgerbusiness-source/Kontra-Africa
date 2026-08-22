@@ -322,8 +322,9 @@ function showFormError(message) {
 }
 
 function generateShareToken() {
-  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, '');
-  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const array = new Uint8Array(24);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function normalizePhone(phone) {
