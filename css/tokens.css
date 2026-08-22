@@ -3,18 +3,10 @@
    Source de vérité pour couleurs, typographie, espacements, ombres.
    Importé par toutes les pages (landing + app).
    ========================================================================== */
+
 :root {
   color-scheme: light only;
 
-  /* --- Couleurs de marque --- */
-  --color-primary: #5B3FE0;
-  --color-primary-dark: #4A32BD;
-  --color-primary-light: #EFEBFC;
-  --color-accent: #FF8A3D;
-  --color-accent-dark: #E3712A;
-
-  /* ... reste des tokens inchangé ... */
-:root {
   /* --- Couleurs de marque --- */
   --color-primary: #5B3FE0;
   --color-primary-dark: #4A32BD;
@@ -166,6 +158,11 @@ ul {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* --- Empêche le dark-mode forcé sur les champs de formulaire (Android) --- */
+input, select, textarea {
+  color-scheme: light only;
 }
 
 .container {
