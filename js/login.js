@@ -11,6 +11,7 @@ import {
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 const REDIRECT_KEY = 'kontra_auth_pending'; // marque qu'une connexion par redirection est en cours
+const INIT_USER_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
 
 const googleBtn = document.getElementById('googleBtn');
 const loadingState = document.getElementById('loadingState');
@@ -59,7 +60,9 @@ function translateAuthError(error) {
   }
 }
 
-/* --- Appel backend : crée/initialise le profil utilisateur --- */
+/* --- Appel backend : crée/initialise le profil utilisateur ---
+   Timeout étendu à 60s pour laisser le temps au cold start Render (plan gratuit).
+   Le message affiché change pour prévenir l'utilisateur que ça peut prendre du temps. */
 async function initUserOnBackend(firebaseUser) {
   const payload = {
     uid: firebaseUser.uid,
@@ -68,23 +71,37 @@ async function initUserOnBackend(firebaseUser) {
     photoURL: firebaseUser.photoURL
   };
 
-  const response = await fetch(`${API_BASE_URL}/api/init-user`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  // Affiche le message "cold start" dès le départ, avant même de savoir si ça va traîner
+  showLoading('Préparation de votre espace… (cela peut prendre jusqu\'à 1 minute la première fois)');
 
-  if (!response.ok) {
-    throw new Error(`init-user a répondu avec le statut ${response.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), INIT_USER_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/init-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`init-user a répondu avec le statut ${response.status}`);
+    }
+
+    return await response.json().catch(() => ({}));
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('TIMEOUT_INIT_USER');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json().catch(() => ({}));
 }
 
 /* --- Flux complet après authentification Firebase réussie --- */
 async function completeSignIn(firebaseUser) {
-  showLoading('Préparation de votre espace…');
-
   try {
     await initUserOnBackend(firebaseUser);
     sessionStorage.removeItem(REDIRECT_KEY);
@@ -92,7 +109,12 @@ async function completeSignIn(firebaseUser) {
   } catch (err) {
     console.error('Erreur init-user :', err);
     sessionStorage.removeItem(REDIRECT_KEY);
-    showError("Votre connexion Google a réussi, mais nous n'avons pas pu préparer votre espace. Réessayez.");
+
+    if (err.message === 'TIMEOUT_INIT_USER') {
+      showError("La préparation de votre espace prend plus de temps que prévu (le serveur démarre). Réessayez dans un instant.");
+    } else {
+      showError("Votre connexion Google a réussi, mais nous n'avons pas pu préparer votre espace. Réessayez.");
+    }
   }
 }
 
