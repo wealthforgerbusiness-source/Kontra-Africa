@@ -5,7 +5,7 @@
 // `export { auth, db }`. Adapte les imports si tes noms diffèrent.
 
 import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import {
   doc,
   onSnapshot,
@@ -18,7 +18,7 @@ import {
   limit,
   startAfter,
   getDocs,
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { addPendingAction, getPendingActions, syncPendingActions } from './offline-queue.js';
 
 const PAGE_SIZE = 20;
