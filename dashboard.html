@@ -18,6 +18,8 @@
 
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/app.css">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -75,8 +77,48 @@
         <p class="app-page-header__subtitle">Voici un aperçu de votre activité.</p>
       </div>
 
-      <div class="dashboard-placeholder">
-        <p>Le tableau de bord complet (solde, objectif d'épargne, contrats en attente) arrive dans la prochaine étape.</p>
+      <div class="dashboard-grid">
+
+        <!-- Solde actuel -->
+        <section class="dashboard-card dashboard-card--balance">
+          <p class="dashboard-card__label">Solde actuel</p>
+          <p class="dashboard-card__value" id="balanceValue">—</p>
+        </section>
+
+        <!-- Objectif d'épargne -->
+        <section class="dashboard-card dashboard-card--savings">
+          <p class="dashboard-card__label">Objectif d'épargne</p>
+          <p class="dashboard-card__amounts" id="savingsAmounts">—</p>
+          <div class="savings-progress">
+            <div class="savings-progress__fill" id="savingsProgressFill" style="width: 0%;"></div>
+          </div>
+          <p class="dashboard-card__hint" id="savingsHint">Chargement…</p>
+        </section>
+
+        <!-- Contrats -->
+        <section class="dashboard-card dashboard-card--contracts">
+          <p class="dashboard-card__label">Contrats</p>
+          <div class="dashboard-card__stats">
+            <div class="dashboard-stat">
+              <span class="dashboard-stat__value" id="pendingContractsValue">—</span>
+              <span class="dashboard-stat__label">En attente</span>
+            </div>
+            <div class="dashboard-stat">
+              <span class="dashboard-stat__value" id="signedContractsValue">—</span>
+              <span class="dashboard-stat__label">Signés</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Graphique d'évolution du solde -->
+        <section class="dashboard-card dashboard-card--chart">
+          <p class="dashboard-card__label">Évolution du solde (14 jours)</p>
+          <div class="dashboard-chart-wrapper">
+            <canvas id="balanceChart" height="220"></canvas>
+            <p class="dashboard-chart-empty" id="chartEmptyState" hidden>Pas encore de transactions à afficher.</p>
+          </div>
+        </section>
+
       </div>
     </main>
 
