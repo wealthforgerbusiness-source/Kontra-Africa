@@ -143,6 +143,18 @@ async function loadBalanceChart(uid, userData) {
   const canvas = document.getElementById('balanceChart');
   const emptyState = document.getElementById('chartEmptyState');
 
+  // Filet de sécurité : si le script CDN de Chart.js n'a pas pu se charger
+  // (CSP, bloqueur de contenu, panne réseau), window.Chart sera undefined.
+  // On l'affiche clairement au lieu de laisser un ReferenceError silencieux
+  // planter le rendu sans explication visible pour l'utilisateur.
+  if (window.__chartLoadFailed || typeof Chart === 'undefined') {
+    console.error('Chart.js indisponible : le script CDN n’a pas pu être chargé.');
+    canvas.hidden = true;
+    emptyState.hidden = false;
+    emptyState.textContent = "Le graphique n'a pas pu se charger (bibliothèque indisponible). Réessaie de recharger la page.";
+    return;
+  }
+
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - CHART_DAYS);
