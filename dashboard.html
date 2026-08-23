@@ -28,12 +28,10 @@
     on pose un flag global lisible par dashboard.js plutôt que de laisser un
     ReferenceError silencieux transformer le graphique en spinner bloqué.
   -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"
-    onerror="window.__chartLoadFailed = true; console.error('Chart.js n’a pas pu être chargé depuis le CDN (cdnjs.cloudflare.com). Vérifie une éventuelle CSP côté Render ou un bloqueur de contenu côté navigateur.');"
-  ></script>
-</head>
-<body>
+ <script
+    src="/js/vendor/chart.umd.min.js"
+    onerror="window.__chartLoadFailed = true; console.error('Chart.js n\'a pas pu être chargé depuis /js/vendor/. Vérifie que le fichier existe bien à ce chemin sur GitHub.');"
+></script>
 
   <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
   <div class="app-loading" id="appLoading">
