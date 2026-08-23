@@ -19,7 +19,19 @@
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/app.css">
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <!--
+    IMPORTANT : ce script doit rester un <script> classique (pas type="module",
+    pas defer, pas async) et rester placé AVANT le script dashboard.js, pour que
+    window.Chart soit garanti défini avant l'exécution de dashboard.js.
+    L'attribut onerror ci-dessous sert uniquement de filet de sécurité au cas où
+    le CDN serait bloqué (CSP, bloqueur de contenu, panne réseau) : dans ce cas
+    on pose un flag global lisible par dashboard.js plutôt que de laisser un
+    ReferenceError silencieux transformer le graphique en spinner bloqué.
+  -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"
+    onerror="window.__chartLoadFailed = true; console.error('Chart.js n’a pas pu être chargé depuis le CDN (cdnjs.cloudflare.com). Vérifie une éventuelle CSP côté Render ou un bloqueur de contenu côté navigateur.');"
+  ></script>
 </head>
 <body>
 
