@@ -23,7 +23,7 @@ import { renderAppNav } from './app-nav.js';
 
 renderAppNav('contrats'); // sidebar desktop + bottom nav mobile
 
-const API_BASE = ''; // même origine que le frontend (Render), ex: '' si servi sous le même domaine
+const API_BASE = 'https://kontra-africa.onrender.com'; // service backend Express (différent du frontend statique)
 
 // ---------- État ----------
 let currentUser = null;
@@ -138,7 +138,7 @@ function renderCard(contract) {
       </button>`;
   } else if (contract.status === 'signed') {
     actions = `
-      ${contract.pdfUrlCreator ? `<a class="btn btn-sm btn-secondary" href="${contract.pdfUrlCreator}" target="_blank" rel="noopener">Voir le PDF</a>` : ''}
+      <a class="btn btn-sm btn-secondary" href="${API_BASE}/api/contracts/public/${escapeHtml(contract.shareToken || '')}/pdf" target="_blank" rel="noopener">Télécharger le PDF</a>
     `;
   }
 
@@ -304,8 +304,6 @@ formNew.addEventListener('submit', async (e) => {
       signerSignedAt: null,
       creatorSignatureDataUrl: creatorSignatureDataUrl,
       creatorTypedName: typedName || null,
-      pdfUrlCreator: null,
-      pdfUrlSigner: null,
       createdAt: serverTimestamp(),
     });
 
