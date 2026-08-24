@@ -17,6 +17,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  waitForPendingWrites,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { renderAppNav } from './app-nav.js';
 
@@ -308,7 +309,25 @@ formNew.addEventListener('submit', async (e) => {
       createdAt: serverTimestamp(),
     });
 
+    // addDoc() se résout dès que l'écriture est mise en file locale, pas
+    // forcément quand elle a atteint le serveur. Sans cette étape, on peut
+    // afficher un lien de signature qui pointe vers un contrat qui n'existe
+    // pas encore côté serveur (ex: connexion instable) → "lien invalide"
+    // pour le signataire.
+    btnSubmit.textContent = 'Synchronisation…';
+    const synced = await Promise.race([
+      waitForPendingWrites(db).then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 10000)),
+    ]);
+
     modalNew.close();
+
+    if (!synced) {
+      showFormError(
+        "Le contrat est enregistré mais pas encore synchronisé (connexion lente ou hors ligne). Le lien fonctionnera dès que la synchronisation sera terminée — vérifie ta connexion avant de l'envoyer."
+      );
+    }
+
     openShareModal({ id: docRef.id, title, signerName, signerPhone, shareToken });
   } catch (err) {
     console.error('Erreur de création du contrat :', err);
