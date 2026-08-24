@@ -15,6 +15,9 @@ import {
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { renderAppNav } from './app-nav.js';
+
+renderAppNav('profil'); // sidebar desktop + bottom nav mobile
 
 const API_BASE = '';
 
@@ -40,7 +43,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 function renderIdentity(user) {
-  profilePhoto.src = user.photoURL || '/public/icons/icon-192.png';
+  profilePhoto.src = user.photoURL || '/icons/icon-192.png';
   profilePhoto.alt = user.displayName ? `Photo de ${user.displayName}` : '';
   profileName.textContent = user.displayName || 'Utilisateur';
   profileEmail.textContent = user.email || '';
