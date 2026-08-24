@@ -20,6 +20,9 @@ import {
   getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { addPendingAction, getPendingActions, syncPendingActions } from './offline-queue.js';
+import { renderAppNav } from './app-nav.js';
+
+renderAppNav('finances'); // sidebar desktop + bottom nav mobile
 
 const PAGE_SIZE = 20;
 
