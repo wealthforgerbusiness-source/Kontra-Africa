@@ -18,6 +18,9 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { renderAppNav } from './app-nav.js';
+
+renderAppNav('contrats'); // sidebar desktop + bottom nav mobile
 
 const API_BASE = ''; // même origine que le frontend (Render), ex: '' si servi sous le même domaine
 
