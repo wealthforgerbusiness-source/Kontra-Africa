@@ -164,7 +164,7 @@ body {
 }
 
 .mobile-nav-overlay[hidden] {
-  display: block;
+  display: block !important;
 }
 
 .mobile-nav-panel {
