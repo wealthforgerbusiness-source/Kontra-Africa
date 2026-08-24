@@ -3,7 +3,7 @@
 // le signataire n'a pas de compte, tout passe par le backend (functions/src/contracts.js)
 // qui utilise le SDK Admin pour lire/écrire Firestore en toute sécurité.
 
-const API_BASE = ''; // même origine (Render)
+const API_BASE = 'https://kontra-africa.onrender.com';
 
 const params = new URLSearchParams(window.location.search);
 const token = params.get('token');
