@@ -57,10 +57,8 @@ async function init() {
       els.alreadySignedDate.textContent = contract.signerSignedAt
         ? new Date(contract.signerSignedAt).toLocaleDateString('fr-FR')
         : '';
-      if (contract.pdfUrlSigner) {
-        els.linkDownloadPdf.href = contract.pdfUrlSigner;
-        els.linkDownloadPdf.hidden = false;
-      }
+      els.linkDownloadPdf.href = `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/pdf`;
+      els.linkDownloadPdf.hidden = false;
       showOnly(els.alreadySigned);
       return;
     }
@@ -175,8 +173,10 @@ els.btnSign.addEventListener('click', async () => {
     }
 
     const result = await res.json();
-    if (result.pdfUrlSigner) {
-      els.linkDownloadPdfSuccess.href = result.pdfUrlSigner;
+    if (result.status === 'signed') {
+      // Déclenche le téléchargement automatique du PDF (généré à la volée,
+      // aucun fichier stocké côté serveur).
+      window.location.href = `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/pdf`;
     }
     showOnly(els.success);
   } catch (err) {
