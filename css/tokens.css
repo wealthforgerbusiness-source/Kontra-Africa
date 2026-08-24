@@ -96,6 +96,15 @@
   box-sizing: border-box;
 }
 
+/* Garantit que l'attribut HTML "hidden" est TOUJOURS respecté, même si un
+   élément a par ailleurs une classe qui définit display:flex/grid/block.
+   Sans cette règle, .login-state, .empty-state, etc. peuvent rester visibles
+   en même temps que le contenu qu'ils sont censés remplacer (bug d'éléments
+   superposés constaté sur la page de connexion, mobile et desktop). */
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
