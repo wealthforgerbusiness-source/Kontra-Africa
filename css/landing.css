@@ -862,3 +862,91 @@ body.nav-open {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* ==========================================================================
+   Corrections mobile
+   ========================================================================== */
+
+@media (max-width: 640px) {
+
+  /* Titres : plus compacts, ne débordent plus */
+  .hero__title {
+    font-size: clamp(1.6rem, 8vw, 2.1rem);
+  }
+
+  .section__title {
+    font-size: clamp(1.3rem, 6vw, 1.6rem);
+  }
+
+  .pricing-card__amount {
+    font-size: clamp(2rem, 12vw, 2.6rem);
+  }
+
+  /* Paragraphes : largeur pleine, ne coupent plus mal */
+  .hero__subtitle,
+  .feature-split__text,
+  .section__header,
+  .section__header--center {
+    max-width: 100%;
+  }
+
+  .hero__subtitle {
+    font-size: 0.95rem;
+  }
+
+  /* Centrage propre du texte et des blocs sur mobile */
+  .hero__copy,
+  .hero__actions,
+  .hero__hint,
+  .feature-split__copy {
+    text-align: center;
+  }
+
+  .check-list {
+    text-align: left;
+    max-width: 300px;
+    margin-inline: auto;
+  }
+
+  .hero__actions .btn,
+  .pricing-card__cta {
+    width: 100%;
+  }
+
+  /* Espacements resserrés entre sections (fini les grands vides) */
+  .hero {
+    padding-block: var(--space-7);
+  }
+
+  .section {
+    padding-block: var(--space-7);
+  }
+
+  .section__header,
+  .section__header--center {
+    margin-bottom: var(--space-6);
+  }
+
+  .install-guide {
+    margin-top: var(--space-7);
+  }
+
+  .pricing-card {
+    padding: var(--space-6);
+    gap: var(--space-6);
+  }
+
+  .site-footer {
+    padding-block: var(--space-6);
+  }
+
+  /* Cartes pays un peu plus compactes */
+  .country-card {
+    flex: 0 0 112px;
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .country-card__flag {
+    width: 52px;
+    height: 52px;
+  }
+}
