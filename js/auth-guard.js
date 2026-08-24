@@ -151,7 +151,12 @@ async function startCheckout(user, zone) {
     const response = await fetch(`${API_BASE_URL}/api/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: user.uid })
+      body: JSON.stringify({
+        firebaseUid: user.uid,
+        email: user.email || '',
+        firstName: user.displayName ? user.displayName.split(' ')[0] : 'Client',
+        lastName: user.displayName ? user.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu'
+      })
     });
 
     if (!response.ok) {
