@@ -325,22 +325,29 @@
   color: #B23434;
 }
 
-.progress-bar-track {
+/* NOTE : ces règles ciblaient ".progress-bar-track" / ".progress-bar-fill",
+   des noms de classes qui ne correspondent plus à celles utilisées dans
+   finances.html (".progress-bar" / ".progress-bar__fill", stylées dans
+   app.css). Elles ne s'appliquaient donc à rien — remplacées ici par les
+   bonnes classes pour garder la couleur orange et le style explicites au
+   même endroit que le reste des styles "Objectif d'épargne". */
+.progress-bar {
   background: #EFEBFA;
   border-radius: 999px;
   height: 12px;
   overflow: hidden;
 }
 
-.progress-bar-fill {
-  background: var(--color-accent, #FF8A3D);
+.progress-bar__fill {
+  background: var(--color-accent, #FF8A3D); /* orange */
   height: 100%;
+  min-width: 2px; /* toujours visible dès qu'il y a une progression, même infime */
   border-radius: 999px;
   transition: width 0.3s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .progress-bar-fill { transition: none; }
+  .progress-bar__fill { transition: none; }
 }
 
 .progress-label {
