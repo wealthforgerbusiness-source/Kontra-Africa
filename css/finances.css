@@ -22,9 +22,9 @@
 
 .currency-choice {
   display: flex;
-  gap: 16px;
+  gap: 8px;
   flex-wrap: wrap;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-text, #2A2140);
 }
@@ -35,6 +35,15 @@
   gap: 6px;
   font-weight: 500;
   cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid #DED7F5;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.currency-choice input[type="radio"] {
+  margin: 0;
+  accent-color: var(--color-primary, #5B3FE0);
 }
 
 .progress-remaining {
@@ -76,10 +85,60 @@
   text-align: center;
 }
 
+.balance-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+}
+
 .balance-label {
   margin: 0;
   font-size: 0.875rem;
   opacity: 0.85;
+}
+
+/* Bouton "⇄" de conversion d'affichage (aperçu de session, ne sauvegarde rien) */
+.btn-convert {
+  position: absolute;
+  right: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
+.btn-convert:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.panel .btn-convert {
+  position: static;
+  background: #F0EDFB;
+  color: var(--color-primary, #5B3FE0);
+  border-color: #DED7F5;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.panel-title-row .panel-title {
+  margin: 0;
 }
 
 .balance-amount {
@@ -157,7 +216,9 @@
   margin: 0;
 }
 
-.form-field input {
+/* Sélecteur direct uniquement (pas ".form-field input") pour ne pas
+   déformer les boutons radio de .currency-choice, imbriqués plus bas. */
+.form-field > input {
   border: 1px solid #DED7F5;
   border-radius: var(--radius-md, 10px);
   padding: 10px 12px;
@@ -166,9 +227,11 @@
   background: #fff;
   color: var(--color-text, #2A2140);
   font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.form-field input:focus-visible {
+.form-field > input:focus-visible {
   outline: 3px solid var(--color-accent, #FF8A3D);
   outline-offset: 1px;
 }
@@ -192,7 +255,74 @@
 .progress-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 14px;
+  background: #FAF8FF;
+  border-radius: var(--radius-md, 10px);
+  margin-bottom: 16px;
+}
+
+.progress-block .progress-label {
+  order: -1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text, #2A2140);
+}
+
+/* Sous-panneau repliable "Définir / modifier l'objectif" : réduit le
+   scroll par défaut, on l'ouvre seulement pour changer la cible. */
+.panel-collapsible {
+  border: 1px solid #EFEBFA;
+  border-radius: var(--radius-md, 10px);
+  margin-bottom: 16px;
+}
+
+.panel-collapsible summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary, #5B3FE0);
+  list-style: none;
+}
+
+.panel-collapsible summary::-webkit-details-marker { display: none; }
+
+.panel-collapsible summary::before {
+  content: '▸ ';
+}
+
+.panel-collapsible[open] summary::before {
+  content: '▾ ';
+}
+
+.panel-collapsible .panel-form {
+  padding: 0 14px 14px;
+}
+
+.savings-add-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.savings-add-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.savings-add-actions .btn {
+  flex: 1;
+}
+
+.savings-add-actions .btn-credit {
+  background: #E4F5E8;
+  color: #1E7A3D;
+}
+
+.savings-add-actions .btn-debit {
+  background: #FBE7E7;
+  color: #B23434;
 }
 
 .progress-bar-track {
