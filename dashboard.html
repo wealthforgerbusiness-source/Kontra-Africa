@@ -19,20 +19,6 @@
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/app.css">
 
-  <!--
-    IMPORTANT : ce script doit rester un <script> classique (pas type="module",
-    pas defer, pas async) et rester placé AVANT le script dashboard.js, pour que
-    window.Chart soit garanti défini avant l'exécution de dashboard.js.
-    L'attribut onerror ci-dessous sert uniquement de filet de sécurité au cas où
-    le CDN serait bloqué (CSP, bloqueur de contenu, panne réseau) : dans ce cas
-    on pose un flag global lisible par dashboard.js plutôt que de laisser un
-    ReferenceError silencieux transformer le graphique en spinner bloqué.
-  -->
- <script
-    src="/js/vendor/chart.umd.min.js"
-    onerror="window.__chartLoadFailed = true; console.error('Chart.js n\'a pas pu être chargé depuis /js/vendor/. Vérifie que le fichier existe bien à ce chemin sur GitHub.');"
-></script>
-
   <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
   <div class="app-loading" id="appLoading">
     <span class="spinner" aria-hidden="true"></span>
@@ -44,6 +30,7 @@
     <aside class="app-sidebar">
       <a href="/" class="app-sidebar__brand">
         <img src="/logo.webp" alt="Kontra-Africa" class="app-sidebar__logo">
+        <span class="app-sidebar__brand-text">Kontra-Africa</span>
       </a>
 
       <nav class="app-nav" aria-label="Navigation de l'application">
@@ -76,7 +63,10 @@
 
     <!-- ============================= TOPBAR (mobile) ============================= -->
     <header class="app-topbar">
-      <img src="/logo.webp" alt="Kontra-Africa" class="app-topbar__logo">
+      <div class="app-topbar__brand">
+        <img src="/logo.webp" alt="Kontra-Africa" class="app-topbar__logo">
+        <span class="app-topbar__brand-text">Kontra-Africa</span>
+      </div>
       <img src="" alt="" class="app-topbar__avatar" id="topbarAvatar" hidden>
     </header>
 
@@ -91,13 +81,23 @@
 
         <!-- Solde actuel -->
         <section class="dashboard-card dashboard-card--balance">
-          <p class="dashboard-card__label">Solde actuel</p>
+          <div class="dashboard-card__label-row">
+            <p class="dashboard-card__label">Solde actuel</p>
+            <button type="button" class="dashboard-card__convert" id="btnConvertBalance" title="Convertir l'affichage">
+              ⇄ <span id="btnConvertBalanceLabel">Voir en $</span>
+            </button>
+          </div>
           <p class="dashboard-card__value" id="balanceValue">—</p>
         </section>
 
         <!-- Objectif d'épargne -->
         <section class="dashboard-card dashboard-card--savings">
-          <p class="dashboard-card__label">Objectif d'épargne</p>
+          <div class="dashboard-card__label-row">
+            <p class="dashboard-card__label">Objectif d'épargne</p>
+            <button type="button" class="dashboard-card__convert" id="btnConvertSavings" title="Convertir l'affichage">
+              ⇄ <span id="btnConvertSavingsLabel">Voir en $</span>
+            </button>
+          </div>
           <p class="dashboard-card__amounts" id="savingsAmounts">—</p>
           <div class="savings-progress">
             <div class="savings-progress__fill" id="savingsProgressFill" style="width: 0%;"></div>
@@ -120,13 +120,11 @@
           </div>
         </section>
 
-        <!-- Graphique d'évolution du solde -->
-        <section class="dashboard-card dashboard-card--chart">
-          <p class="dashboard-card__label">Évolution du solde (14 jours)</p>
-          <div class="dashboard-chart-wrapper">
-            <canvas id="balanceChart" height="220"></canvas>
-            <p class="dashboard-chart-empty" id="chartEmptyState" hidden>Pas encore de transactions à afficher.</p>
-          </div>
+        <!-- Activité des 7 derniers jours -->
+        <section class="dashboard-card dashboard-card--activity">
+          <p class="dashboard-card__label">Activité des 7 derniers jours</p>
+          <div class="balance-activity-list" id="balanceActivityList"></div>
+          <p class="dashboard-chart-empty" id="activityEmptyState" hidden>Pas encore de mouvement sur votre solde.</p>
         </section>
 
       </div>
