@@ -85,8 +85,11 @@ const transactionsLoadingEl = document.getElementById('transactions-loading');
 const transactionsEmptyEl = document.getElementById('transactions-empty');
 const btnLoadMore = document.getElementById('btn-load-more');
 
-// État initial : devise non configurée tant que Firestore n'a pas répondu.
-renderCurrencyGate();
+// État initial : on ne sait pas encore si la devise est configurée tant que
+// Firestore n'a pas répondu, mais on n'affiche PLUS la bannière rouge par
+// défaut à l'arrivée sur la page — elle n'apparaît que si l'utilisateur tente
+// une action (créditer, débiter, ajouter à l'épargne, etc.) sans avoir
+// configuré sa devise. Voir requireCurrencySetup().
 renderCurrencyLabels();
 renderConvertButtons();
 
@@ -216,20 +219,30 @@ function renderConvertButtons() {
   btnConvertSavings.disabled = !ready;
 }
 
-// Tant que la devise n'est pas configurée, on bloque le solde et l'épargne :
-// l'utilisateur doit d'abord passer par le panneau "Devise".
+// La bannière rouge ne s'affiche plus automatiquement à l'arrivée sur la
+// page : les boutons (créditer/débiter/épargne) restent utilisables, et
+// c'est seulement une tentative d'action sans devise configurée qui
+// déclenche l'avertissement, via requireCurrencySetup() ci-dessous. Dès que
+// la devise est configurée, on masque la bannière si jamais elle était
+// affichée.
 function renderCurrencyGate() {
-  const ready = hasCurrencySetup();
-  currencyGateBanner.hidden = ready;
+  if (hasCurrencySetup()) {
+    currencyGateBanner.hidden = true;
+  }
+}
 
-  btnCredit.disabled = !ready;
-  btnDebit.disabled = !ready;
-  btnSavingsAdd.disabled = !ready;
-  btnSavingsWithdraw.disabled = !ready;
-
-  formSavingsGoal.querySelectorAll('input, button').forEach((el) => {
-    el.disabled = !ready;
-  });
+// À appeler au début de toute action qui nécessite une devise configurée
+// (créditer/débiter, ajouter/retirer de l'épargne, définir un objectif).
+// Affiche la bannière uniquement si la devise n'est pas prête, et la
+// masque sinon.
+function requireCurrencySetup() {
+  if (hasCurrencySetup()) {
+    currencyGateBanner.hidden = true;
+    return true;
+  }
+  currencyGateBanner.hidden = false;
+  currencyGateBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return false;
 }
 
 // Formate un montant STOCKÉ EN DEVISE LOCALE pour l'affichage, en tenant
@@ -248,6 +261,24 @@ function renderBalance() {
   balanceAmountEl.textContent = formatAmount(userData.balance);
 }
 
+// FIX : avec Math.round(), un petit ajout face à un gros objectif (ex :
+// 100 FC sur un objectif de 11 250 000 FC) donnait 0 % à chaque fois — la
+// barre semblait "ne jamais bouger" alors que le montant était bien
+// enregistré. On garde 2 décimales tant que le pourcentage est inférieur à
+// 1 %, et on force une largeur minimale visible dès que current > 0.
+function computeSavingsPercent(current, goal) {
+  if (!goal || goal <= 0) return 0;
+  const raw = (current / goal) * 100;
+  if (raw <= 0) return 0;
+  if (raw >= 100) return 100;
+  if (raw < 1) return Math.round(raw * 100) / 100;
+  return Math.round(raw);
+}
+
+function formatPercent(percent) {
+  return Number.isInteger(percent) ? `${percent}` : `${percent.toFixed(2)}`;
+}
+
 function renderSavings() {
   if (document.activeElement !== inputSavingsGoal) {
     inputSavingsGoal.value = userData.savingsGoalAmount
@@ -257,9 +288,9 @@ function renderSavings() {
 
   const goal = Number(userData.savingsGoalAmount) || 0;
   const current = Number(userData.savingsCurrentAmount) || 0;
-  const percent = goal > 0 ? Math.min(100, Math.round((current / goal) * 100)) : 0;
-  savingsProgressFill.style.width = `${percent}%`;
-  savingsProgressLabel.textContent = `${percent}% — ${formatAmount(current)} / ${formatAmount(goal)}`;
+  const percent = computeSavingsPercent(current, goal);
+  savingsProgressFill.style.width = `${current > 0 ? Math.max(percent, 1) : 0}%`;
+  savingsProgressLabel.textContent = `${formatPercent(percent)}% — ${formatAmount(current)} / ${formatAmount(goal)}`;
 
   if (goal <= 0) {
     savingsProgressRemaining.textContent = "Définissez un montant objectif pour suivre votre progression.";
@@ -338,7 +369,8 @@ formCurrency.addEventListener('submit', async (e) => {
 // ---------- Formulaire objectif d'épargne (montant cible) ----------
 formSavingsGoal.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!currentUser || !hasCurrencySetup()) return;
+  if (!currentUser) return;
+  if (!requireCurrencySetup()) return;
 
   const rawAmount = parseAmount(inputSavingsGoal.value);
   if (isNaN(rawAmount) || rawAmount < 0) return;
@@ -363,7 +395,7 @@ async function handleSavingsOperation(operation) {
   savingsAddMsg.hidden = true;
 
   if (!currentUser) return;
-  if (!hasCurrencySetup()) {
+  if (!requireCurrencySetup()) {
     savingsAddError.textContent = "Configurez d'abord votre devise avant de modifier votre épargne.";
     savingsAddError.hidden = false;
     return;
@@ -435,7 +467,7 @@ document.querySelectorAll('[data-action="close-transaction-modal"]').forEach((bt
 });
 
 function openTransactionModal(type) {
-  if (!hasCurrencySetup()) return; // bouton normalement déjà désactivé
+  if (!requireCurrencySetup()) return; // affiche la bannière si la devise n'est pas configurée
   pendingTransactionType = type;
   modalTransactionTitle.textContent = type === 'credit' ? 'Créditer le solde' : 'Débiter le solde';
   btnConfirmTransaction.textContent = type === 'credit' ? 'Créditer' : 'Débiter';
@@ -448,7 +480,7 @@ formTransaction.addEventListener('submit', async (e) => {
   e.preventDefault();
   transactionError.hidden = true;
 
-  if (!hasCurrencySetup()) {
+  if (!requireCurrencySetup()) {
     return showTransactionError("Configurez d'abord votre devise avant de faire une opération.");
   }
 
