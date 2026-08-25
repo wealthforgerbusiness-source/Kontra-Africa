@@ -1,27 +1,3 @@
-/* ==========================================================================
-   Kontra-Africa — Tableau de bord
-   ------------------------------------------------------------------------
-   Schéma Firestore attendu (utilisé aussi par les modules Contrats/Finances
-   à venir, garder ce commentaire synchronisé si le schéma évolue) :
-
-   users/{uid}
-     - displayName, photoURL, subscriptionStatus, trialEndDate  (déjà utilisés)
-     - balance              : number   (solde actuel)
-     - currencySymbol       : string   (ex: "$", "FC")
-     - savingsGoalAmount    : number   (objectif d'épargne, optionnel)
-     - savingsCurrentAmount : number   (épargne actuelle, optionnel)
-
-   contracts/{contractId}
-     - creatorId : string    (uid du créateur — filtré via where('creatorId', '==', uid))
-     - status    : 'draft' | 'pending' | 'signed' | 'rejected'
-     - createdAt : Timestamp
-
-   users/{uid}/transactions/{transactionId}
-     - amount    : number
-     - type      : 'credit' | 'debit'
-     - createdAt : Timestamp
-   ========================================================================== */
-
 import { requireAppAccess, logout } from '/js/auth-guard.js';
 import { db } from '/js/firebase-config.js';
 import {
@@ -78,16 +54,30 @@ function fillUserInfo(user, userData) {
   }
 }
 
+/* --- Devise : les montants sont TOUJOURS stockés en devise locale.
+   `displayCurrency` (réglé dans Finances) indique dans quelle devise les
+   afficher ici (comme sur la page Finances). --- */
+function toDisplayAmount(amountLocal, userData) {
+  if (userData.displayCurrency === 'usd') {
+    const rate = Number(userData.exchangeRate || 0);
+    return rate > 0 ? amountLocal / rate : 0;
+  }
+  return amountLocal;
+}
+
+function displaySymbol(userData) {
+  return userData.displayCurrency === 'usd' ? '$' : (userData.currencySymbol || '$');
+}
+
 /* --- Solde actuel --- */
 function renderBalance(userData) {
-  const symbol = userData.currencySymbol || '$';
   const balance = typeof userData.balance === 'number' ? userData.balance : 0;
-  document.getElementById('balanceValue').textContent = formatAmount(balance, symbol);
+  document.getElementById('balanceValue').textContent =
+    formatAmount(toDisplayAmount(balance, userData), displaySymbol(userData));
 }
 
 /* --- Objectif d'épargne + barre de progression --- */
 function renderSavings(userData) {
-  const symbol = userData.currencySymbol || '$';
   const goal = userData.savingsGoalAmount;
   const current = typeof userData.savingsCurrentAmount === 'number' ? userData.savingsCurrentAmount : 0;
 
@@ -102,8 +92,12 @@ function renderSavings(userData) {
     return;
   }
 
+  // Le pourcentage se calcule toujours sur les montants en devise locale
+  // (la conversion ne doit jamais fausser la progression réelle).
   const percent = Math.min(100, Math.round((current / goal) * 100));
-  amountsEl.textContent = `${formatAmount(current, symbol)} / ${formatAmount(goal, symbol)}`;
+  const symbol = displaySymbol(userData);
+  amountsEl.textContent =
+    `${formatAmount(toDisplayAmount(current, userData), symbol)} / ${formatAmount(toDisplayAmount(goal, userData), symbol)}`;
   fillEl.style.width = `${percent}%`;
   hintEl.textContent = `${percent}% de l'objectif atteint`;
 }
@@ -174,8 +168,14 @@ async function loadBalanceChart(uid, userData) {
       return;
     }
 
+    // La série est construite en devise locale (calcul exact des variations
+    // cumulées), puis convertie SEULEMENT pour l'affichage si l'utilisateur
+    // a choisi d'afficher en USD — diviser par un taux constant ne change
+    // jamais le sens de la courbe (elle monte/descend pareil), seulement
+    // son échelle.
     const { labels, balances } = buildDailySeries(snap, userData, cutoff);
-    renderChart(canvas, labels, balances);
+    const displayBalances = balances.map((b) => toDisplayAmount(b, userData));
+    renderChart(canvas, labels, displayBalances, displaySymbol(userData));
   } catch (err) {
     console.error('Erreur de chargement du graphique :', err);
     canvas.hidden = true;
@@ -229,7 +229,7 @@ function buildDailySeries(transactionsSnap, userData, cutoff) {
 }
 
 /* --- Rendu Chart.js --- */
-function renderChart(canvas, labels, data) {
+function renderChart(canvas, labels, data, symbol) {
   const styles = getComputedStyle(document.documentElement);
   const primary = styles.getPropertyValue('--color-primary').trim();
   const textMuted = styles.getPropertyValue('--color-text-muted').trim();
@@ -259,7 +259,7 @@ function renderChart(canvas, labels, data) {
         tooltip: {
           displayColors: false,
           callbacks: {
-            label: (ctx) => `Solde : ${ctx.parsed.y}`
+            label: (ctx) => `Solde : ${ctx.parsed.y} ${symbol || ''}`.trim()
           }
         }
       },
