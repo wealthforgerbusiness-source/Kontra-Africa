@@ -1,16 +1,3 @@
-// js/finances.js
-// Module Finances (protégé par auth-guard.js — bloqué par le paywall si
-// l'essai/abonnement est terminé, comme le tableau de bord)
-//
-// Règles de devise :
-// - `currencySymbol` + `exchangeRate` (valeur de 1 USD en devise locale)
-//   doivent être configurés avant de pouvoir créditer/débiter le solde ou
-//   toucher à l'objectif d'épargne.
-// - Le solde, l'objectif et l'épargne actuelle sont toujours STOCKÉS en
-//   devise locale. Chaque formulaire qui saisit un montant (transaction,
-//   objectif, ajout à l'épargne) demande dans quelle devise ce montant est
-//   exprimé (devise locale ou USD) et le convertit avant de l'enregistrer.
-
 import { db } from './firebase-config.js';
 import { requireAppAccess } from './auth-guard.js';
 import {
@@ -40,9 +27,14 @@ let userData = {
   currencySymbol: '',
   exchangeRate: 0,
   exchangeRateUpdatedAt: null,
+  displayCurrency: 'local',
   savingsGoalAmount: 0,
   savingsCurrentAmount: 0,
 };
+// Devise affichée à l'écran pendant la session (peut différer de
+// userData.displayCurrency si l'utilisateur clique sur "⇄" sans enregistrer).
+let viewCurrency = 'local';
+
 let pendingTransactionType = 'credit';
 let lastVisibleDoc = null;
 let loadedTransactions = [];
@@ -55,6 +47,10 @@ const currencyGateBanner = document.getElementById('currency-gate-banner');
 
 const btnCredit = document.getElementById('btn-credit');
 const btnDebit = document.getElementById('btn-debit');
+const btnConvertBalance = document.getElementById('btn-convert-balance');
+const btnConvertBalanceLabel = document.getElementById('btn-convert-balance-label');
+const btnConvertSavings = document.getElementById('btn-convert-savings');
+const btnConvertSavingsLabel = document.getElementById('btn-convert-savings-label');
 
 const modalTransaction = document.getElementById('modal-transaction');
 const modalTransactionTitle = document.getElementById('modal-transaction-title');
@@ -70,10 +66,12 @@ const savingsProgressFill = document.getElementById('savings-progress-fill');
 const savingsProgressLabel = document.getElementById('savings-progress-label');
 const savingsProgressRemaining = document.getElementById('savings-progress-remaining');
 
-const formSavingsAdd = document.getElementById('form-savings-add');
 const inputSavingsAddAmount = document.getElementById('input-savings-add-amount');
+const btnSavingsAdd = document.getElementById('btn-savings-add');
+const btnSavingsWithdraw = document.getElementById('btn-savings-withdraw');
 const savingsAddError = document.getElementById('savings-add-error');
 const savingsAddMsg = document.getElementById('savings-add-msg');
+const savingsAddCurrencyRadios = document.getElementsByName('addCurrency');
 
 const formCurrency = document.getElementById('form-currency');
 const inputCurrencySymbol = document.getElementById('input-currency-symbol');
@@ -90,6 +88,7 @@ const btnLoadMore = document.getElementById('btn-load-more');
 // État initial : devise non configurée tant que Firestore n'a pas répondu.
 renderCurrencyGate();
 renderCurrencyLabels();
+renderConvertButtons();
 
 // ---------- Auth + garde d'accès (paywall) ----------
 async function init() {
@@ -128,19 +127,28 @@ function listenToUserDoc(uid) {
   onSnapshot(doc(db, 'users', uid), (snap) => {
     if (!snap.exists()) return;
     const data = snap.data();
+    const wasFirstLoad = !userData.currencySymbol && !userData.exchangeRate;
+
     userData = {
       balance: data.balance || 0,
       currencySymbol: data.currencySymbol || '',
       exchangeRate: data.exchangeRate || 0,
       exchangeRateUpdatedAt: data.exchangeRateUpdatedAt || null,
+      displayCurrency: data.displayCurrency === 'usd' ? 'usd' : 'local',
       savingsGoalAmount: data.savingsGoalAmount || 0,
       savingsCurrentAmount: data.savingsCurrentAmount || 0,
     };
+
+    // La vue suit la devise d'affichage enregistrée, sauf si l'utilisateur a
+    // déjà basculé manuellement pendant cette session.
+    if (wasFirstLoad) viewCurrency = userData.displayCurrency;
+
     renderBalance();
     renderSavings();
     renderCurrencyForm();
     renderCurrencyLabels();
     renderCurrencyGate();
+    renderConvertButtons();
     renderTransactionsList(); // pour rafraîchir le symbole de devise affiché
   });
 }
@@ -148,6 +156,15 @@ function listenToUserDoc(uid) {
 // ---------- Devise : lecture, conversion, verrouillage ----------
 function hasCurrencySetup() {
   return !!(userData.currencySymbol && Number(userData.exchangeRate) > 0);
+}
+
+// Parse un montant saisi par l'utilisateur, en acceptant la virgule comme
+// séparateur décimal (ex : "5000,50" ou "0,5") en plus du point.
+function parseAmount(rawValue) {
+  if (typeof rawValue !== 'string') return Number(rawValue) || 0;
+  const normalized = rawValue.trim().replace(/\s/g, '').replace(',', '.');
+  const value = Number(normalized);
+  return isNaN(value) ? NaN : value;
 }
 
 // Convertit un montant saisi par l'utilisateur (dans la devise choisie dans
@@ -159,8 +176,18 @@ function convertToLocal(amount, chosenCurrency) {
   return amount;
 }
 
-function getCheckedCurrency(formEl, radioName) {
-  const checked = formEl.querySelector(`input[name="${radioName}"]:checked`);
+// Convertit un montant stocké en devise locale vers la devise demandée,
+// pour l'affichage uniquement (ne modifie jamais les données enregistrées).
+function convertFromLocal(amountLocal, targetCurrency) {
+  if (targetCurrency === 'usd') {
+    const rate = Number(userData.exchangeRate || 0);
+    return rate > 0 ? amountLocal / rate : 0;
+  }
+  return amountLocal;
+}
+
+function getCheckedCurrency(scopeEl, radioName) {
+  const checked = scopeEl.querySelector(`input[name="${radioName}"]:checked`);
   return checked ? checked.value : 'local';
 }
 
@@ -175,6 +202,20 @@ function renderCurrencyLabels() {
   });
 }
 
+// Met à jour le texte des boutons "⇄" (ils affichent la devise VERS
+// laquelle on bascule, pas celle actuellement affichée).
+function renderConvertButtons() {
+  const ready = hasCurrencySetup();
+  const targetLabel = viewCurrency === 'usd'
+    ? (userData.currencySymbol ? `Voir en ${userData.currencySymbol}` : 'Voir en devise locale')
+    : 'Voir en $';
+
+  btnConvertBalanceLabel.textContent = targetLabel;
+  btnConvertSavingsLabel.textContent = targetLabel;
+  btnConvertBalance.disabled = !ready;
+  btnConvertSavings.disabled = !ready;
+}
+
 // Tant que la devise n'est pas configurée, on bloque le solde et l'épargne :
 // l'utilisateur doit d'abord passer par le panneau "Devise".
 function renderCurrencyGate() {
@@ -183,17 +224,23 @@ function renderCurrencyGate() {
 
   btnCredit.disabled = !ready;
   btnDebit.disabled = !ready;
+  btnSavingsAdd.disabled = !ready;
+  btnSavingsWithdraw.disabled = !ready;
 
-  [formSavingsGoal, formSavingsAdd].forEach((form) => {
-    form.querySelectorAll('input, button').forEach((el) => {
-      el.disabled = !ready;
-    });
+  formSavingsGoal.querySelectorAll('input, button').forEach((el) => {
+    el.disabled = !ready;
   });
 }
 
-function formatAmount(amount) {
+// Formate un montant STOCKÉ EN DEVISE LOCALE pour l'affichage, en tenant
+// compte de la devise de vue actuelle (locale ou USD).
+function formatAmount(amountLocal) {
+  const displayed = convertFromLocal(amountLocal, viewCurrency);
+  if (viewCurrency === 'usd') {
+    return `$ ${Number(displayed || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`;
+  }
   const symbol = userData.currencySymbol || '';
-  const formatted = Number(amount || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  const formatted = Number(displayed || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
   return symbol ? `${formatted} ${symbol}` : formatted;
 }
 
@@ -203,7 +250,9 @@ function renderBalance() {
 
 function renderSavings() {
   if (document.activeElement !== inputSavingsGoal) {
-    inputSavingsGoal.value = userData.savingsGoalAmount || '';
+    inputSavingsGoal.value = userData.savingsGoalAmount
+      ? String(userData.savingsGoalAmount).replace('.', ',')
+      : '';
   }
 
   const goal = Number(userData.savingsGoalAmount) || 0;
@@ -226,14 +275,28 @@ function renderCurrencyForm() {
     inputCurrencySymbol.value = userData.currencySymbol || '';
   }
   if (document.activeElement !== inputExchangeRate) {
-    inputExchangeRate.value = userData.exchangeRate || '';
+    inputExchangeRate.value = userData.exchangeRate ? String(userData.exchangeRate).replace('.', ',') : '';
   }
   if (userData.exchangeRateUpdatedAt?.toDate) {
     exchangeRateUpdatedEl.textContent = `Mis à jour le ${userData.exchangeRateUpdatedAt.toDate().toLocaleDateString('fr-FR')}`;
   } else {
     exchangeRateUpdatedEl.textContent = '';
   }
+  const displayRadio = formCurrency.querySelector(`input[name="displayCurrency"][value="${userData.displayCurrency}"]`);
+  if (displayRadio) displayRadio.checked = true;
 }
+
+// ---------- Boutons "⇄ Convertir" (aperçu de session, rien n'est enregistré) ----------
+function toggleViewCurrency() {
+  if (!hasCurrencySetup()) return;
+  viewCurrency = viewCurrency === 'usd' ? 'local' : 'usd';
+  renderBalance();
+  renderSavings();
+  renderConvertButtons();
+  renderTransactionsList();
+}
+btnConvertBalance.addEventListener('click', toggleViewCurrency);
+btnConvertSavings.addEventListener('click', toggleViewCurrency);
 
 // ---------- Formulaire devise (obligatoire avant tout le reste) ----------
 formCurrency.addEventListener('submit', async (e) => {
@@ -242,14 +305,15 @@ formCurrency.addEventListener('submit', async (e) => {
   currencyError.hidden = true;
 
   const currencySymbol = inputCurrencySymbol.value.trim();
-  const exchangeRate = Number(inputExchangeRate.value) || 0;
+  const exchangeRate = parseAmount(inputExchangeRate.value);
+  const displayCurrency = getCheckedCurrency(formCurrency, 'displayCurrency');
 
   if (!currencySymbol) {
     currencyError.textContent = 'Merci de saisir le symbole de votre devise locale (ex : FC).';
     currencyError.hidden = false;
     return;
   }
-  if (!exchangeRate || exchangeRate <= 0) {
+  if (!exchangeRate || isNaN(exchangeRate) || exchangeRate <= 0) {
     currencyError.textContent = 'Merci de saisir un taux de change valide (valeur de 1 USD dans votre devise).';
     currencyError.hidden = false;
     return;
@@ -260,7 +324,9 @@ formCurrency.addEventListener('submit', async (e) => {
       currencySymbol,
       exchangeRate,
       exchangeRateUpdatedAt: serverTimestamp(),
+      displayCurrency,
     });
+    viewCurrency = displayCurrency; // la session suit immédiatement le nouveau choix
     flashSavedMessage(currencySavedMsg);
   } catch (err) {
     console.error('Erreur de sauvegarde de la devise :', err);
@@ -274,7 +340,9 @@ formSavingsGoal.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentUser || !hasCurrencySetup()) return;
 
-  const rawAmount = Number(inputSavingsGoal.value) || 0;
+  const rawAmount = parseAmount(inputSavingsGoal.value);
+  if (isNaN(rawAmount) || rawAmount < 0) return;
+
   const chosenCurrency = getCheckedCurrency(formSavingsGoal, 'goalCurrency');
   const savingsGoalAmount = convertToLocal(rawAmount, chosenCurrency);
 
@@ -286,50 +354,73 @@ formSavingsGoal.addEventListener('submit', async (e) => {
   }
 });
 
-// ---------- Ajout à l'épargne (bouton "Ajouter") ----------
-formSavingsAdd.addEventListener('submit', async (e) => {
-  e.preventDefault();
+// ---------- Ajout / retrait sur l'épargne ----------
+btnSavingsAdd.addEventListener('click', () => handleSavingsOperation('add'));
+btnSavingsWithdraw.addEventListener('click', () => handleSavingsOperation('withdraw'));
+
+async function handleSavingsOperation(operation) {
   savingsAddError.hidden = true;
   savingsAddMsg.hidden = true;
 
   if (!currentUser) return;
   if (!hasCurrencySetup()) {
-    savingsAddError.textContent = "Configurez d'abord votre devise avant d'ajouter à votre épargne.";
+    savingsAddError.textContent = "Configurez d'abord votre devise avant de modifier votre épargne.";
     savingsAddError.hidden = false;
     return;
   }
 
-  const rawAmount = Number(inputSavingsAddAmount.value);
-  if (!rawAmount || rawAmount <= 0) {
+  const rawAmount = parseAmount(inputSavingsAddAmount.value);
+  if (!rawAmount || isNaN(rawAmount) || rawAmount <= 0) {
     savingsAddError.textContent = 'Merci de saisir un montant valide.';
     savingsAddError.hidden = false;
     return;
   }
 
-  const chosenCurrency = getCheckedCurrency(formSavingsAdd, 'addCurrency');
-  const amountToAdd = convertToLocal(rawAmount, chosenCurrency);
+  let chosenCurrency = 'local';
+  savingsAddCurrencyRadios.forEach((radio) => {
+    if (radio.checked) chosenCurrency = radio.value;
+  });
+
+  const amount = convertToLocal(rawAmount, chosenCurrency);
   const goal = Number(userData.savingsGoalAmount) || 0;
-  const newCurrent = (Number(userData.savingsCurrentAmount) || 0) + amountToAdd;
+  const currentAmount = Number(userData.savingsCurrentAmount) || 0;
+
+  if (operation === 'withdraw' && amount > currentAmount) {
+    savingsAddError.textContent = 'Le montant dépasse votre épargne actuelle.';
+    savingsAddError.hidden = false;
+    return;
+  }
+
+  const newCurrent = operation === 'withdraw'
+    ? Math.max(0, currentAmount - amount)
+    : currentAmount + amount;
 
   try {
     await updateDoc(doc(db, 'users', currentUser.uid), { savingsCurrentAmount: newCurrent });
 
-    if (goal > 0 && newCurrent >= goal) {
-      savingsAddMsg.textContent = `🎉 Objectif atteint ! Vous avez épargné ${formatAmount(newCurrent)}.`;
-    } else if (goal > 0) {
-      savingsAddMsg.textContent = `Ajouté ! Il reste ${formatAmount(goal - newCurrent)} pour atteindre votre objectif.`;
+    if (operation === 'add') {
+      if (goal > 0 && newCurrent >= goal) {
+        savingsAddMsg.textContent = `🎉 Objectif atteint ! Vous avez épargné ${formatAmount(newCurrent)}.`;
+      } else if (goal > 0) {
+        savingsAddMsg.textContent = `Ajouté ! Il reste ${formatAmount(goal - newCurrent)} pour atteindre votre objectif.`;
+      } else {
+        savingsAddMsg.textContent = `Ajouté ! Épargne actuelle : ${formatAmount(newCurrent)}.`;
+      }
     } else {
-      savingsAddMsg.textContent = `Ajouté ! Épargne actuelle : ${formatAmount(newCurrent)}.`;
+      savingsAddMsg.textContent = goal > 0 && newCurrent < goal
+        ? `Retiré ! Il reste ${formatAmount(goal - newCurrent)} pour atteindre votre objectif.`
+        : `Retiré ! Épargne actuelle : ${formatAmount(newCurrent)}.`;
     }
+
     savingsAddMsg.hidden = false;
-    formSavingsAdd.reset();
+    inputSavingsAddAmount.value = '';
     setTimeout(() => (savingsAddMsg.hidden = true), 4000);
   } catch (err) {
-    console.error('Erreur d’ajout à l’épargne :', err);
-    savingsAddError.textContent = "L'ajout a échoué. Réessaie.";
+    console.error('Erreur sur l’épargne :', err);
+    savingsAddError.textContent = "L'opération a échoué. Réessaie.";
     savingsAddError.hidden = false;
   }
-});
+}
 
 function flashSavedMessage(el) {
   el.hidden = false;
@@ -361,11 +452,11 @@ formTransaction.addEventListener('submit', async (e) => {
     return showTransactionError("Configurez d'abord votre devise avant de faire une opération.");
   }
 
-  const rawAmount = Number(formTransaction.amount.value);
+  const rawAmount = parseAmount(formTransaction.amount.value);
   const description = formTransaction.description.value.trim();
   const chosenCurrency = getCheckedCurrency(formTransaction, 'amountCurrency');
 
-  if (!rawAmount || rawAmount <= 0) {
+  if (!rawAmount || isNaN(rawAmount) || rawAmount <= 0) {
     return showTransactionError('Merci de saisir un montant valide.');
   }
   if (!currentUser) {
