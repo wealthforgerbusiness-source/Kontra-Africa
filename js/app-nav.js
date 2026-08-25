@@ -1,22 +1,3 @@
-/* ==========================================================================
-   Kontra-Africa — Navigation partagée (sidebar desktop + bottom nav mobile)
-   ------------------------------------------------------------------------
-   Remplace l'injection qui était censée être faite par auth-guard.js mais
-   qui n'existait pas : contracts.html, finances.html et profil.html avaient
-   un <nav id="app-sidebar"></nav> vide et aucune bottom nav mobile, donc
-   aucune navigation possible une fois sur ces pages.
-
-   Usage : tout en haut du fichier JS de la page (contracts.js, finances.js,
-   profil.js) :
-
-     import { renderAppNav } from './app-nav.js';
-     renderAppNav('contrats'); // 'dashboard' | 'contrats' | 'finances' | 'profil'
-
-   Nécessite un élément <nav id="app-sidebar" class="app-sidebar"></nav>
-   dans le HTML (déjà présent sur les 3 pages concernées). La bottom nav
-   mobile est créée et ajoutée automatiquement au <body>.
-   ========================================================================== */
-
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
@@ -71,6 +52,7 @@ function renderSidebar(activePage) {
   sidebar.innerHTML = `
     <a href="/" class="app-sidebar__brand">
       <img src="/logo.webp" alt="Kontra-Africa" class="app-sidebar__logo">
+      <span class="app-sidebar__brand-text">Kontra-Africa</span>
     </a>
     <div class="app-nav">
       ${navLinksHTML(activePage, 'app-nav__link')}
