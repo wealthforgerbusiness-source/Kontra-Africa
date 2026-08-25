@@ -5,10 +5,8 @@
 // `db` (Firestore) via `export { auth, db }`. Adapte les imports ci-dessous
 // si tes noms d'export diffèrent.
 
-import { auth, db } from './firebase-config.js';
-import {
-  onAuthStateChanged,
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { db } from './firebase-config.js';
+import { requireAppAccess } from './auth-guard.js';
 import {
   collection,
   addDoc,
@@ -48,15 +46,16 @@ const linkWhatsapp = document.getElementById('link-whatsapp-share');
 const inputShareLink = document.getElementById('input-share-link');
 const btnCopyLink = document.getElementById('btn-copy-link');
 
-// ---------- Auth ----------
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-  if (user) {
-    listenToContracts(user.uid);
-  } else if (unsubscribeContracts) {
-    unsubscribeContracts();
-  }
-});
+// ---------- Auth + garde d'accès (paywall si essai/abonnement terminé) ----------
+async function init() {
+  const session = await requireAppAccess();
+  if (!session) return; // redirection vers /login.html ou paywall déjà affiché
+
+  currentUser = session.user;
+  listenToContracts(session.user.uid);
+}
+
+init();
 
 // ---------- Hors ligne (indicateur simple ; la file de synchro complète
 // arrive avec le Service Worker, tâche #4) ----------
