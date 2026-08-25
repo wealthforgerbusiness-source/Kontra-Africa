@@ -21,6 +21,12 @@
         Hors ligne — les opérations seront synchronisées au retour de la connexion
       </div>
 
+      <div id="currency-gate-banner" class="currency-gate-banner" hidden>
+        ⚠️ Configurez d'abord votre devise (symbole et taux de change) dans le panneau
+        « Devise » ci-dessous avant de créditer/débiter votre solde ou de gérer votre
+        objectif d'épargne.
+      </div>
+
       <header class="page-header">
         <div>
           <h1 class="page-title">Finances</h1>
@@ -46,43 +52,69 @@
         <!-- Objectif d'épargne -->
         <section class="panel">
           <h2 class="panel-title">Objectif d'épargne</h2>
-          <form id="form-savings" class="panel-form">
+
+          <form id="form-savings-goal" class="panel-form">
             <div class="form-field">
               <label for="input-savings-goal">Montant objectif</label>
               <input type="number" id="input-savings-goal" name="savingsGoalAmount" min="0" step="0.01" />
             </div>
             <div class="form-field">
-              <label for="input-savings-current">Montant actuel épargné</label>
-              <input type="number" id="input-savings-current" name="savingsCurrentAmount" min="0" step="0.01" />
+              <label>Devise du montant saisi</label>
+              <div class="currency-choice">
+                <label><input type="radio" name="goalCurrency" value="local" checked> <span class="currency-choice-local-label">Devise locale</span></label>
+                <label><input type="radio" name="goalCurrency" value="usd"> Dollars (USD)</label>
+              </div>
             </div>
+            <button type="submit" class="btn btn-primary">Enregistrer l'objectif</button>
+            <p id="savings-goal-saved-msg" class="saved-msg" role="status" hidden>Enregistré</p>
+          </form>
 
-            <div class="progress-block">
-              <div class="progress-bar">
+          <div class="progress-block">
+            <div class="progress-bar">
               <div class="progress-bar__fill" id="savings-progress-fill" style="width: 0%"></div>
             </div>
-              <p class="progress-label" id="savings-progress-label">0 %</p>
-            </div>
+            <p class="progress-label" id="savings-progress-label">0 %</p>
+            <p class="progress-remaining" id="savings-progress-remaining"></p>
+          </div>
 
-            <button type="submit" class="btn btn-primary">Enregistrer</button>
-            <p id="savings-saved-msg" class="saved-msg" role="status" hidden>Enregistré</p>
+          <form id="form-savings-add" class="panel-form">
+            <div class="form-field">
+              <label for="input-savings-add-amount">Ajouter à l'épargne</label>
+              <input type="number" id="input-savings-add-amount" name="addAmount" min="0.01" step="0.01" placeholder="Ex : 5000" />
+            </div>
+            <div class="form-field">
+              <label>Devise du montant saisi</label>
+              <div class="currency-choice">
+                <label><input type="radio" name="addCurrency" value="local" checked> <span class="currency-choice-local-label">Devise locale</span></label>
+                <label><input type="radio" name="addCurrency" value="usd"> Dollars (USD)</label>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Ajouter</button>
+            <p id="savings-add-error" class="form-error" role="alert" hidden></p>
+            <p id="savings-add-msg" class="saved-msg" role="status" hidden></p>
           </form>
         </section>
 
         <!-- Configuration devise -->
         <section class="panel">
           <h2 class="panel-title">Devise</h2>
+          <p class="field-hint">
+            Cette étape est obligatoire : elle permet à l'application de convertir
+            automatiquement vos montants entre dollars (USD) et votre monnaie locale.
+          </p>
           <form id="form-currency" class="panel-form">
             <div class="form-field">
-              <label for="input-currency-symbol">Symbole de la devise</label>
-              <input type="text" id="input-currency-symbol" name="currencySymbol" maxlength="8" placeholder="Ex : FC" />
+              <label for="input-currency-symbol">Symbole de la devise locale</label>
+              <input type="text" id="input-currency-symbol" name="currencySymbol" maxlength="8" placeholder="Ex : FC" required />
             </div>
             <div class="form-field">
-              <label for="input-exchange-rate">Taux de change (pour 1 USD)</label>
-              <input type="number" id="input-exchange-rate" name="exchangeRate" min="0" step="0.0001" />
+              <label for="input-exchange-rate">Taux de change (1 USD = combien de votre devise locale)</label>
+              <input type="number" id="input-exchange-rate" name="exchangeRate" min="0.0001" step="0.0001" placeholder="Ex : 2800" required />
             </div>
             <p class="field-hint" id="exchange-rate-updated"></p>
 
             <button type="submit" class="btn btn-primary">Enregistrer</button>
+            <p id="currency-error" class="form-error" role="alert" hidden></p>
             <p id="currency-saved-msg" class="saved-msg" role="status" hidden>Enregistré</p>
           </form>
         </section>
@@ -112,6 +144,13 @@
         <div class="form-field">
           <label for="input-amount">Montant</label>
           <input type="number" id="input-amount" name="amount" min="0.01" step="0.01" required />
+        </div>
+        <div class="form-field">
+          <label>Devise du montant saisi</label>
+          <div class="currency-choice">
+            <label><input type="radio" name="amountCurrency" value="local" checked> <span class="currency-choice-local-label">Devise locale</span></label>
+            <label><input type="radio" name="amountCurrency" value="usd"> Dollars (USD)</label>
+          </div>
         </div>
         <div class="form-field">
           <label for="input-description">Description (optionnel)</label>
