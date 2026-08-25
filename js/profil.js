@@ -10,10 +10,8 @@
 // rediriger). Adapte `handleResubscribe` si le contrat de l'API diffère.
 
 import { auth, db } from './firebase-config.js';
-import {
-  onAuthStateChanged,
-  signOut,
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { requireAppAccess } from './auth-guard.js';
+import { signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { renderAppNav } from './app-nav.js';
 
@@ -34,13 +32,17 @@ const btnLogout = document.getElementById('btn-logout');
 
 let currentUser = null;
 
-// ---------- Auth ----------
-onAuthStateChanged(auth, (user) => {
-  if (!user) return; // auth-guard.js gère déjà la redirection si non connecté
-  currentUser = user;
-  renderIdentity(user);
-  listenToSubscription(user.uid);
-});
+// ---------- Auth + garde d'accès (paywall si essai/abonnement terminé) ----------
+async function init() {
+  const session = await requireAppAccess();
+  if (!session) return; // redirection vers /login.html ou paywall déjà affiché
+
+  currentUser = session.user;
+  renderIdentity(session.user);
+  listenToSubscription(session.user.uid);
+}
+
+init();
 
 function renderIdentity(user) {
   profilePhoto.src = user.photoURL || '/icons/icon-192.png';
