@@ -383,22 +383,28 @@ body.nav-open {
 
 .steps__item {
   display: grid;
-  gap: var(--space-5);
+  gap: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-6);
+  overflow: hidden;
 }
 
+/* L'image occupe toute la largeur de la carte, comme l'image du hero :
+   aucun padding entre elle et le bord de la carte. Seul le texte est
+   indenté (padding dans .steps__copy). */
 .steps__media {
-  border-radius: var(--radius-md);
-  overflow: hidden;
   background: var(--color-surface-alt);
 }
 
 .steps__media img {
   width: 100%;
   height: auto;
+  display: block;
+}
+
+.steps__copy {
+  padding: var(--space-6);
 }
 
 .steps__number {
@@ -422,7 +428,19 @@ body.nav-open {
 @media (min-width: 900px) {
   .steps__item {
     grid-template-columns: 1fr 1fr;
-    align-items: center;
+    align-items: stretch;
+  }
+
+  .steps__media {
+    height: 100%;
+  }
+
+  .steps__media img {
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .steps__copy {
     padding: var(--space-7);
   }
 }
@@ -567,11 +585,13 @@ body.nav-open {
 
 .pricing-card {
   display: grid;
-  gap: var(--space-8);
+  gap: var(--space-6);
   background: var(--color-primary);
   color: #fff;
   border-radius: var(--radius-lg);
-  padding: var(--space-8);
+  padding: var(--space-7);
+  max-width: 720px;
+  margin-inline: auto;
 }
 
 .pricing-card .eyebrow {
@@ -590,8 +610,10 @@ body.nav-open {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-md);
-  padding: var(--space-7);
+  padding: var(--space-5);
   text-align: center;
+  max-width: 280px;
+  margin-inline: auto;
 }
 
 .pricing-card__amount {
@@ -931,22 +953,40 @@ body.nav-open {
   }
 
   .pricing-card {
-    padding: var(--space-6);
-    gap: var(--space-6);
+    padding: var(--space-5);
+    gap: var(--space-5);
+  }
+
+  .pricing-card__box {
+    padding: var(--space-4);
+    max-width: 100%;
   }
 
   .site-footer {
     padding-block: var(--space-6);
   }
 
-  /* Cartes pays un peu plus compactes */
+  /* Cartes pays : moins serrées, un peu plus d'air autour du drapeau et du texte */
+  .countries-carousel__track {
+    gap: var(--space-3);
+  }
+
   .country-card {
-    flex: 0 0 112px;
-    padding: var(--space-4) var(--space-2);
+    flex: 0 0 130px;
+    padding: var(--space-5) var(--space-3);
   }
 
   .country-card__flag {
-    width: 52px;
-    height: 52px;
+    width: 60px;
+    height: 60px;
+    margin-bottom: var(--space-3);
+  }
+
+  .country-card__name {
+    font-size: var(--fs-sm);
+  }
+
+  .country-card__badge {
+    margin-top: var(--space-3);
   }
 }
