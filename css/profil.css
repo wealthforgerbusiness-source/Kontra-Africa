@@ -136,6 +136,62 @@
   outline-offset: 2px;
 }
 
+/* Réabonnement — sélecteur pays + numéro Mobile Money */
+.resubscribe-phone-row {
+  width: 100%;
+}
+
+.resubscribe-phone-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #6B6480);
+  margin-bottom: 6px;
+}
+
+.resubscribe-phone-inputs {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--color-border-strong, #D6D2E4);
+  border-radius: var(--radius-md, 10px);
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.resubscribe-phone-inputs:focus-within {
+  border-color: var(--color-primary, #5B3FE0);
+  box-shadow: 0 0 0 3px var(--color-primary-light, #EFEBFC);
+}
+
+.resubscribe-phone-select,
+.resubscribe-phone-input {
+  min-height: 46px;
+  border: none;
+  background: transparent;
+  padding: 0 12px;
+  font-size: 0.9375rem;
+  color: var(--color-text, #2A2140);
+}
+
+.resubscribe-phone-select {
+  flex: 0 0 auto;
+  max-width: 45%;
+  border-right: 1px solid var(--color-border, #E9E7F2);
+  border-radius: var(--radius-md, 10px) 0 0 var(--radius-md, 10px);
+}
+
+.resubscribe-phone-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
+}
+
+.resubscribe-phone-select:focus-visible,
+.resubscribe-phone-input:focus-visible {
+  outline: 3px solid var(--color-accent, #FF8A3D);
+  outline-offset: 1px;
+}
+
 /* Boutons */
 .btn {
   min-height: 44px;
@@ -162,8 +218,15 @@
 }
 
 .btn-primary {
-  background: var(--color-primary, #5B3FE0);
+  background: linear-gradient(135deg, var(--color-accent, #FF8A3D), var(--color-accent-dark, #E3712A));
   color: #fff;
+  box-shadow: 0 6px 18px rgba(255, 138, 61, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(255, 138, 61, 0.45);
 }
 
 .btn-logout {
