@@ -220,6 +220,7 @@ async function loadBalanceActivity(uid, userData) {
 
     if (firstTxSnap.empty) {
       listEl.innerHTML = '';
+      clearActivityChart();
       emptyEl.hidden = false;
       emptyEl.textContent = 'Pas encore de mouvement sur votre solde.';
       return;
@@ -265,15 +266,73 @@ async function loadBalanceActivity(uid, userData) {
     }
 
     emptyEl.hidden = true;
+    renderActivityChart(days, dailyNet, todayKey);
     listEl.innerHTML = days
       .map((key) => renderActivityRow(key, dailyNet.get(key) || 0, key === todayKey, userData))
       .join('');
   } catch (err) {
     console.error("Erreur de chargement de l'activité récente :", err);
     listEl.innerHTML = '';
+    clearActivityChart();
     emptyEl.hidden = false;
     emptyEl.textContent = "Impossible de charger l'activité récente pour le moment.";
   }
+}
+
+/* --- Graphique (SVG léger, sans dépendance) qui monte/descend selon l'argent
+   ajouté ou retiré chaque jour, sur la même fenêtre que la liste ci-dessous. --- */
+function renderActivityChart(days, dailyNet, todayKey) {
+  const chartEl = document.getElementById('balanceActivityChart');
+  if (!chartEl) return;
+
+  if (!days.length) {
+    clearActivityChart();
+    return;
+  }
+
+  const values = days.map((key) => dailyNet.get(key) || 0);
+  const maxAbs = Math.max(1, ...values.map((v) => Math.abs(v)));
+
+  const barWidth = 28;
+  const gap = 16;
+  const plotHeight = 96; // hauteur utilisable de part et d'autre de la ligne zéro
+  const midY = plotHeight / 2;
+  const svgWidth = days.length * (barWidth + gap) + gap;
+  const svgHeight = plotHeight + 28; // + espace pour les libellés de date
+
+  const bars = days.map((key, i) => {
+    const net = values[i];
+    const x = gap + i * (barWidth + gap);
+    const barHeight = Math.max(3, (Math.abs(net) / maxAbs) * (midY - 4));
+    const y = net >= 0 ? midY - barHeight : midY;
+    const isToday = key === todayKey;
+    const fillClass = net > 0
+      ? 'balance-activity-chart__bar--up'
+      : (net < 0 ? 'balance-activity-chart__bar--down' : 'balance-activity-chart__bar--flat');
+
+    const d = new Date(`${key}T00:00:00`);
+    const label = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+
+    return `
+      <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="5"
+            class="balance-activity-chart__bar ${fillClass}"></rect>
+      <text x="${x + barWidth / 2}" y="${plotHeight + 20}" text-anchor="middle"
+            class="balance-activity-chart__label${isToday ? ' balance-activity-chart__label--today' : ''}">${label}</text>
+    `;
+  }).join('');
+
+  chartEl.innerHTML = `
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="${svgHeight}"
+         role="img" aria-label="Graphique des mouvements de solde des derniers jours" preserveAspectRatio="xMidYMid meet">
+      <line x1="0" y1="${midY}" x2="${svgWidth}" y2="${midY}" class="balance-activity-chart__zeroline"></line>
+      ${bars}
+    </svg>
+  `;
+}
+
+function clearActivityChart() {
+  const chartEl = document.getElementById('balanceActivityChart');
+  if (chartEl) chartEl.innerHTML = '';
 }
 
 function renderActivityRow(key, netLocal, isToday, userData) {
