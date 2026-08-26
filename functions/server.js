@@ -9,6 +9,7 @@ const cors = require("cors");
 const { initUser } = require("./src/auth");
 const { checkout } = require("./src/checkout");
 const { chariowWebhook } = require("./src/webhook");
+const { verifyLicenseKey } = require("./src/license-verify");
 const contractsRouter = require("./src/contracts");
 
 const app = express();
@@ -26,6 +27,7 @@ app.use(bodyParser.json());
 app.post("/api/init-user", initUser);
 app.post("/api/checkout", checkout);
 app.post("/api/chariow-webhook", chariowWebhook);
+app.post("/api/verify-license", verifyLicenseKey);
 app.use("/api/contracts", contractsRouter);
 
 // Démarrage du serveur
