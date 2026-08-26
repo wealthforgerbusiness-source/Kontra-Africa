@@ -99,6 +99,7 @@ function renderPaywall(user) {
           <label for="paywallCountry" class="paywall__phone-label">Numéro Mobile Money (pour le paiement)</label>
           <div class="paywall__phone-row">
             <select id="paywallCountry" class="paywall__phone-select">${buildCountryOptionsHtml()}</select>
+            <span class="paywall__phone-divider" aria-hidden="true"></span>
             <input type="tel" id="paywallPhone" class="paywall__phone-input" placeholder="8123456789" inputmode="numeric" autocomplete="tel">
           </div>
           <p class="paywall__phone-error" id="paywallPhoneError" hidden>Entrez un numéro Mobile Money valide pour continuer.</p>
@@ -109,6 +110,7 @@ function renderPaywall(user) {
             S'abonner maintenant
           </button>
         </div>
+        <p class="paywall__trust">🔒 Paiement sécurisé via Mobile Money — vous restez connecté à ce compte</p>
 
         <button type="button" id="paywallLogout" class="btn btn-ghost paywall__logout">
           Se déconnecter
