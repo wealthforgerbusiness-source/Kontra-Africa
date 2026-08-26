@@ -1,13 +1,25 @@
 diff --git a/css/app.css b/css/app.css
-index 54b8c9b..04f140a 100644
+index 54b8c9b..cb1f49e 100644
 --- a/css/app.css
 +++ b/css/app.css
-@@ -707,6 +707,58 @@
+@@ -694,6 +694,11 @@
+   font-weight: 700;
+   color: var(--color-primary);
+   margin-top: var(--space-6);
++  background: var(--color-primary-light);
++  display: inline-flex;
++  align-items: baseline;
++  padding: var(--space-2) var(--space-5);
++  border-radius: var(--radius-full);
+ }
+ 
+ .paywall__currency {
+@@ -707,6 +712,76 @@
    color: var(--color-text-muted);
  }
  
 +.paywall__phone {
-+  margin-top: var(--space-5);
++  margin-top: var(--space-6);
 +  width: 100%;
 +  text-align: left;
 +}
@@ -22,28 +34,46 @@ index 54b8c9b..04f140a 100644
 +
 +.paywall__phone-row {
 +  display: flex;
-+  gap: var(--space-2);
++  align-items: stretch;
++  border: 1.5px solid var(--color-border-strong);
++  border-radius: var(--radius-md);
++  background: var(--color-surface);
++  transition: border-color var(--duration-fast) var(--ease-standard),
++              box-shadow var(--duration-fast) var(--ease-standard);
++}
++
++.paywall__phone-row:focus-within {
++  border-color: var(--color-primary);
++  box-shadow: 0 0 0 3px var(--color-primary-light);
++}
++
++.paywall__phone-divider {
++  width: 1px;
++  align-self: stretch;
++  margin: var(--space-2) 0;
++  background: var(--color-border);
 +}
 +
 +.paywall__phone-select,
 +.paywall__phone-input {
-+  min-height: 44px;
-+  border: 1px solid var(--color-border);
-+  border-radius: var(--radius-md, 10px);
++  min-height: 46px;
++  border: none;
++  background: transparent;
 +  padding: 0 var(--space-3);
 +  font-size: var(--fs-base);
 +  color: var(--color-text);
-+  background: var(--color-surface);
 +}
 +
 +.paywall__phone-select {
 +  flex: 0 0 auto;
 +  max-width: 45%;
++  border-radius: var(--radius-md) 0 0 var(--radius-md);
 +}
 +
 +.paywall__phone-input {
 +  flex: 1 1 auto;
 +  min-width: 0;
++  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 +}
 +
 +.paywall__phone-select:focus-visible,
@@ -61,11 +91,31 @@ index 54b8c9b..04f140a 100644
  .paywall__zone {
    margin-top: var(--space-6);
    min-height: 56px;
+@@ -717,6 +792,19 @@
+ 
+ .paywall__cta {
+   width: 100%;
++  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
++  letter-spacing: 0.01em;
++}
++
++.paywall__cta:hover {
++  transform: translateY(-1px);
++  box-shadow: 0 10px 28px rgba(255, 138, 61, 0.5);
++}
++
++.paywall__trust {
++  margin-top: var(--space-3);
++  font-size: var(--fs-xs);
++  color: var(--color-text-faint);
+ }
+ 
+ .paywall__logout {
 diff --git a/css/profil.css b/css/profil.css
-index c1e03bd..9605206 100644
+index c1e03bd..7ab4f41 100644
 --- a/css/profil.css
 +++ b/css/profil.css
-@@ -136,6 +136,51 @@
+@@ -136,6 +136,62 @@
    outline-offset: 2px;
  }
  
@@ -84,28 +134,39 @@ index c1e03bd..9605206 100644
 +
 +.resubscribe-phone-inputs {
 +  display: flex;
-+  gap: 8px;
++  align-items: stretch;
++  border: 1.5px solid var(--color-border-strong, #D6D2E4);
++  border-radius: var(--radius-md, 10px);
++  background: #fff;
++  transition: border-color 0.15s ease, box-shadow 0.15s ease;
++}
++
++.resubscribe-phone-inputs:focus-within {
++  border-color: var(--color-primary, #5B3FE0);
++  box-shadow: 0 0 0 3px var(--color-primary-light, #EFEBFC);
 +}
 +
 +.resubscribe-phone-select,
 +.resubscribe-phone-input {
-+  min-height: 44px;
-+  border: 1px solid var(--color-border, #E9E7F2);
-+  border-radius: var(--radius-md, 10px);
++  min-height: 46px;
++  border: none;
++  background: transparent;
 +  padding: 0 12px;
 +  font-size: 0.9375rem;
 +  color: var(--color-text, #2A2140);
-+  background: #fff;
 +}
 +
 +.resubscribe-phone-select {
 +  flex: 0 0 auto;
 +  max-width: 45%;
++  border-right: 1px solid var(--color-border, #E9E7F2);
++  border-radius: var(--radius-md, 10px) 0 0 var(--radius-md, 10px);
 +}
 +
 +.resubscribe-phone-input {
 +  flex: 1 1 auto;
 +  min-width: 0;
++  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
 +}
 +
 +.resubscribe-phone-select:focus-visible,
@@ -117,6 +178,23 @@ index c1e03bd..9605206 100644
  /* Boutons */
  .btn {
    min-height: 44px;
+@@ -162,8 +218,15 @@
+ }
+ 
+ .btn-primary {
+-  background: var(--color-primary, #5B3FE0);
++  background: linear-gradient(135deg, var(--color-accent, #FF8A3D), var(--color-accent-dark, #E3712A));
+   color: #fff;
++  box-shadow: 0 6px 18px rgba(255, 138, 61, 0.35);
++  transition: transform 0.15s ease, box-shadow 0.15s ease;
++}
++
++.btn-primary:hover {
++  transform: translateY(-1px);
++  box-shadow: 0 8px 22px rgba(255, 138, 61, 0.45);
+ }
+ 
+ .btn-logout {
 diff --git a/dashboard.html b/dashboard.html
 index 8847fb9..44a7231 100644
 --- a/dashboard.html
@@ -130,6 +208,26 @@ index 8847fb9..44a7231 100644
  
    <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
    <div class="app-loading" id="appLoading">
+diff --git a/js/auth-guard.js b/js/auth-guard.js
+index 0a0cfd3..b731295 100644
+--- a/js/auth-guard.js
++++ b/js/auth-guard.js
+@@ -99,6 +99,7 @@ function renderPaywall(user) {
+           <label for="paywallCountry" class="paywall__phone-label">Numéro Mobile Money (pour le paiement)</label>
+           <div class="paywall__phone-row">
+             <select id="paywallCountry" class="paywall__phone-select">${buildCountryOptionsHtml()}</select>
++            <span class="paywall__phone-divider" aria-hidden="true"></span>
+             <input type="tel" id="paywallPhone" class="paywall__phone-input" placeholder="8123456789" inputmode="numeric" autocomplete="tel">
+           </div>
+           <p class="paywall__phone-error" id="paywallPhoneError" hidden>Entrez un numéro Mobile Money valide pour continuer.</p>
+@@ -109,6 +110,7 @@ function renderPaywall(user) {
+             S'abonner maintenant
+           </button>
+         </div>
++        <p class="paywall__trust">🔒 Paiement sécurisé via Mobile Money — vous restez connecté à ce compte</p>
+ 
+         <button type="button" id="paywallLogout" class="btn btn-ghost paywall__logout">
+           Se déconnecter
 diff --git a/js/phone-countries.js b/js/phone-countries.js
 new file mode 100644
 index 0000000..7ef1367
