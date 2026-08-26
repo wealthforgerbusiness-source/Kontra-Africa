@@ -112,6 +112,16 @@ function renderPaywall(user) {
         </div>
         <p class="paywall__trust">🔒 Paiement sécurisé via Mobile Money — vous restez connecté à ce compte</p>
 
+        <div class="paywall__license">
+          <p class="paywall__license-question">Tu as déjà payé mais tu n'as pas accès ?</p>
+          <label for="paywallLicenseKey" class="paywall__license-label">Entre ta clé de licence (envoyée dans ton email Chariow)</label>
+          <div class="paywall__license-row">
+            <input type="text" id="paywallLicenseKey" class="paywall__license-input" placeholder="ABC-123-XYZ-789" autocomplete="off">
+            <button type="button" id="paywallVerifyLicenseBtn" class="btn btn-secondary">Vérifier</button>
+          </div>
+          <p class="paywall__license-error" id="paywallLicenseError" hidden></p>
+        </div>
+
         <button type="button" id="paywallLogout" class="btn btn-ghost paywall__logout">
           Se déconnecter
         </button>
@@ -130,6 +140,11 @@ function renderPaywall(user) {
   const zone = document.getElementById('paywallZone');
   const checkoutBtn = document.getElementById('checkoutBtn');
   const logoutBtn = document.getElementById('paywallLogout');
+  const verifyLicenseBtn = document.getElementById('paywallVerifyLicenseBtn');
+  const licenseInput = document.getElementById('paywallLicenseKey');
+  const licenseError = document.getElementById('paywallLicenseError');
+
+  verifyLicenseBtn.addEventListener('click', () => verifyLicense(user, licenseInput, licenseError, verifyLicenseBtn));
 
   checkoutBtn.addEventListener('click', () => {
     const phoneNumber = cleanPhoneDigits(document.getElementById('paywallPhone').value);
@@ -213,6 +228,50 @@ async function startCheckout(user, zone, phone, isRetryAttempt = false) {
     document.getElementById('checkoutRetry').addEventListener('click', () => startCheckout(user, zone, phone));
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+/* --- Vérification manuelle de clé de licence (filet de secours si le
+   webhook Chariow n'arrive jamais après un paiement mobile money réussi) --- */
+async function verifyLicense(user, inputEl, errorEl, buttonEl) {
+  errorEl.hidden = true;
+  const licenseKey = inputEl.value.trim();
+
+  if (!licenseKey) {
+    errorEl.textContent = "Entre la clé de licence reçue par email après ton paiement.";
+    errorEl.hidden = false;
+    return;
+  }
+
+  buttonEl.disabled = true;
+  buttonEl.textContent = 'Vérification…';
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/verify-license`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firebaseUid: user.uid, licenseKey })
+    });
+
+    const data = await response.json();
+
+    if (data && data.valid && data.reactivated) {
+      // Accès rétabli : on recharge pour repasser par requireAppAccess(),
+      // qui verra maintenant subscriptionStatus === 'active' et laissera
+      // passer l'utilisateur normalement.
+      window.location.reload();
+      return;
+    }
+
+    errorEl.textContent = (data && data.error) || "Clé de licence invalide.";
+    errorEl.hidden = false;
+  } catch (err) {
+    console.error('Erreur de vérification de licence :', err);
+    errorEl.textContent = "Impossible de vérifier la clé pour le moment. Réessaie dans un instant.";
+    errorEl.hidden = false;
+  } finally {
+    buttonEl.disabled = false;
+    buttonEl.textContent = 'Vérifier';
   }
 }
 
