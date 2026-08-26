@@ -1,33 +1,18 @@
-/**
- * Configuration principale et initialisation des services Firebase.
- */
-const admin = require("firebase-admin");
-
-// L'initialisation utilise automatiquement la variable d'environnement GOOGLE_APPLICATION_CREDENTIALS
-// Assurez-vous d'avoir téléchargé serviceAccountKey.json depuis les paramètres du projet Firebase
-admin.initializeApp({
-  credential: admin.credential.applicationDefault()
-});
-
-const db = admin.firestore();
-
-// Variables d'environnement
-const CHARIOW_API_KEY = process.env.CHARIOW_API_KEY;
-const CHARIOW_API_URL = "https://api.chariow.com/v1";
-const CHARIOW_PRODUCT_ID = "prd_tqwlmf8w";
-const TRIAL_DURATION_DAYS = 3;
-
-// URL publique du frontend (hébergé sur Firebase Hosting), utilisée pour
-// ramener l'utilisateur dans l'app après un paiement Chariow (redirect_url).
-// Peut être surchargée via la variable d'environnement APP_BASE_URL sur Render.
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://kontra-africa.firebaseapp.com";
-
-module.exports = {
-  admin,
-  db,
-  CHARIOW_API_KEY,
-  CHARIOW_API_URL,
-  CHARIOW_PRODUCT_ID,
-  APP_BASE_URL,
-  TRIAL_DURATION_DAYS,
+/* ==========================================================================
+   Kontra-Africa — Configuration Firebase
+   ========================================================================== */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+const firebaseConfig = {
+  apiKey: "AIzaSyDRwWJ-BzdDiepdmuRQ4OezrdY3vyOHjEQ",
+  authDomain: "kontra-africa.firebaseapp.com",
+  projectId: "kontra-africa",
+  storageBucket: "kontra-africa.firebasestorage.app",
+  messagingSenderId: "42432583683",
+  appId: "1:42432583683:web:28c63a02e78aff84771636"
 };
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
