@@ -1,0 +1,192 @@
+diff --git a/css/app.css b/css/app.css
+index 54b8c9b..04f140a 100644
+--- a/css/app.css
++++ b/css/app.css
+@@ -707,6 +707,58 @@
+   color: var(--color-text-muted);
+ }
+ 
++.paywall__phone {
++  margin-top: var(--space-5);
++  width: 100%;
++  text-align: left;
++}
++
++.paywall__phone-label {
++  display: block;
++  font-size: var(--fs-sm);
++  font-weight: 600;
++  color: var(--color-text-muted);
++  margin-bottom: var(--space-2);
++}
++
++.paywall__phone-row {
++  display: flex;
++  gap: var(--space-2);
++}
++
++.paywall__phone-select,
++.paywall__phone-input {
++  min-height: 44px;
++  border: 1px solid var(--color-border);
++  border-radius: var(--radius-md, 10px);
++  padding: 0 var(--space-3);
++  font-size: var(--fs-base);
++  color: var(--color-text);
++  background: var(--color-surface);
++}
++
++.paywall__phone-select {
++  flex: 0 0 auto;
++  max-width: 45%;
++}
++
++.paywall__phone-input {
++  flex: 1 1 auto;
++  min-width: 0;
++}
++
++.paywall__phone-select:focus-visible,
++.paywall__phone-input:focus-visible {
++  outline: 3px solid var(--color-accent);
++  outline-offset: 1px;
++}
++
++.paywall__phone-error {
++  color: var(--color-error);
++  font-size: var(--fs-xs);
++  margin-top: var(--space-2);
++}
++
+ .paywall__zone {
+   margin-top: var(--space-6);
+   min-height: 56px;
+diff --git a/css/profil.css b/css/profil.css
+index c1e03bd..9605206 100644
+--- a/css/profil.css
++++ b/css/profil.css
+@@ -136,6 +136,51 @@
+   outline-offset: 2px;
+ }
+ 
++/* Réabonnement — sélecteur pays + numéro Mobile Money */
++.resubscribe-phone-row {
++  width: 100%;
++}
++
++.resubscribe-phone-label {
++  display: block;
++  font-size: 0.8125rem;
++  font-weight: 600;
++  color: var(--color-text-muted, #6B6480);
++  margin-bottom: 6px;
++}
++
++.resubscribe-phone-inputs {
++  display: flex;
++  gap: 8px;
++}
++
++.resubscribe-phone-select,
++.resubscribe-phone-input {
++  min-height: 44px;
++  border: 1px solid var(--color-border, #E9E7F2);
++  border-radius: var(--radius-md, 10px);
++  padding: 0 12px;
++  font-size: 0.9375rem;
++  color: var(--color-text, #2A2140);
++  background: #fff;
++}
++
++.resubscribe-phone-select {
++  flex: 0 0 auto;
++  max-width: 45%;
++}
++
++.resubscribe-phone-input {
++  flex: 1 1 auto;
++  min-width: 0;
++}
++
++.resubscribe-phone-select:focus-visible,
++.resubscribe-phone-input:focus-visible {
++  outline: 3px solid var(--color-accent, #FF8A3D);
++  outline-offset: 1px;
++}
++
+ /* Boutons */
+ .btn {
+   min-height: 44px;
+diff --git a/dashboard.html b/dashboard.html
+index 8847fb9..44a7231 100644
+--- a/dashboard.html
++++ b/dashboard.html
+@@ -18,6 +18,8 @@
+ 
+   <link rel="stylesheet" href="/css/tokens.css">
+   <link rel="stylesheet" href="/css/app.css">
++</head>
++<body>
+ 
+   <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
+   <div class="app-loading" id="appLoading">
+diff --git a/js/phone-countries.js b/js/phone-countries.js
+new file mode 100644
+index 0000000..7ef1367
+--- /dev/null
++++ b/js/phone-countries.js
+@@ -0,0 +1,34 @@
++/* ==========================================================================
++   Kontra-Africa — Pays & indicatifs pour le paiement Mobile Money
++   Utilisé par auth-guard.js (paywall) et profil.js (réabonnement).
++   ========================================================================== */
++
++// Pays actuellement pris en charge (mêmes marchés que la page d'accueil).
++// `code` = code pays ISO envoyé tel quel au backend (`phone.countryCode`).
++export const COUNTRIES = [
++  { code: 'CD', name: 'RD Congo', dial: '+243', flag: '🇨🇩' },
++  { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮' },
++  { code: 'CM', name: 'Cameroun', dial: '+237', flag: '🇨🇲' },
++  { code: 'SN', name: 'Sénégal', dial: '+221', flag: '🇸🇳' },
++  { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬' },
++  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯' },
++  { code: 'BF', name: 'Burkina Faso', dial: '+226', flag: '🇧🇫' },
++  { code: 'ML', name: 'Mali', dial: '+223', flag: '🇲🇱' },
++  { code: 'GA', name: 'Gabon', dial: '+241', flag: '🇬🇦' },
++  { code: 'CG', name: 'Congo-Brazzaville', dial: '+242', flag: '🇨🇬' },
++];
++
++const DEFAULT_COUNTRY_CODE = 'CD';
++
++/* --- Construit les <option> du <select> pays pour le paiement --- */
++export function buildCountryOptionsHtml(selectedCode = DEFAULT_COUNTRY_CODE) {
++  return COUNTRIES.map((country) => {
++    const selected = country.code === selectedCode ? ' selected' : '';
++    return `<option value="${country.code}"${selected}>${country.flag} ${country.name} (${country.dial})</option>`;
++  }).join('');
++}
++
++/* --- Ne garde que les chiffres d'un numéro saisi (espaces, +, tirets, etc. retirés) --- */
++export function cleanPhoneDigits(value) {
++  return String(value || '').replace(/\D/g, '');
++}
+diff --git a/profil.html b/profil.html
+index 3272a01..b9b1c54 100644
+--- a/profil.html
++++ b/profil.html
+@@ -38,6 +38,15 @@
+         <h2 class="panel-title">Abonnement</h2>
+         <div id="subscription-status" class="subscription-status">
+           <p id="subscription-message" class="subscription-message">Chargement…</p>
++
++          <div id="resubscribe-phone-row" class="resubscribe-phone-row" hidden>
++            <label for="resubscribe-phone" class="resubscribe-phone-label">Numéro Mobile Money (pour le paiement)</label>
++            <div class="resubscribe-phone-inputs">
++              <select id="resubscribe-country" class="resubscribe-phone-select"></select>
++              <input type="tel" id="resubscribe-phone" class="resubscribe-phone-input" placeholder="8123456789" inputmode="numeric" autocomplete="tel">
++            </div>
++          </div>
++
+           <button type="button" id="btn-resubscribe" class="btn btn-primary" hidden>
+             Se réabonner
+           </button>
