@@ -1,19 +1,9 @@
-// js/profil.js
-// Module Profil (protégé par auth-guard.js)
-//
-// Hypothèses sur firebase-config.js : exporte `auth` et `db` via
-// `export { auth, db }`. Adapte les imports si tes noms diffèrent.
-//
-// POST /api/checkout (functions/src/checkout.js) : appelé sur l'URL absolue
-// du backend Render (kontra-africa.onrender.com), avec `firebaseUid`, `email`,
-// `firstName`, `lastName` dans le corps JSON. Répond avec `{ checkoutUrl }`
-// (URL de paiement Chariow à laquelle rediriger).
-
 import { auth, db } from './firebase-config.js';
 import { requireAppAccess } from './auth-guard.js';
 import { signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { renderAppNav } from './app-nav.js';
+import { buildCountryOptionsHtml, cleanPhoneDigits } from './phone-countries.js';
 
 renderAppNav('profil'); // sidebar desktop + bottom nav mobile
 
@@ -28,6 +18,13 @@ const profileEmail = document.getElementById('profile-email');
 const subscriptionMessage = document.getElementById('subscription-message');
 const btnResubscribe = document.getElementById('btn-resubscribe');
 const subscriptionError = document.getElementById('subscription-error');
+const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
+const resubscribeCountry = document.getElementById('resubscribe-country');
+const resubscribePhone = document.getElementById('resubscribe-phone');
+
+if (resubscribeCountry) {
+  resubscribeCountry.innerHTML = buildCountryOptionsHtml();
+}
 
 const btnLogout = document.getElementById('btn-logout');
 
@@ -64,6 +61,7 @@ function renderSubscriptionStatus(data) {
   const status = data.subscriptionStatus;
   subscriptionMessage.classList.remove('status-trial', 'status-active', 'status-expired');
   btnResubscribe.hidden = true;
+  if (resubscribePhoneRow) resubscribePhoneRow.hidden = true;
   subscriptionError.hidden = true;
 
   if (status === 'trial') {
@@ -82,6 +80,7 @@ function renderSubscriptionStatus(data) {
     subscriptionMessage.textContent = 'Abonnement expiré';
     subscriptionMessage.classList.add('status-expired');
     btnResubscribe.hidden = false;
+    if (resubscribePhoneRow) resubscribePhoneRow.hidden = false;
   } else {
     subscriptionMessage.textContent = 'Statut d’abonnement inconnu.';
   }
@@ -98,6 +97,16 @@ btnResubscribe.addEventListener('click', handleResubscribe);
 async function handleResubscribe() {
   if (!currentUser) return;
   subscriptionError.hidden = true;
+
+  const phoneNumber = cleanPhoneDigits(resubscribePhone ? resubscribePhone.value : '');
+  const countryCode = resubscribeCountry ? resubscribeCountry.value : 'CD';
+
+  if (phoneNumber.length < 8) {
+    subscriptionError.textContent = 'Entrez un numéro Mobile Money valide pour continuer.';
+    subscriptionError.hidden = false;
+    return;
+  }
+
   btnResubscribe.disabled = true;
   btnResubscribe.textContent = 'Redirection en cours…';
 
@@ -114,7 +123,8 @@ async function handleResubscribe() {
         firebaseUid: currentUser.uid,
         email: currentUser.email || '',
         firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
-        lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu'
+        lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
+        phone: { number: phoneNumber, countryCode }
       }),
       signal: controller.signal,
     });
@@ -125,6 +135,13 @@ async function handleResubscribe() {
     }
 
     const result = await res.json();
+
+    if (result.reactivated) {
+      // Aucun paiement à refaire : l'accès vient d'être réactivé directement.
+      window.location.reload();
+      return;
+    }
+
     if (result.checkoutUrl) {
       window.location.href = result.checkoutUrl;
     } else {
