@@ -1,18 +1,3 @@
-/**
- * Vérification manuelle de clé de licence Chariow.
- *
- * Pourquoi ce fichier existe :
- * Le webhook (pulse) Chariow est asynchrone et peut, dans de rares cas, ne
- * jamais arriver ou ne jamais être émis côté Chariow (paiement mobile money
- * confirmé chez l'opérateur mais pulse non déclenché sur leur plateforme).
- * Ce endpoint est un filet de secours indépendant du webhook : l'utilisateur
- * saisit lui-même sa clé de licence (reçue après paiement sur Chariow), et on
- * la vérifie en interrogeant directement l'API Chariow — sans dépendre d'une
- * notification qui aurait pu se perdre.
- *
- * Endpoint Chariow utilisé : GET /v1/licenses/{key}
- * Doc : https://chariow.dev/en/guides/saas-license-integration
- */
 const { db, CHARIOW_API_URL, CHARIOW_API_KEY } = require("./config");
 
 exports.verifyLicenseKey = async (req, res) => {
@@ -28,13 +13,9 @@ exports.verifyLicenseKey = async (req, res) => {
 
     const cleanKey = licenseKey.trim();
 
-    const response = await fetch(
+    let response = await fetch(
       `${CHARIOW_API_URL}/licenses/${encodeURIComponent(cleanKey)}`,
-      {
-        headers: {
-          "Authorization": `Bearer ${CHARIOW_API_KEY}`
-        }
-      }
+      { headers: { "Authorization": `Bearer ${CHARIOW_API_KEY}` } }
     );
 
     if (!response.ok) {
@@ -44,7 +25,38 @@ exports.verifyLicenseKey = async (req, res) => {
       return res.status(200).json({ valid: false, error: "Clé de licence invalide ou introuvable." });
     }
 
-    const { data } = await response.json();
+    let { data } = await response.json();
+
+    // NOUVEAU : une licence fraîchement achetée n'est pas "active" tant
+    // qu'elle n'a pas été activée une première fois (status
+    // "pending_activation", can_activate = true). On l'active nous-mêmes,
+    // de façon transparente pour l'utilisateur, avant de la juger invalide.
+    if (!data.is_active && data.can_activate) {
+      console.log(`Licence ${cleanKey} en attente d'activation, activation automatique pour ${firebaseUid}.`);
+
+      const activateResponse = await fetch(
+        `${CHARIOW_API_URL}/licenses/${encodeURIComponent(cleanKey)}/activate`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${CHARIOW_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ device_identifier: firebaseUid })
+        }
+      );
+
+      if (!activateResponse.ok) {
+        const errorText = await activateResponse.text();
+        console.error(`Échec activation licence ${cleanKey} pour ${firebaseUid} : HTTP ${activateResponse.status} - ${errorText}`);
+        return res.status(200).json({ valid: false, error: "Impossible d'activer cette licence pour le moment." });
+      }
+
+      const activateResult = await activateResponse.json();
+      // On repart des données fraîches renvoyées par l'activation (is_active
+      // doit désormais être true), au lieu de refaire un GET.
+      data = activateResult.data || data;
+    }
 
     if (!data || !data.is_active) {
       return res.status(200).json({ valid: false, error: "Cette licence n'est pas active." });
@@ -56,10 +68,6 @@ exports.verifyLicenseKey = async (req, res) => {
     // is_expired renvoyé par Chariow. On recalcule nous-mêmes à partir de
     // expires_at, au cas où le produit serait mal configuré côté Chariow
     // (ex. licence "permanente" par erreur) ou en cas de décalage d'horloge.
-    // Une licence SANS date d'expiration n'est acceptée que si Chariow la
-    // déclare explicitement non-expirée ET que ce n'est pas censé arriver
-    // pour ce produit (licence mensuelle) — on logue une alerte si ça se
-    // produit pour pouvoir vérifier la config du produit sur Chariow.
     if (data.is_expired) {
       return res.status(200).json({ valid: false, error: "Cette licence a expiré." });
     }
@@ -85,12 +93,10 @@ exports.verifyLicenseKey = async (req, res) => {
       return res.status(200).json({ valid: false, error: "Cette clé de licence est déjà utilisée sur un autre compte." });
     }
 
-    const subscriptionExpiresAt = expiresAtRaw;
-
     await db.collection("users").doc(firebaseUid).set(
       {
         subscriptionStatus: "active",
-        subscriptionExpiresAt: subscriptionExpiresAt,
+        subscriptionExpiresAt: expiresAtRaw,
         chariowLicenseKey: cleanKey,
         updatedAt: new Date()
       },
