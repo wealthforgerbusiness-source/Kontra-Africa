@@ -694,6 +694,11 @@
   font-weight: 700;
   color: var(--color-primary);
   margin-top: var(--space-6);
+  background: var(--color-primary-light);
+  display: inline-flex;
+  align-items: baseline;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
 }
 
 .paywall__currency {
@@ -707,6 +712,76 @@
   color: var(--color-text-muted);
 }
 
+.paywall__phone {
+  margin-top: var(--space-6);
+  width: 100%;
+  text-align: left;
+}
+
+.paywall__phone-label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.paywall__phone-row {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.paywall__phone-row:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.paywall__phone-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--space-2) 0;
+  background: var(--color-border);
+}
+
+.paywall__phone-select,
+.paywall__phone-input {
+  min-height: 46px;
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-3);
+  font-size: var(--fs-base);
+  color: var(--color-text);
+}
+
+.paywall__phone-select {
+  flex: 0 0 auto;
+  max-width: 45%;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.paywall__phone-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.paywall__phone-select:focus-visible,
+.paywall__phone-input:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.paywall__phone-error {
+  color: var(--color-error);
+  font-size: var(--fs-xs);
+  margin-top: var(--space-2);
+}
+
 .paywall__zone {
   margin-top: var(--space-6);
   min-height: 56px;
@@ -717,6 +792,19 @@
 
 .paywall__cta {
   width: 100%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+  letter-spacing: 0.01em;
+}
+
+.paywall__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(255, 138, 61, 0.5);
+}
+
+.paywall__trust {
+  margin-top: var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
 }
 
 .paywall__logout {
