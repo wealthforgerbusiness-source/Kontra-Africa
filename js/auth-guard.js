@@ -20,6 +20,7 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/f
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
+const CHECKOUT_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
 
 /* --- Détermine si l'accès doit être bloqué --- */
 function isSubscriptionBlocked(userData) {
@@ -139,13 +140,16 @@ function renderPaywall(user) {
   logoutBtn.addEventListener('click', logout);
 }
 
-async function startCheckout(user, zone) {
+async function startCheckout(user, zone, isRetryAttempt = false) {
   zone.innerHTML = `
     <div class="paywall-state">
       <span class="spinner" aria-hidden="true"></span>
-      <p>Préparation du paiement…</p>
+      <p>Préparation du paiement… (cela peut prendre jusqu'à 1 minute la première fois)</p>
     </div>
   `;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/checkout`, {
@@ -156,8 +160,18 @@ async function startCheckout(user, zone) {
         email: user.email || '',
         firstName: user.displayName ? user.displayName.split(' ')[0] : 'Client',
         lastName: user.displayName ? user.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu'
-      })
+      }),
+      signal: controller.signal
     });
+
+    // Le serveur Render (plan gratuit) répond parfois par une erreur passerelle
+    // (502/503) le temps qu'il finisse de démarrer après une période d'inactivité.
+    // Un seul nouvel essai automatique, silencieux, résout la grande majorité des cas.
+    if ((response.status === 502 || response.status === 503) && !isRetryAttempt) {
+      clearTimeout(timeoutId);
+      await new Promise((r) => setTimeout(r, 4000));
+      return startCheckout(user, zone, true);
+    }
 
     if (!response.ok) {
       throw new Error(`checkout a répondu avec le statut ${response.status}`);
@@ -172,13 +186,18 @@ async function startCheckout(user, zone) {
     window.location.href = data.checkoutUrl;
   } catch (err) {
     console.error('Erreur checkout :', err);
+    const message = err.name === 'AbortError'
+      ? "Le serveur met plus de temps que prévu à démarrer. Réessayez dans un instant."
+      : "Impossible de préparer le paiement. Réessayez.";
     zone.innerHTML = `
       <div class="paywall-state paywall-state--error" role="alert">
-        <p>Impossible de préparer le paiement. Réessayez.</p>
+        <p>${message}</p>
         <button type="button" id="checkoutRetry" class="btn btn-secondary">Réessayer</button>
       </div>
     `;
     document.getElementById('checkoutRetry').addEventListener('click', () => startCheckout(user, zone));
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
