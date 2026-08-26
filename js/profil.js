@@ -21,6 +21,9 @@ const subscriptionError = document.getElementById('subscription-error');
 const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
 const resubscribeCountry = document.getElementById('resubscribe-country');
 const resubscribePhone = document.getElementById('resubscribe-phone');
+const licenseKeyRow = document.getElementById('license-key-row');
+const licenseKeyInput = document.getElementById('license-key-input');
+const btnVerifyLicense = document.getElementById('btn-verify-license');
 
 if (resubscribeCountry) {
   resubscribeCountry.innerHTML = buildCountryOptionsHtml();
@@ -62,6 +65,7 @@ function renderSubscriptionStatus(data) {
   subscriptionMessage.classList.remove('status-trial', 'status-active', 'status-expired');
   btnResubscribe.hidden = true;
   if (resubscribePhoneRow) resubscribePhoneRow.hidden = true;
+  if (licenseKeyRow) licenseKeyRow.hidden = true;
   subscriptionError.hidden = true;
 
   if (status === 'trial') {
@@ -81,6 +85,10 @@ function renderSubscriptionStatus(data) {
     subscriptionMessage.classList.add('status-expired');
     btnResubscribe.hidden = false;
     if (resubscribePhoneRow) resubscribePhoneRow.hidden = false;
+    // Filet de secours : si le paiement a réussi côté opérateur mais que le
+    // webhook Chariow n'est jamais arrivé, l'utilisateur peut débloquer son
+    // compte lui-même avec la clé de licence reçue après paiement.
+    if (licenseKeyRow) licenseKeyRow.hidden = false;
   } else {
     subscriptionMessage.textContent = 'Statut d’abonnement inconnu.';
   }
@@ -157,6 +165,51 @@ async function handleResubscribe() {
     btnResubscribe.textContent = 'Se réabonner';
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+// ---------- Vérification manuelle de clé de licence (fallback si le webhook Chariow n'arrive pas) ----------
+if (btnVerifyLicense) {
+  btnVerifyLicense.addEventListener('click', handleVerifyLicense);
+}
+
+async function handleVerifyLicense() {
+  if (!currentUser || !licenseKeyInput) return;
+  subscriptionError.hidden = true;
+
+  const key = licenseKeyInput.value.trim();
+  if (!key) {
+    subscriptionError.textContent = "Entre la clé de licence reçue après ton paiement sur Chariow.";
+    subscriptionError.hidden = false;
+    return;
+  }
+
+  btnVerifyLicense.disabled = true;
+  btnVerifyLicense.textContent = 'Vérification…';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/verify-license`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firebaseUid: currentUser.uid, licenseKey: key }),
+    });
+
+    const result = await res.json();
+
+    if (result.valid && result.reactivated) {
+      window.location.reload();
+      return;
+    }
+
+    subscriptionError.textContent = result.error || "Clé de licence invalide.";
+    subscriptionError.hidden = false;
+  } catch (err) {
+    console.error('Erreur de vérification de licence :', err);
+    subscriptionError.textContent = "Impossible de vérifier la clé pour le moment. Réessaie dans un instant.";
+    subscriptionError.hidden = false;
+  } finally {
+    btnVerifyLicense.disabled = false;
+    btnVerifyLicense.textContent = 'Vérifier la clé';
   }
 }
 
