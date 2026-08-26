@@ -50,6 +50,15 @@
           <button type="button" id="btn-resubscribe" class="btn btn-primary" hidden>
             Se réabonner
           </button>
+
+          <div id="license-key-row" class="resubscribe-phone-row" hidden>
+            <label for="license-key-input" class="resubscribe-phone-label">Déjà payé ? Entre ta clé de licence Chariow</label>
+            <div class="resubscribe-phone-inputs">
+              <input type="text" id="license-key-input" class="resubscribe-phone-input" placeholder="ABC-123-XYZ-789" autocomplete="off">
+              <button type="button" id="btn-verify-license" class="btn btn-secondary">Vérifier la clé</button>
+            </div>
+          </div>
+
           <p id="subscription-error" class="form-error" role="alert" hidden></p>
         </div>
       </section>
