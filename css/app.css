@@ -484,6 +484,49 @@
   padding: var(--space-6);
 }
 
+/* ---------------------------------- Dashboard : graphique de l'activité ---------------------------------- */
+
+.balance-activity-chart {
+  margin-top: var(--space-4);
+}
+
+.balance-activity-chart svg {
+  display: block;
+}
+
+.balance-activity-chart__zeroline {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+
+.balance-activity-chart__bar {
+  transition: height var(--duration-slow) var(--ease-standard),
+              y var(--duration-slow) var(--ease-standard);
+}
+
+.balance-activity-chart__bar--up {
+  fill: #1F8A4C;
+}
+
+.balance-activity-chart__bar--down {
+  fill: var(--color-error, #C23B3B);
+}
+
+.balance-activity-chart__bar--flat {
+  fill: var(--color-border-strong);
+}
+
+.balance-activity-chart__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--color-text-faint);
+}
+
+.balance-activity-chart__label--today {
+  fill: var(--color-primary);
+  font-weight: 700;
+}
+
 /* ---------------------------------- Dashboard : activité des 7 derniers jours ---------------------------------- */
 
 .balance-activity-list {
