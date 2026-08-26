@@ -78,11 +78,36 @@ exports.chariowWebhook = async (req, res) => {
 
     } else if (
       normalizedEvent === "failed.sale" ||
-      normalizedEvent === "abandoned.sale" ||
-      normalizedEvent === "license.revoked"
+      normalizedEvent === "abandoned.sale"
     ) {
+      // IMPORTANT : failed.sale / abandoned.sale signifient "cette tentative de
+      // paiement a échoué", PAS "l'abonnement en cours est révoqué". Comme les
+      // webhooks Chariow peuvent arriver dans le désordre (retries, confirmation
+      // mobile money asynchrone), on ne doit JAMAIS écraser un abonnement encore
+      // "active" et non expiré à cause d'une tentative ratée, sous peine de
+      // couper l'accès à un utilisateur qui vient tout juste d'être réactivé
+      // par un successful.sale reçu juste avant (voir capture du 26/08 19h45-19h51).
+      const currentSnap = await userRef.get();
+      const currentData = currentSnap.exists ? currentSnap.data() : {};
+      const currentlyActive = currentData.subscriptionStatus === "active";
+      const expiresAt = currentData.subscriptionExpiresAt?.toDate
+        ? currentData.subscriptionExpiresAt.toDate()
+        : currentData.subscriptionExpiresAt ? new Date(currentData.subscriptionExpiresAt) : null;
+      const stillWithinPaidPeriod = expiresAt && expiresAt > new Date();
+
+      if (currentlyActive && stillWithinPaidPeriod) {
+        console.log(
+          `${eventType} reçu pour ${firebaseUid} mais abonnement encore actif jusqu'au ${expiresAt.toISOString()} — statut inchangé (tentative ratée ignorée).`
+        );
+      } else {
+        await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
+        console.log(`Statut de ${firebaseUid} mis à jour : cancelled`);
+      }
+    } else if (normalizedEvent === "license.revoked") {
+      // license.revoked est une action explicite et volontaire (ex. remboursement,
+      // fraude) : contrairement à failed/abandoned, elle doit toujours s'appliquer.
       await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
-      console.log(`Statut de ${firebaseUid} mis à jour : cancelled`);
+      console.log(`Statut de ${firebaseUid} mis à jour : cancelled (licence révoquée)`);
     } else {
       console.log(`Événement ${eventType} reçu mais non traité (pas d'action nécessaire).`);
     }
