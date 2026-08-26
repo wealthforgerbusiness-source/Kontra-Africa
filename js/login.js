@@ -19,15 +19,28 @@ const loadingLabel = document.getElementById('loadingLabel');
 const errorState = document.getElementById('errorState');
 const errorMessage = document.getElementById('errorMessage');
 const retryBtn = document.getElementById('retryBtn');
+const termsCheckbox = document.getElementById('termsCheckbox');
 
 /* --- Détection mobile : popup peu fiable sur mobile, on préfère la redirection --- */
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+/* --- CGU obligatoires : le bouton Google reste désactivé tant que la case
+   n'est pas cochée, que ce soit pour se connecter ou pour s'inscrire
+   (un seul et même bouton gère les deux cas côté Firebase). --- */
+function updateGoogleBtnState() {
+  googleBtn.disabled = !termsCheckbox.checked;
+}
+
+if (termsCheckbox) {
+  termsCheckbox.addEventListener('change', updateGoogleBtnState);
+}
 
 /* --- Gestion des états visuels --- */
 function showButton() {
   googleBtn.hidden = false;
   loadingState.hidden = true;
   errorState.hidden = true;
+  updateGoogleBtnState();
 }
 
 function showLoading(label) {
@@ -120,6 +133,8 @@ async function completeSignIn(firebaseUser) {
 
 /* --- Lancement de la connexion Google --- */
 async function startGoogleSignIn() {
+  if (termsCheckbox && !termsCheckbox.checked) return;
+
   showLoading('Connexion à Google…');
 
   try {
