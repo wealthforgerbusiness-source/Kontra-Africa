@@ -104,6 +104,7 @@ body {
 }
 
 .header-cta {
+  display: none;
   min-height: 40px;
   padding: 0 var(--space-5);
   font-size: var(--fs-sm);
@@ -148,6 +149,7 @@ body {
 
 @media (min-width: 900px) {
   .main-nav { display: flex; }
+  .header-cta { display: inline-flex; }
   .nav-toggle { display: none; }
 }
 
@@ -980,11 +982,6 @@ body.nav-open {
 
   .pricing-card__trial {
     margin-top: var(--space-1);
-  }
-
-  .header-cta {
-    padding: 0 var(--space-4);
-    font-size: 12px;
   }
 
   .site-footer {
