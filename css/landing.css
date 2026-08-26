@@ -103,10 +103,6 @@ body {
   gap: var(--space-3);
 }
 
-.header-login {
-  display: none;
-}
-
 .header-cta {
   min-height: 40px;
   padding: 0 var(--space-5);
@@ -152,7 +148,6 @@ body {
 
 @media (min-width: 900px) {
   .main-nav { display: flex; }
-  .header-login { display: inline-flex; }
   .nav-toggle { display: none; }
 }
 
@@ -653,6 +648,9 @@ body.nav-open {
 .pricing-card__cta {
   margin-top: var(--space-6);
   width: 100%;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 @media (min-width: 900px) {
@@ -963,13 +961,30 @@ body.nav-open {
   }
 
   .pricing-card {
-    padding: var(--space-5);
-    gap: var(--space-5);
+    padding: var(--space-4);
+    gap: var(--space-4);
   }
 
   .pricing-card__box {
-    padding: var(--space-4);
+    padding: var(--space-3);
     max-width: 100%;
+  }
+
+  .pricing-card__amount {
+    font-size: clamp(1.7rem, 9vw, 2.1rem);
+  }
+
+  .pricing-card__cta {
+    margin-top: var(--space-3);
+  }
+
+  .pricing-card__trial {
+    margin-top: var(--space-1);
+  }
+
+  .header-cta {
+    padding: 0 var(--space-4);
+    font-size: 12px;
   }
 
   .site-footer {
