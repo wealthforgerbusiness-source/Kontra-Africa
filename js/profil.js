@@ -4,10 +4,10 @@
 // Hypothèses sur firebase-config.js : exporte `auth` et `db` via
 // `export { auth, db }`. Adapte les imports si tes noms diffèrent.
 //
-// Hypothèse sur POST /api/checkout (functions/src/checkout.js) : accepte un
-// header `Authorization: Bearer <idToken>` pour identifier l'utilisateur et
-// répond avec `{ checkoutUrl }` (URL de paiement Chariow à laquelle
-// rediriger). Adapte `handleResubscribe` si le contrat de l'API diffère.
+// POST /api/checkout (functions/src/checkout.js) : appelé sur l'URL absolue
+// du backend Render (kontra-africa.onrender.com), avec `firebaseUid`, `email`,
+// `firstName`, `lastName` dans le corps JSON. Répond avec `{ checkoutUrl }`
+// (URL de paiement Chariow à laquelle rediriger).
 
 import { auth, db } from './firebase-config.js';
 import { requireAppAccess } from './auth-guard.js';
@@ -17,7 +17,8 @@ import { renderAppNav } from './app-nav.js';
 
 renderAppNav('profil'); // sidebar desktop + bottom nav mobile
 
-const API_BASE = '';
+const API_BASE = 'https://kontra-africa.onrender.com';
+const CHECKOUT_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
 
 // ---------- Éléments DOM ----------
 const profilePhoto = document.getElementById('profile-photo');
@@ -100,20 +101,27 @@ async function handleResubscribe() {
   btnResubscribe.disabled = true;
   btnResubscribe.textContent = 'Redirection en cours…';
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
+
   try {
-    const idToken = await currentUser.getIdToken();
     const res = await fetch(`${API_BASE}/api/checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ uid: currentUser.uid }),
+      body: JSON.stringify({
+        firebaseUid: currentUser.uid,
+        email: currentUser.email || '',
+        firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
+        lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu'
+      }),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.message || "Impossible de lancer le paiement.");
+      throw new Error(body.error || body.message || "Impossible de lancer le paiement.");
     }
 
     const result = await res.json();
@@ -124,10 +132,14 @@ async function handleResubscribe() {
     }
   } catch (err) {
     console.error('Erreur de réabonnement :', err);
-    subscriptionError.textContent = err.message || "Le réabonnement a échoué. Réessaie.";
+    subscriptionError.textContent = err.name === 'AbortError'
+      ? "Le serveur met plus de temps que prévu à démarrer. Réessaie dans un instant."
+      : (err.message || "Le réabonnement a échoué. Réessaie.");
     subscriptionError.hidden = false;
     btnResubscribe.disabled = false;
     btnResubscribe.textContent = 'Se réabonner';
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
