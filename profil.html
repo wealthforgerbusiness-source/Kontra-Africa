@@ -38,6 +38,15 @@
         <h2 class="panel-title">Abonnement</h2>
         <div id="subscription-status" class="subscription-status">
           <p id="subscription-message" class="subscription-message">Chargement…</p>
+
+          <div id="resubscribe-phone-row" class="resubscribe-phone-row" hidden>
+            <label for="resubscribe-phone" class="resubscribe-phone-label">Numéro Mobile Money (pour le paiement)</label>
+            <div class="resubscribe-phone-inputs">
+              <select id="resubscribe-country" class="resubscribe-phone-select"></select>
+              <input type="tel" id="resubscribe-phone" class="resubscribe-phone-input" placeholder="8123456789" inputmode="numeric" autocomplete="tel">
+            </div>
+          </div>
+
           <button type="button" id="btn-resubscribe" class="btn btn-primary" hidden>
             Se réabonner
           </button>
