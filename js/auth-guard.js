@@ -1,23 +1,7 @@
-/* ==========================================================================
-   Kontra-Africa — Garde d'accès de l'app
-   ------------------------------------------------------------------------
-   Utilisé par toutes les pages protégées (dashboard.html, contrats.html,
-   finances.html, profil.html). Une seule page = un seul appel :
-
-     import { requireAppAccess } from '/js/auth-guard.js';
-     const session = await requireAppAccess();
-     if (!session) return; // redirection ou paywall déjà géré
-     // session.user     -> objet Firebase Auth
-     // session.userData -> document Firestore users/{uid}
-
-   Si l'utilisateur n'est pas connecté : redirection vers /login.html
-   Si l'abonnement est bloqué : le paywall remplace tout le contenu de la
-   page et la promesse résout à null (la page ne construit rien de plus).
-   ========================================================================== */
-
 import { auth, db } from '/js/firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { buildCountryOptionsHtml, cleanPhoneDigits } from '/js/phone-countries.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 const CHECKOUT_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
@@ -111,6 +95,15 @@ function renderPaywall(user) {
           <span class="paywall__currency">$</span>5<span class="paywall__period">/mois</span>
         </div>
 
+        <div class="paywall__phone">
+          <label for="paywallCountry" class="paywall__phone-label">Numéro Mobile Money (pour le paiement)</label>
+          <div class="paywall__phone-row">
+            <select id="paywallCountry" class="paywall__phone-select">${buildCountryOptionsHtml()}</select>
+            <input type="tel" id="paywallPhone" class="paywall__phone-input" placeholder="8123456789" inputmode="numeric" autocomplete="tel">
+          </div>
+          <p class="paywall__phone-error" id="paywallPhoneError" hidden>Entrez un numéro Mobile Money valide pour continuer.</p>
+        </div>
+
         <div class="paywall__zone" id="paywallZone">
           <button type="button" id="checkoutBtn" class="btn btn-primary btn-lg paywall__cta">
             S'abonner maintenant
@@ -136,11 +129,23 @@ function renderPaywall(user) {
   const checkoutBtn = document.getElementById('checkoutBtn');
   const logoutBtn = document.getElementById('paywallLogout');
 
-  checkoutBtn.addEventListener('click', () => startCheckout(user, zone));
+  checkoutBtn.addEventListener('click', () => {
+    const phoneNumber = cleanPhoneDigits(document.getElementById('paywallPhone').value);
+    const countryCode = document.getElementById('paywallCountry').value;
+    const phoneErrorEl = document.getElementById('paywallPhoneError');
+
+    if (phoneNumber.length < 8) {
+      phoneErrorEl.hidden = false;
+      return;
+    }
+    phoneErrorEl.hidden = true;
+
+    startCheckout(user, zone, { number: phoneNumber, countryCode });
+  });
   logoutBtn.addEventListener('click', logout);
 }
 
-async function startCheckout(user, zone, isRetryAttempt = false) {
+async function startCheckout(user, zone, phone, isRetryAttempt = false) {
   zone.innerHTML = `
     <div class="paywall-state">
       <span class="spinner" aria-hidden="true"></span>
@@ -159,7 +164,8 @@ async function startCheckout(user, zone, isRetryAttempt = false) {
         firebaseUid: user.uid,
         email: user.email || '',
         firstName: user.displayName ? user.displayName.split(' ')[0] : 'Client',
-        lastName: user.displayName ? user.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu'
+        lastName: user.displayName ? user.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
+        phone: { number: phone.number, countryCode: phone.countryCode }
       }),
       signal: controller.signal
     });
@@ -170,14 +176,21 @@ async function startCheckout(user, zone, isRetryAttempt = false) {
     if ((response.status === 502 || response.status === 503) && !isRetryAttempt) {
       clearTimeout(timeoutId);
       await new Promise((r) => setTimeout(r, 4000));
-      return startCheckout(user, zone, true);
+      return startCheckout(user, zone, phone, true);
     }
 
     if (!response.ok) {
-      throw new Error(`checkout a répondu avec le statut ${response.status}`);
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.message || errBody.error || `checkout a répondu avec le statut ${response.status}`);
     }
 
     const data = await response.json();
+
+    if (data && data.reactivated) {
+      // Aucun paiement à refaire : l'accès vient d'être réactivé directement.
+      window.location.href = '/dashboard.html';
+      return;
+    }
 
     if (!data || !data.checkoutUrl) {
       throw new Error('Aucune URL de paiement reçue.');
@@ -188,14 +201,14 @@ async function startCheckout(user, zone, isRetryAttempt = false) {
     console.error('Erreur checkout :', err);
     const message = err.name === 'AbortError'
       ? "Le serveur met plus de temps que prévu à démarrer. Réessayez dans un instant."
-      : "Impossible de préparer le paiement. Réessayez.";
+      : (err.message || "Impossible de préparer le paiement. Réessayez.");
     zone.innerHTML = `
       <div class="paywall-state paywall-state--error" role="alert">
         <p>${message}</p>
         <button type="button" id="checkoutRetry" class="btn btn-secondary">Réessayer</button>
       </div>
     `;
-    document.getElementById('checkoutRetry').addEventListener('click', () => startCheckout(user, zone));
+    document.getElementById('checkoutRetry').addEventListener('click', () => startCheckout(user, zone, phone));
   } finally {
     clearTimeout(timeoutId);
   }
