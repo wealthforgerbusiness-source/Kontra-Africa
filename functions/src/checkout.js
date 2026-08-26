@@ -1,7 +1,7 @@
 /**
  * Contrôleur pour initier une session de paiement Chariow.
  */
-const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID } = require("./config");
+const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID, APP_BASE_URL } = require("./config");
 
 exports.checkout = async (req, res) => {
   try {
@@ -27,6 +27,10 @@ exports.checkout = async (req, res) => {
         number: phoneNumber,
         country_code: phoneCountryCode
       },
+      // Sans ce paramètre, Chariow renvoie le client vers sa page de post-achat
+      // par défaut (celle du compte/boutique Chariow) au lieu de le ramener dans
+      // l'app. On le ramène directement sur son profil.
+      redirect_url: `${APP_BASE_URL}/profil.html?payment=success`,
       custom_metadata: {
         firebase_uid: firebaseUid
       }
@@ -48,8 +52,6 @@ exports.checkout = async (req, res) => {
       try {
         chariowMessage = JSON.parse(errorText).message;
       } catch (_) { /* corps non-JSON, on garde le message générique */ }
-      // Erreur 4xx de Chariow (ex: numéro invalide) = erreur de validation, pas un souci
-      // temporaire de serveur : on la transmet telle quelle pour que le front n'insiste pas.
       const statusToForward = response.status >= 400 && response.status < 500 ? response.status : 502;
       return res.status(statusToForward).json({ error: chariowMessage || "Erreur de communication avec le service de paiement." });
     }
@@ -60,12 +62,6 @@ exports.checkout = async (req, res) => {
     if (data.step === "payment") {
       return res.status(200).json({ checkoutUrl: data.payment.checkout_url });
     } else if (data.step === "already_purchased") {
-      // Chariow considère que ce client possède déjà ce produit — typiquement un
-      // client qui s'est déjà abonné une première fois et dont l'abonnement a
-      // expiré côté Kontra-Africa (statut "expired"/"cancelled" en base), mais
-      // dont l'enregistrement d'achat existe toujours chez Chariow. Dans ce cas
-      // il n'y a rien de plus à payer : on réactive directement l'accès ici,
-      // plutôt que de renvoyer une erreur "aucune URL de paiement reçue".
       const now = new Date();
       const newExpiry = new Date(now.setDate(now.getDate() + 30));
 
