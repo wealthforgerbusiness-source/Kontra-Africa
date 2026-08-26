@@ -208,6 +208,83 @@ index 8847fb9..44a7231 100644
  
    <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
    <div class="app-loading" id="appLoading">
+diff --git a/functions/src/webhook.js b/functions/src/webhook.js
+index 77931c4..a865d6b 100644
+--- a/functions/src/webhook.js
++++ b/functions/src/webhook.js
+@@ -18,17 +18,41 @@ exports.chariowWebhook = async (req, res) => {
+       data.customer?.custom_metadata ||
+       {};
+ 
+-    const firebaseUid = customMetadata.firebase_uid;
++    let firebaseUid = customMetadata.firebase_uid;
++    let userRef = null;
+ 
+-    if (!firebaseUid) {
+-      console.warn("Aucun firebase_uid trouvé dans le webhook.");
+-      return res.status(200).json({ received: true, status: "skipped_no_uid" });
++    if (firebaseUid) {
++      userRef = db.collection("users").doc(firebaseUid);
++    } else {
++      // Filet de sécurité : certains événements Chariow (ex. paiements initiés
++      // hors de notre bouton "S'abonner") n'ont pas de custom_metadata attaché.
++      // On tente de retrouver le compte par email.
++      const buyerEmail =
++        data.customer?.email ||
++        data.sale?.customer?.email ||
++        data.buyer?.email ||
++        data.email ||
++        null;
++
++      if (buyerEmail) {
++        console.warn(`Aucun firebase_uid dans le webhook, tentative de résolution par email : ${buyerEmail}`);
++        const matches = await db.collection("users").where("email", "==", buyerEmail).limit(1).get();
++        if (!matches.empty) {
++          userRef = matches.docs[0].ref;
++          firebaseUid = matches.docs[0].id;
++        }
++      }
++
++      if (!userRef) {
++        console.warn("Aucun utilisateur trouvé (ni firebase_uid, ni email correspondant).");
++        return res.status(200).json({ received: true, status: "skipped_no_match" });
++      }
+     }
+ 
+-    const userRef = db.collection("users").doc(firebaseUid);
+     const normalizedEvent = eventType.toLowerCase();
+ 
+     if (
++      normalizedEvent.includes("successful.sale") ||
+       normalizedEvent.includes("sale.completed") ||
+       normalizedEvent.includes("order.completed") ||
+       normalizedEvent.includes("license.created") ||
+@@ -68,11 +92,24 @@ exports.chariowWebhook = async (req, res) => {
+     } else if (
+       normalizedEvent.includes("subscription.cancelled") ||
+       normalizedEvent.includes("subscription.canceled") ||
+-      normalizedEvent.includes("payment.failed") ||
+       normalizedEvent.includes("sale.refunded")
+     ) {
++      // Annulation ou remboursement d'un abonnement qui avait été actif :
++      // on révoque l'accès.
+       await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
+       console.log(`Statut de ${firebaseUid} mis à jour : cancelled`);
++
++    } else if (
++      normalizedEvent.includes("payment.failed") ||
++      normalizedEvent.includes("failed.sale") ||
++      normalizedEvent.includes("sale.failed")
++    ) {
++      // Tentative de paiement échouée (ex : débit Mobile Money non confirmé à
++      // temps côté Chariow). On ne touche pas au statut existant — l'utilisateur
++      // reste "trial"/"expired" comme avant, on journalise juste pour garder une
++      // trace claire de l'échec au lieu de le laisser tomber silencieusement.
++      console.log(`Vente échouée pour ${firebaseUid} (événement : ${eventType}) — aucune réactivation.`);
++      await userRef.set({ lastFailedSaleAt: new Date(), lastFailedSaleEvent: eventType }, { merge: true });
+     }
+ 
+     // Répond toujours 200 à Chariow
 diff --git a/js/auth-guard.js b/js/auth-guard.js
 index 0a0cfd3..b731295 100644
 --- a/js/auth-guard.js
