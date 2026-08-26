@@ -17,11 +17,17 @@ const CHARIOW_API_URL = "https://api.chariow.com/v1";
 const CHARIOW_PRODUCT_ID = "prd_tqwlmf8w";
 const TRIAL_DURATION_DAYS = 3;
 
+// URL publique du frontend (hébergé sur Render), utilisée pour ramener
+// l'utilisateur dans l'app après un paiement Chariow (redirect_url).
+// Peut être surchargée via la variable d'environnement APP_BASE_URL sur Render.
+const APP_BASE_URL = process.env.APP_BASE_URL || "https://kontra-africa-app.onrender.com";
+
 module.exports = {
   admin,
   db,
   CHARIOW_API_KEY,
   CHARIOW_API_URL,
   CHARIOW_PRODUCT_ID,
+  APP_BASE_URL,
   TRIAL_DURATION_DAYS,
 };
