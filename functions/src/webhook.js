@@ -6,40 +6,52 @@ const { db } = require("./config");
 exports.chariowWebhook = async (req, res) => {
   try {
     const body = req.body || {};
-    const eventType = body.event || body.type || "unknown_event";
-    const data = body.data || body.payload || {};
+    // IMPORTANT : Chariow n'enveloppe PAS le payload dans "data" ou "payload".
+    // Le payload d'une Pulse est à plat : { event, sale, product, customer, store, ... }
+    // Voir https://chariow.dev/en/guides/pulses
+    const eventType = body.event || "unknown_event";
+    const normalizedEvent = eventType.toLowerCase();
+
+    const sale = body.sale || {};
+    const license = body.license || {};
+    const customer = body.customer || {};
 
     console.log(`Webhook Chariow reçu. Événement : ${eventType}`);
 
-    const customMetadata =
-      data.custom_metadata ||
-      data.sale?.custom_metadata ||
-      data.license?.custom_metadata ||
-      data.customer?.custom_metadata ||
-      {};
+    // custom_metadata vit sur l'objet "sale" (ou "license" selon l'événement),
+    // jamais sous une clé "data" qui n'existe pas dans le payload réel.
+    const customMetadata = sale.custom_metadata || license.custom_metadata || {};
+    let firebaseUid = customMetadata.firebase_uid || null;
 
-    const firebaseUid = customMetadata.firebase_uid;
-
-    if (!firebaseUid) {
-      console.warn("Aucun firebase_uid trouvé dans le webhook.");
-      return res.status(200).json({ received: true, status: "skipped_no_uid" });
+    // Fallback : si le firebase_uid n'est pas dans les métadonnées (ex. vieilles
+    // ventes créées avant ce correctif), on retrouve l'utilisateur par email,
+    // puisque l'email est déjà en base Firestore.
+    let userRef = null;
+    if (firebaseUid) {
+      userRef = db.collection("users").doc(firebaseUid);
+    } else if (customer.email) {
+      console.warn(`Aucun firebase_uid dans le webhook, tentative de résolution par email : ${customer.email}`);
+      const snap = await db.collection("users").where("email", "==", customer.email).limit(1).get();
+      if (!snap.empty) {
+        userRef = snap.docs[0].ref;
+        firebaseUid = snap.docs[0].id;
+        console.log(`Utilisateur résolu par email : ${firebaseUid}`);
+      }
     }
 
-    const userRef = db.collection("users").doc(firebaseUid);
-    const normalizedEvent = eventType.toLowerCase();
+    if (!userRef) {
+      console.warn("Aucun utilisateur trouvé (ni firebase_uid, ni email correspondant).");
+      return res.status(200).json({ received: true, status: "skipped_no_user" });
+    }
 
-    if (
-      normalizedEvent.includes("sale.completed") ||
-      normalizedEvent.includes("order.completed") ||
-      normalizedEvent.includes("license.created") ||
-      normalizedEvent.includes("license.active") ||
-      normalizedEvent.includes("subscription.created") ||
-      normalizedEvent.includes("subscription.active")
-    ) {
-      const licenseKey = data.license_key || data.license?.key || data.key || null;
+    // Noms d'événements réels envoyés par Chariow (voir doc Pulses) :
+    // successful.sale, failed.sale, abandoned.sale,
+    // license.issued, license.activated, license.revoked, license.expired, license.nearing_expiry
+    if (normalizedEvent === "successful.sale" || normalizedEvent === "license.issued" || normalizedEvent === "license.activated") {
+      const licenseKey = sale.license_key || license.key || null;
+      const rawExpiresAt = sale.expires_at || license.expires_at;
+
       let subscriptionExpiresAt;
-      const rawExpiresAt = data.expires_at || data.license?.expires_at || data.subscription?.expires_at;
-
       if (rawExpiresAt) {
         subscriptionExpiresAt = new Date(rawExpiresAt);
       } else {
@@ -59,20 +71,20 @@ exports.chariowWebhook = async (req, res) => {
       console.log(`Statut de ${firebaseUid} mis à jour : active`);
 
     } else if (
-      normalizedEvent.includes("license.expired") ||
-      normalizedEvent.includes("subscription.expired")
+      normalizedEvent === "license.expired"
     ) {
       await userRef.set({ subscriptionStatus: "expired", updatedAt: new Date() }, { merge: true });
       console.log(`Statut de ${firebaseUid} mis à jour : expired`);
 
     } else if (
-      normalizedEvent.includes("subscription.cancelled") ||
-      normalizedEvent.includes("subscription.canceled") ||
-      normalizedEvent.includes("payment.failed") ||
-      normalizedEvent.includes("sale.refunded")
+      normalizedEvent === "failed.sale" ||
+      normalizedEvent === "abandoned.sale" ||
+      normalizedEvent === "license.revoked"
     ) {
       await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
       console.log(`Statut de ${firebaseUid} mis à jour : cancelled`);
+    } else {
+      console.log(`Événement ${eventType} reçu mais non traité (pas d'action nécessaire).`);
     }
 
     // Répond toujours 200 à Chariow
