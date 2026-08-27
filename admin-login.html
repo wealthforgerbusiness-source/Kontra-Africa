@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light only">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Connexion Admin — Kontra-Africa</title>
+  <meta name="theme-color" content="#5B3FE0">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/login.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <main class="login-page">
+    <div class="login-card">
+      <img src="/logo.webp" alt="Kontra-Africa" class="login-card__logo">
+      <div class="login-card__intro">
+        <p class="eyebrow admin-eyebrow">Accès réservé</p>
+        <h1 class="login-card__title">Panneau Admin</h1>
+        <p class="login-card__subtitle">Connectez-vous avec l'adresse email administrateur autorisée.</p>
+      </div>
+
+      <form id="adminLoginForm" class="admin-form" novalidate>
+        <div class="admin-form__group">
+          <label for="adminEmail" class="admin-form__label">Adresse email</label>
+          <input
+            type="email"
+            id="adminEmail"
+            class="admin-form__input"
+            placeholder="optisitedigital@gmail.com"
+            autocomplete="username"
+            required
+          >
+        </div>
+        <div class="admin-form__group">
+          <label for="adminPassword" class="admin-form__label">Mot de passe</label>
+          <input
+            type="password"
+            id="adminPassword"
+            class="admin-form__input"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+
+        <div class="login-card__zone">
+          <button type="submit" id="adminSubmitBtn" class="btn btn-primary btn-lg admin-form__submit">
+            Se connecter
+          </button>
+          <div class="login-state login-state--loading" id="adminLoadingState" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <p>Connexion en cours…</p>
+          </div>
+        </div>
+
+        <div class="login-state login-state--error" id="adminErrorState" role="alert" hidden>
+          <p id="adminErrorMessage">Une erreur est survenue.</p>
+        </div>
+      </form>
+
+      <button type="button" id="adminForgotBtn" class="btn btn-ghost admin-form__forgot">
+        Mot de passe oublié ?
+      </button>
+    </div>
+  </main>
+  <script type="module" src="/js/admin-login.js"></script>
+</body>
+</html>
