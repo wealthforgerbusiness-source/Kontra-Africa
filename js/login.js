@@ -1,7 +1,3 @@
-/* ==========================================================================
-   Kontra-Africa — Connexion Google (Firebase Auth)
-   ========================================================================== */
-
 import { auth, googleProvider } from '/js/firebase-config.js';
 import {
   signInWithPopup,
@@ -215,44 +211,62 @@ async function startGoogleSignIn() {
   }
 }
 
-/* --- Au chargement : vérifie si on revient d'une redirection Google --- */
+/* --- Au chargement : vérifie si on revient d'une redirection Google ---
+   IMPORTANT : on ne se fie PLUS à sessionStorage pour décider si on doit
+   appeler getRedirectResult(). En PWA installée (Android WebAPK, iOS
+   "Ajouter à l'écran d'accueil"), sessionStorage est souvent perdu au
+   retour de la redirection OAuth alors que Firebase, lui, a bien authentifié
+   l'utilisateur (son état est stocké dans IndexedDB, qui survit). Si on
+   se fie au flag sessionStorage pour "gater" la vérification, on rate
+   silencieusement les connexions pourtant réussies : c'était le bug. --- */
 async function checkRedirectResult() {
   const wasPending = sessionStorage.getItem(REDIRECT_KEY);
 
   await ensureRobustPersistence();
 
-  if (!wasPending) {
-    showButton();
-    return;
+  // On affiche un état "finalisation" uniquement si on sait qu'une
+  // redirection était en cours, mais on tente TOUJOURS getRedirectResult().
+  if (wasPending) {
+    showLoading('Finalisation de la connexion…');
+    armStandaloneWatchdog();
   }
-
-  showLoading('Finalisation de la connexion…');
-  armStandaloneWatchdog();
 
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       authHandledByListener = true;
       await completeSignIn(result.user);
+      return;
     }
-    // Si result est null, on ne fait rien ici : le listener onAuthStateChanged
-    // ci-dessous sert de filet de sécurité pour le cas où getRedirectResult
-    // ne renvoie rien alors que la connexion a bien fonctionné (bug connu de
-    // certains navigateurs en mode PWA standalone).
   } catch (err) {
     console.error('Erreur getRedirectResult :', err);
     sessionStorage.removeItem(REDIRECT_KEY);
     clearStandaloneWatchdog();
     showError(translateAuthError(err));
+    return;
+  }
+
+  // Si getRedirectResult() n'a rien renvoyé (result null), on ne bascule PAS
+  // directement sur le bouton : on laisse une petite fenêtre à
+  // onAuthStateChanged ci-dessous pour rattraper le cas où Firebase a
+  // pourtant bien restauré une session (bug connu du storage en mode PWA
+  // standalone). Si rien ne se passe, on affiche quand même le bouton.
+  if (!wasPending) {
+    showButton();
+  } else {
+    setTimeout(() => {
+      if (!authHandledByListener) showButton();
+    }, 1500);
   }
 }
 
 /* --- Filet de sécurité : capte l'utilisateur connecté même si
-   getRedirectResult() n'a rien renvoyé (bug de stockage en mode PWA). --- */
+   getRedirectResult() n'a rien renvoyé (bug de stockage en mode PWA).
+   On ne conditionne PLUS ce filet à sessionStorage : c'est justement ce
+   storage qui est perdu dans le scénario qu'on veut rattraper. --- */
 onAuthStateChanged(auth, (user) => {
   if (authHandledByListener) return;
-  const wasPending = sessionStorage.getItem(REDIRECT_KEY);
-  if (user && wasPending) {
+  if (user) {
     authHandledByListener = true;
     completeSignIn(user);
   }
