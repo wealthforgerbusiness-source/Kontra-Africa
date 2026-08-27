@@ -26,35 +26,68 @@ let currentFilter = 'all';
 let unsubscribeContracts = null;
 let allContracts = [];
 let signaturePad = null;
-let countdownInterval = null;
-
-const listEl = document.getElementById('contracts-list');
-const loadingEl = document.getElementById('contracts-loading');
-const emptyEl = document.getElementById('contracts-empty');
-const offlineBanner = document.getElementById('offline-banner');
-const modalNew = document.getElementById('modal-new-contract');
-const formNew = document.getElementById('form-new-contract');
-const formError = document.getElementById('form-error');
-const btnSubmit = document.getElementById('btn-submit-contract');
-
-const modalShare = document.getElementById('modal-share');
-const inputShareLink = document.getElementById('input-share-link');
-const btnCopyLink = document.getElementById('btn-copy-link');
-const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
 
 
 // ============================================================
-// INIT
+// DOM
+// ============================================================
+
+const listEl =
+  document.getElementById('contracts-list');
+
+const loadingEl =
+  document.getElementById('contracts-loading');
+
+const emptyEl =
+  document.getElementById('contracts-empty');
+
+const offlineBanner =
+  document.getElementById('offline-banner');
+
+const modalNew =
+  document.getElementById('modal-new-contract');
+
+const formNew =
+  document.getElementById('form-new-contract');
+
+const formError =
+  document.getElementById('form-error');
+
+const btnSubmit =
+  document.getElementById('btn-submit-contract');
+
+const modalShare =
+  document.getElementById('modal-share');
+
+const inputShareLink =
+  document.getElementById('input-share-link');
+
+const btnCopyLink =
+  document.getElementById('btn-copy-link');
+
+const btnShareWhatsapp =
+  document.getElementById('btn-share-whatsapp');
+
+
+// ============================================================
+// INITIALISATION
 // ============================================================
 
 async function init() {
-  const session = await requireAppAccess();
 
-  if (!session) return;
+  const session =
+    await requireAppAccess();
 
-  currentUser = session.user;
+  if (!session) {
+    return;
+  }
 
-  listenToContracts(currentUser.uid);
+  currentUser =
+    session.user;
+
+  listenToContracts(
+    currentUser.uid
+  );
 }
 
 init();
@@ -65,8 +98,12 @@ init();
 // ============================================================
 
 function updateOnlineStatus() {
+
   if (offlineBanner) {
-    offlineBanner.hidden = navigator.onLine;
+
+    offlineBanner.hidden =
+      navigator.onLine;
+
   }
 }
 
@@ -84,45 +121,68 @@ updateOnlineStatus();
 
 
 // ============================================================
-// FIRESTORE LISTENER
+// FIRESTORE
 // ============================================================
 
 function listenToContracts(uid) {
-  const q = query(
-    collection(db, 'contracts'),
-    where('creatorId', '==', uid),
-    orderBy('createdAt', 'desc')
-  );
 
-  unsubscribeContracts = onSnapshot(
-    q,
-    (snapshot) => {
+  const q =
+    query(
+      collection(
+        db,
+        'contracts'
+      ),
 
-      allContracts = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      where(
+        'creatorId',
+        '==',
+        uid
+      ),
 
-      renderList();
-    },
-    (error) => {
+      orderBy(
+        'createdAt',
+        'desc'
+      )
+    );
 
-      console.error(
-        'Erreur de lecture des contrats :',
-        error
-      );
 
-      if (loadingEl) {
-        loadingEl.textContent =
-          'Impossible de charger les contrats. Vérifie ta connexion.';
+  unsubscribeContracts =
+    onSnapshot(
+      q,
+
+      (snapshot) => {
+
+        allContracts =
+          snapshot.docs.map(
+            (doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })
+          );
+
+        renderList();
+      },
+
+      (error) => {
+
+        console.error(
+          'Erreur de lecture des contrats :',
+          error
+        );
+
+        if (loadingEl) {
+
+          loadingEl.textContent =
+            'Impossible de charger les contrats. Vérifie ta connexion.';
+
+        }
       }
-    }
-  );
+    );
 }
 
 
 // ============================================================
-// RENDER LIST
+// LISTE
 // ============================================================
 
 function renderList() {
@@ -131,77 +191,92 @@ function renderList() {
     loadingEl.hidden = true;
   }
 
+
   const filtered =
     currentFilter === 'all'
       ? allContracts
       : allContracts.filter(
           (contract) =>
-            contract.status === currentFilter
+            contract.status ===
+            currentFilter
         );
 
-  if (filtered.length === 0) {
 
-    listEl.innerHTML = '';
+  if (
+    filtered.length ===
+    0
+  ) {
 
-    emptyEl.hidden = false;
+    listEl.innerHTML =
+      '';
 
-    stopCountdown();
+    emptyEl.hidden =
+      false;
 
     return;
   }
 
-  emptyEl.hidden = true;
 
-  listEl.innerHTML = filtered
-    .map(renderCard)
-    .join('');
+  emptyEl.hidden =
+    true;
+
+
+  listEl.innerHTML =
+    filtered
+      .map(renderCard)
+      .join('');
 
 
   // ----------------------------------------------------------
-  // COPIER LE LIEN
+  // COPIER LIEN
   // ----------------------------------------------------------
 
   listEl
     .querySelectorAll(
       '[data-action="copy-share-link"]'
     )
-    .forEach((button) => {
+    .forEach(
+      (button) => {
 
-      button.addEventListener(
-        'click',
-        async () => {
+        button.addEventListener(
+          'click',
+          async () => {
 
-          const url =
-            buildShareUrl(
-              button.dataset.token
-            );
+            const url =
+              buildShareUrl(
+                button.dataset.token
+              );
 
-          try {
+            try {
 
-            await navigator.clipboard.writeText(
-              url
-            );
-
-            button.textContent =
-              'Copié !';
-
-            setTimeout(() => {
+              await navigator.clipboard.writeText(
+                url
+              );
 
               button.textContent =
-                'Copier le lien';
+                'Copié !';
 
-            }, 1500);
+              setTimeout(
+                () => {
+                  button.textContent =
+                    'Copier le lien';
+                },
+                1500
+              );
 
-          } catch (error) {
+            } catch (error) {
 
-            console.error(
-              'Erreur lors de la copie :',
-              error
-            );
+              console.error(
+                'Erreur lors de la copie :',
+                error
+              );
+
+            }
           }
-        }
-      );
-    });
+        );
+
+      }
+    );
 
 
   // ----------------------------------------------------------
@@ -212,62 +287,83 @@ function renderList() {
     .querySelectorAll(
       '[data-action="whatsapp-share"]'
     )
-    .forEach((button) => {
+    .forEach(
+      (button) => {
 
-      button.addEventListener(
-        'click',
-        () => {
+        button.addEventListener(
+          'click',
+          () => {
 
-          openWhatsAppShare({
+            openWhatsAppShare({
+              shareToken:
+                button.dataset.token,
 
-            shareToken:
-              button.dataset.token,
+              title:
+                button.dataset.title ||
+                'Contrat',
+            });
 
-            title:
-              button.dataset.title ||
-              'Contrat',
-          });
-        }
-      );
-    });
+          }
+        );
+
+      }
+    );
 
 
   // ----------------------------------------------------------
-  // PDF
+  // TÉLÉCHARGEMENT CRÉATEUR
   // ----------------------------------------------------------
 
   listEl
     .querySelectorAll(
-      '[data-action="download-pdf"]'
+      '[data-action="creator-download-pdf"]'
     )
-    .forEach((button) => {
+    .forEach(
+      (button) => {
 
-      button.addEventListener(
-        'click',
-        () => {
+        button.addEventListener(
+          'click',
+          () => {
 
-          startPdfAccess(
-            button.dataset.token,
-            button
-          );
-        }
-      );
-    });
+            const contract =
+              allContracts.find(
+                (item) =>
+                  item.id ===
+                  button.dataset.contractId
+              );
 
 
-  // ----------------------------------------------------------
-  // DÉMARRER LES COMPTEURS EXISTANTS
-  // ----------------------------------------------------------
+            if (!contract) {
 
-  startCountdown();
+              showTemporaryError(
+                'Contrat introuvable.'
+              );
+
+              return;
+            }
+
+
+            startCreatorPdfDownload(
+              contract,
+              button
+            );
+
+          }
+        );
+
+      }
+    );
+
 }
 
 
 // ============================================================
-// CARD
+// CARTE CONTRAT
 // ============================================================
 
-function renderCard(contract) {
+function renderCard(
+  contract
+) {
 
   const statusLabels = {
 
@@ -285,6 +381,7 @@ function renderCard(contract) {
 
     expired:
       'Expiré',
+
   };
 
 
@@ -298,11 +395,12 @@ function renderCard(contract) {
       : '';
 
 
-  let actions = '';
+  let actions =
+    '';
 
 
   // ==========================================================
-  // PENDING
+  // EN ATTENTE
   // ==========================================================
 
   if (
@@ -342,7 +440,7 @@ function renderCard(contract) {
 
 
   // ==========================================================
-  // SIGNED
+  // SIGNÉ
   // ==========================================================
 
   if (
@@ -350,81 +448,48 @@ function renderCard(contract) {
     'signed'
   ) {
 
-    const hasStarted =
-      !!contract.pdfAccessStartedAt &&
-      !!contract.pdfExpiresAt;
-
-
-    let countdownHtml = '';
-
-
-    if (hasStarted) {
-
-      countdownHtml = `
-
-        <div
-          class="contract-countdown"
-          data-countdown
-          data-expires-at="${escapeHtml(
-            timestampToISOString(
-              contract.pdfExpiresAt
-            ) || ''
-          )}"
-        >
-          <strong>
-            PDF disponible pendant :
-          </strong>
-
-          <span
-            class="countdown-value"
-          >
-            Calcul…
-          </span>
-        </div>
-
-      `;
-
-    } else {
-
-      countdownHtml = `
-
-        <div
-          class="contract-countdown contract-countdown-not-started"
-        >
-          <strong>
-            PDF :
-          </strong>
-
-          <span>
-            Les 24 h commencent lorsque vous cliquez sur « Télécharger le PDF ».
-          </span>
-        </div>
-
-      `;
-    }
+    const countdown =
+      getPdfCountdownText(
+        contract
+      );
 
 
     actions = `
 
-      ${countdownHtml}
-
       <button
         type="button"
-        class="btn btn-sm btn-secondary"
-        data-action="download-pdf"
-        data-token="${escapeHtml(
-          contract.shareToken || ''
+        class="btn btn-sm btn-primary"
+        data-action="creator-download-pdf"
+        data-contract-id="${escapeHtml(
+          contract.id
         )}"
       >
-        Télécharger le PDF
+        ${contract.pdfAccessStartedAt
+          ? 'Télécharger le PDF'
+          : 'Télécharger le PDF'}
       </button>
+
+      ${
+        countdown
+          ? `
+            <span
+              class="contract-pdf-countdown"
+              data-countdown-contract="${escapeHtml(
+                contract.id
+              )}"
+            >
+              ${escapeHtml(countdown)}
+            </span>
+          `
+          : ''
+      }
 
     `;
   }
 
 
   // ==========================================================
-  // EXPIRED
+  // EXPIRÉ
   // ==========================================================
 
   if (
@@ -434,10 +499,9 @@ function renderCard(contract) {
 
     actions = `
 
-      <div class="contract-expired-message">
-        Le délai de 24 heures est expiré.
-        Le PDF n'est plus disponible.
-      </div>
+      <span class="contract-expired-message">
+        Contrat expiré
+      </span>
 
     `;
   }
@@ -445,38 +509,26 @@ function renderCard(contract) {
 
   return `
 
-    <article
-      class="contract-card"
-    >
+    <article class="contract-card">
 
-      <div
-        class="contract-card-top"
-      >
+      <div class="contract-card-top">
 
         <div>
 
-          <h3
-            class="contract-title"
-          >
+          <h3 class="contract-title">
             ${escapeHtml(
               contract.title || ''
             )}
           </h3>
 
-
-          <p
-            class="contract-signer"
-          >
+          <p class="contract-signer">
             Signataire :
             ${escapeHtml(
               contract.signerName || ''
             )}
           </p>
 
-
-          <p
-            class="contract-creator"
-          >
+          <p class="contract-creator">
             Créé par :
             ${escapeHtml(
               contract.creatorName || ''
@@ -504,9 +556,7 @@ function renderCard(contract) {
       </div>
 
 
-      <div
-        class="contract-meta"
-      >
+      <div class="contract-meta">
 
         <span>
           Créé le ${createdDate}
@@ -515,12 +565,11 @@ function renderCard(contract) {
       </div>
 
 
-      <div
-        class="contract-actions"
-      >
-        ${actions}
-      </div>
+      <div class="contract-actions">
 
+        ${actions}
+
+      </div>
 
     </article>
 
@@ -529,225 +578,124 @@ function renderCard(contract) {
 
 
 // ============================================================
-// TIMESTAMP
-// ============================================================
-
-function timestampToISOString(
-  value
-) {
-
-  if (!value) {
-    return null;
-  }
-
-
-  if (
-    value &&
-    typeof value.toDate ===
-      'function'
-  ) {
-
-    return value
-      .toDate()
-      .toISOString();
-  }
-
-
-  if (
-    value &&
-    typeof value.toMillis ===
-      'function'
-  ) {
-
-    return new Date(
-      value.toMillis()
-    ).toISOString();
-  }
-
-
-  if (
-    typeof value ===
-    'string'
-  ) {
-
-    return value;
-  }
-
-
-  if (
-    typeof value ===
-    'number'
-  ) {
-
-    return new Date(
-      value
-    ).toISOString();
-  }
-
-
-  return null;
-}
-
-
-// ============================================================
 // COMPTE À REBOURS
 // ============================================================
 
-function startCountdown() {
-
-  stopCountdown();
-
-
-  function update() {
-
-    const elements =
-      document.querySelectorAll(
-        '[data-countdown]'
-      );
-
-
-    elements.forEach(
-      (element) => {
-
-        const expiresAt =
-          element.dataset
-            .expiresAt;
-
-
-        if (!expiresAt) {
-          return;
-        }
-
-
-        const expiration =
-          new Date(
-            expiresAt
-          ).getTime();
-
-
-        const remaining =
-          expiration -
-          Date.now();
-
-
-        const valueElement =
-          element.querySelector(
-            '.countdown-value'
-          );
-
-
-        if (!valueElement) {
-          return;
-        }
-
-
-        if (
-          remaining <= 0
-        ) {
-
-          valueElement.textContent =
-            'Expiré';
-
-          element.classList.add(
-            'is-expired'
-          );
-
-          return;
-        }
-
-
-        const totalSeconds =
-          Math.floor(
-            remaining /
-              1000
-          );
-
-
-        const hours =
-          Math.floor(
-            totalSeconds /
-              3600
-          );
-
-
-        const minutes =
-          Math.floor(
-            (totalSeconds %
-              3600) /
-              60
-          );
-
-
-        const seconds =
-          totalSeconds %
-          60;
-
-
-        valueElement.textContent =
-          `${pad(hours)}h ${pad(
-            minutes
-          )}m ${pad(seconds)}s`;
-      }
-    );
-  }
-
-
-  update();
-
-
-  countdownInterval =
-    setInterval(
-      update,
-      1000
-    );
-}
-
-
-function stopCountdown() {
+function getPdfCountdownText(
+  contract
+) {
 
   if (
-    countdownInterval
+    !contract.pdfExpiresAt
   ) {
 
-    clearInterval(
-      countdownInterval
+    return '';
+
+  }
+
+
+  const expires =
+    firestoreDateToMillis(
+      contract.pdfExpiresAt
     );
 
-    countdownInterval =
-      null;
+
+  if (!expires) {
+    return '';
   }
-}
 
 
-function pad(value) {
+  const remaining =
+    expires -
+    Date.now();
 
-  return String(
-    value
-  ).padStart(
-    2,
-    '0'
+
+  if (
+    remaining <=
+    0
+  ) {
+
+    return 'PDF expiré';
+
+  }
+
+
+  return (
+    'PDF disponible pendant ' +
+    formatDuration(
+      remaining
+    )
   );
 }
 
 
 // ============================================================
-// DÉMARRER L'ACCÈS PDF
+// REFRESH COMPTE À REBOURS
 // ============================================================
 
-async function startPdfAccess(
-  token,
+setInterval(
+  () => {
+
+    document
+      .querySelectorAll(
+        '[data-countdown-contract]'
+      )
+      .forEach(
+        (element) => {
+
+          const contract =
+            allContracts.find(
+              (item) =>
+                item.id ===
+                element.dataset
+                  .countdownContract
+            );
+
+
+          if (!contract) {
+            return;
+          }
+
+
+          element.textContent =
+            getPdfCountdownText(
+              contract
+            );
+
+        }
+      );
+
+  },
+  1000
+);
+
+
+// ============================================================
+// TÉLÉCHARGEMENT CRÉATEUR
+// ============================================================
+
+async function startCreatorPdfDownload(
+  contract,
   button
 ) {
 
-  if (!token) {
+  if (!currentUser) {
+
+    showTemporaryError(
+      'Session expirée. Reconnecte-toi.'
+    );
+
     return;
   }
 
 
-  if (!currentUser) {
+  if (
+    contract.status !==
+    'signed'
+  ) {
 
-    alert(
-      'Session expirée. Reconnecte-toi.'
+    showTemporaryError(
+      'Le contrat doit être signé avant le téléchargement.'
     );
 
     return;
@@ -767,9 +715,27 @@ async function startPdfAccess(
 
   try {
 
-    // --------------------------------------------------------
-    // TOKEN FIREBASE DU CRÉATEUR
-    // --------------------------------------------------------
+    /*
+     * IMPORTANT :
+     *
+     * On ne va plus ouvrir directement :
+     *
+     * /public/TOKEN/pdf
+     *
+     * Le clic du créateur passe d'abord
+     * par une route backend dédiée.
+     *
+     * Cette route doit :
+     *
+     * 1. vérifier le créateur connecté ;
+     * 2. vérifier que le contrat est signé ;
+     * 3. démarrer les 24 h si elles ne
+     *    sont pas encore démarrées ;
+     * 4. générer le PDF ;
+     * 5. renvoyer le PDF ;
+     * 6. ne PAS stocker le PDF.
+     */
+
 
     const idToken =
       await currentUser.getIdToken(
@@ -777,13 +743,11 @@ async function startPdfAccess(
       );
 
 
-    // --------------------------------------------------------
-    // DÉMARRER LES 24 HEURES
-    // --------------------------------------------------------
-
     const response =
       await fetch(
-        `${API_BASE}/api/contracts/public/start-pdf-access`,
+        `${API_BASE}/api/contracts/${encodeURIComponent(
+          contract.id
+        )}/creator-pdf`,
         {
 
           method:
@@ -791,102 +755,438 @@ async function startPdfAccess(
 
           headers: {
 
-            'Content-Type':
-              'application/json',
-
-            'Authorization':
+            Authorization:
               `Bearer ${idToken}`,
+
+            Accept:
+              'application/pdf',
+
           },
 
-          body:
-            JSON.stringify({
-              token,
-            }),
         }
       );
 
 
-    const data =
-      await response
-        .json()
-        .catch(
-          () => ({})
-        );
+    if (!response.ok) {
+
+      let message =
+        'Impossible de télécharger le PDF.';
+
+
+      try {
+
+        const contentType =
+          response.headers.get(
+            'content-type'
+          ) || '';
+
+
+        if (
+          contentType.includes(
+            'application/json'
+          )
+        ) {
+
+          const data =
+            await response.json();
+
+
+          message =
+            data.message ||
+            message;
+
+        }
+
+      } catch (_) {
+        // Ignorer.
+      }
+
+
+      throw new Error(
+        message
+      );
+
+    }
+
+
+    const blob =
+      await response.blob();
 
 
     if (
-      !response.ok
+      !blob ||
+      blob.size ===
+        0
     ) {
 
       throw new Error(
-        data.message ||
-          'Impossible de démarrer la période PDF.'
+        'Le PDF généré est vide.'
       );
+
     }
 
 
-    // --------------------------------------------------------
-    // ACTUALISER IMMÉDIATEMENT FIRESTORE
-    // --------------------------------------------------------
-
-    const contract =
-      allContracts.find(
-        (item) =>
-          item.shareToken ===
-          token
+    const blobUrl =
+      URL.createObjectURL(
+        blob
       );
 
 
-    if (contract) {
-
-      contract.pdfAccessStartedAt =
-        data.pdfAccessStartedAt;
-
-      contract.pdfExpiresAt =
-        data.pdfExpiresAt;
-    }
+    const link =
+      document.createElement(
+        'a'
+      );
 
 
-    renderList();
+    link.href =
+      blobUrl;
 
 
-    // --------------------------------------------------------
-    // OUVRIR LE PDF
-    // --------------------------------------------------------
-
-    const pdfUrl =
-      `${API_BASE}/api/contracts/public/${encodeURIComponent(
-        token
-      )}/pdf`;
+    link.download =
+      createPdfFilename(
+        contract.title
+      );
 
 
-    window.open(
-      pdfUrl,
-      '_blank',
-      'noopener,noreferrer'
+    link.style.display =
+      'none';
+
+
+    document.body.appendChild(
+      link
     );
+
+
+    link.click();
+
+
+    link.remove();
+
+
+    setTimeout(
+      () => {
+
+        URL.revokeObjectURL(
+          blobUrl
+        );
+
+      },
+      5000
+    );
+
+
+    /*
+     * Firestore va normalement mettre à jour
+     * pdfAccessStartedAt / pdfExpiresAt.
+     *
+     * On recharge la liste afin que le
+     * compte à rebours apparaisse.
+     */
+
+    await refreshContractsOnce();
 
 
   } catch (error) {
 
     console.error(
-      'Erreur téléchargement PDF :',
+      'Erreur téléchargement PDF créateur :',
       error
     );
 
 
-    alert(
+    showTemporaryError(
       error.message ||
-        'Impossible de télécharger le PDF.'
+      'Le téléchargement du PDF a échoué.'
     );
 
+
+  } finally {
 
     button.disabled =
       false;
 
     button.textContent =
       originalText;
+
   }
+
+}
+
+
+// ============================================================
+// RAFRAÎCHIR LES DONNÉES
+// ============================================================
+
+async function refreshContractsOnce() {
+
+  /*
+   * onSnapshot est déjà actif.
+   *
+   * Cette fonction sert surtout à laisser
+   * le temps au listener Firestore de recevoir
+   * la modification du backend.
+   */
+
+  await new Promise(
+    (resolve) =>
+      setTimeout(
+        resolve,
+        500
+      )
+  );
+
+}
+
+
+// ============================================================
+// DATE FIRESTORE
+// ============================================================
+
+function firestoreDateToMillis(
+  value
+) {
+
+  if (!value) {
+    return null;
+  }
+
+
+  if (
+    typeof value.toMillis ===
+    'function'
+  ) {
+
+    return value.toMillis();
+
+  }
+
+
+  if (
+    typeof value.toDate ===
+    'function'
+  ) {
+
+    return value
+      .toDate()
+      .getTime();
+
+  }
+
+
+  if (
+    typeof value ===
+    'number'
+  ) {
+
+    return value;
+
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  const timestamp =
+    date.getTime();
+
+
+  return Number.isNaN(
+    timestamp
+  )
+    ? null
+    : timestamp;
+}
+
+
+// ============================================================
+// DURÉE
+// ============================================================
+
+function formatDuration(
+  milliseconds
+) {
+
+  let seconds =
+    Math.floor(
+      milliseconds /
+        1000
+    );
+
+
+  const days =
+    Math.floor(
+      seconds /
+        86400
+    );
+
+
+  seconds %=
+    86400;
+
+
+  const hours =
+    Math.floor(
+      seconds /
+        3600
+    );
+
+
+  seconds %=
+    3600;
+
+
+  const minutes =
+    Math.floor(
+      seconds /
+        60
+    );
+
+
+  seconds %=
+    60;
+
+
+  if (days > 0) {
+
+    return `${days}j ${hours}h ${minutes}min`;
+
+  }
+
+
+  if (hours > 0) {
+
+    return `${hours}h ${minutes}min ${seconds}s`;
+
+  }
+
+
+  if (minutes > 0) {
+
+    return `${minutes}min ${seconds}s`;
+
+  }
+
+
+  return `${seconds}s`;
+
+}
+
+
+// ============================================================
+// NOM PDF
+// ============================================================
+
+function createPdfFilename(
+  title
+) {
+
+  const clean =
+    String(
+      title ||
+      'contrat'
+    )
+      .normalize(
+        'NFD'
+      )
+      .replace(
+        /[\u0300-\u036f]/g,
+        ''
+      )
+      .replace(
+        /[^a-zA-Z0-9]+/g,
+        '-'
+      )
+      .replace(
+        /^-+|-+$/g,
+        ''
+      )
+      .toLowerCase();
+
+
+  return `${
+    clean ||
+    'contrat'
+  }-kontra-africa.pdf`;
+}
+
+
+// ============================================================
+// ERREUR TEMPORAIRE
+// ============================================================
+
+function showTemporaryError(
+  message
+) {
+
+  console.error(
+    message
+  );
+
+
+  if (
+    formError
+  ) {
+
+    formError.textContent =
+      message;
+
+    formError.hidden =
+      false;
+
+
+    setTimeout(
+      () => {
+
+        formError.hidden =
+          true;
+
+      },
+      5000
+    );
+
+  } else {
+
+    alert(
+      message
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// ESCAPE HTML
+// ============================================================
+
+function escapeHtml(
+  value = ''
+) {
+
+  return String(
+    value
+  ).replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&':
+          '&amp;',
+
+        '<':
+          '&lt;',
+
+        '>':
+          '&gt;',
+
+        '"':
+          '&quot;',
+
+        "'":
+          '&#39;',
+      }[character])
+  );
+
 }
 
 
@@ -920,6 +1220,7 @@ document
                   'aria-selected',
                   'false'
                 );
+
               }
             );
 
@@ -940,8 +1241,10 @@ document
 
 
           renderList();
+
         }
       );
+
     }
   );
 
@@ -969,13 +1272,14 @@ document
     (event) => {
 
       if (
-        event.target.dataset
-          .action ===
+        event.target.dataset.action ===
         'open-new-contract'
       ) {
 
         openNewContractModal();
+
       }
+
     }
   );
 
@@ -990,6 +1294,7 @@ function openNewContractModal() {
   modalNew.showModal();
 
   initSignaturePad();
+
 }
 
 
@@ -1007,9 +1312,12 @@ document
       button.addEventListener(
         'click',
         () => {
+
           modalNew.close();
+
         }
       );
+
     }
   );
 
@@ -1024,15 +1332,18 @@ document
       button.addEventListener(
         'click',
         () => {
+
           modalShare.close();
+
         }
       );
+
     }
   );
 
 
 // ============================================================
-// SIGNATURE PAD
+// SIGNATURE CREATEUR
 // ============================================================
 
 function initSignaturePad() {
@@ -1083,6 +1394,7 @@ function initSignaturePad() {
   let drawing =
     false;
 
+
   let hasStroke =
     false;
 
@@ -1123,7 +1435,9 @@ function initSignaturePad() {
         (point.clientY -
           rect.top) *
         scaleY,
+
     };
+
   }
 
 
@@ -1154,6 +1468,7 @@ function initSignaturePad() {
 
 
     event.preventDefault();
+
   }
 
 
@@ -1182,6 +1497,7 @@ function initSignaturePad() {
 
 
     event.preventDefault();
+
   }
 
 
@@ -1189,6 +1505,7 @@ function initSignaturePad() {
 
     drawing =
       false;
+
   }
 
 
@@ -1203,6 +1520,7 @@ function initSignaturePad() {
 
   window.onmouseup =
     stopDrawing;
+
 
   canvas.ontouchstart =
     startDrawing;
@@ -1238,7 +1556,9 @@ function initSignaturePad() {
 
         hasStroke =
           false;
+
       };
+
   }
 
 
@@ -1252,12 +1572,14 @@ function initSignaturePad() {
         canvas.toDataURL(
           'image/png'
         ),
+
   };
+
 }
 
 
 // ============================================================
-// CRÉATION CONTRAT
+// CRÉATION DU CONTRAT
 // ============================================================
 
 formNew.addEventListener(
@@ -1265,6 +1587,7 @@ formNew.addEventListener(
   async (event) => {
 
     event.preventDefault();
+
 
     formError.hidden =
       true;
@@ -1296,6 +1619,7 @@ formNew.addEventListener(
       return showFormError(
         'Merci de remplir tous les champs obligatoires.'
       );
+
     }
 
 
@@ -1307,6 +1631,7 @@ formNew.addEventListener(
       return showFormError(
         'Ton nom doit contenir au moins 2 caractères.'
       );
+
     }
 
 
@@ -1318,6 +1643,7 @@ formNew.addEventListener(
       return showFormError(
         'Le nom du signataire doit contenir au moins 2 caractères.'
       );
+
     }
 
 
@@ -1329,6 +1655,7 @@ formNew.addEventListener(
       return showFormError(
         'Ajoute ta signature pour continuer.'
       );
+
     }
 
 
@@ -1337,11 +1664,13 @@ formNew.addEventListener(
       return showFormError(
         'Session expirée. Reconnecte-toi.'
       );
+
     }
 
 
     btnSubmit.disabled =
       true;
+
 
     btnSubmit.textContent =
       'Création…';
@@ -1377,7 +1706,7 @@ formNew.addEventListener(
             signerName,
 
             /*
-             * Aucun numéro WhatsApp.
+             * Aucun numéro WhatsApp du client.
              */
 
             shareToken,
@@ -1402,9 +1731,18 @@ formNew.addEventListener(
             signerTypedName:
               null,
 
+            createdAt:
+              serverTimestamp(),
+
             /*
-             * Les 24h ne sont PAS
-             * démarrées à la création.
+             * IMPORTANT :
+             *
+             * Le compteur PDF ne commence
+             * PAS à la création.
+             *
+             * Il sera défini par le backend
+             * lorsque le créateur téléchargera
+             * le PDF après signature.
              */
 
             pdfAccessStartedAt:
@@ -1413,8 +1751,6 @@ formNew.addEventListener(
             pdfExpiresAt:
               null,
 
-            createdAt:
-              serverTimestamp(),
           }
         );
 
@@ -1451,6 +1787,7 @@ formNew.addEventListener(
         creatorName,
 
         shareToken,
+
       });
 
 
@@ -1472,9 +1809,12 @@ formNew.addEventListener(
       btnSubmit.disabled =
         false;
 
+
       btnSubmit.textContent =
         'Signer et créer le lien';
+
     }
+
   }
 );
 
@@ -1492,6 +1832,7 @@ function showFormError(
 
   formError.hidden =
     false;
+
 }
 
 
@@ -1522,11 +1863,12 @@ function generateShareToken() {
           '0'
         )
   ).join('');
+
 }
 
 
 // ============================================================
-// SHARE URL
+// LIEN SIGNATURE
 // ============================================================
 
 function buildShareUrl(
@@ -1540,6 +1882,7 @@ function buildShareUrl(
       token
     )
   );
+
 }
 
 
@@ -1567,6 +1910,7 @@ function buildWhatsAppUrl(
       message
     )
   );
+
 }
 
 
@@ -1585,11 +1929,12 @@ function openWhatsAppShare(
     '_blank',
     'noopener,noreferrer'
   );
+
 }
 
 
 // ============================================================
-// MODALE SHARE
+// MODALE PARTAGE
 // ============================================================
 
 function openShareModal(
@@ -1602,9 +1947,7 @@ function openShareModal(
     );
 
 
-  if (
-    btnShareWhatsapp
-  ) {
+  if (btnShareWhatsapp) {
 
     btnShareWhatsapp.onclick =
       () => {
@@ -1612,16 +1955,19 @@ function openShareModal(
         openWhatsAppShare(
           contract
         );
+
       };
+
   }
 
 
   modalShare.showModal();
+
 }
 
 
 // ============================================================
-// COPIER
+// COPIE LIEN
 // ============================================================
 
 btnCopyLink.addEventListener(
@@ -1656,6 +2002,8 @@ btnCopyLink.addEventListener(
         'Erreur de copie :',
         error
       );
+
     }
+
   }
 );
