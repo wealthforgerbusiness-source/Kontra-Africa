@@ -12,25 +12,37 @@ const REDIRECT_KEY = 'kontra_auth_pending'; // marque qu'une connexion par redir
 const INIT_USER_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
 
 const googleBtn = document.getElementById('googleBtn');
+const termsCheckbox = document.getElementById('termsCheckbox');
 const loadingState = document.getElementById('loadingState');
 const loadingLabel = document.getElementById('loadingLabel');
 const errorState = document.getElementById('errorState');
 const errorMessage = document.getElementById('errorMessage');
 const retryBtn = document.getElementById('retryBtn');
+const openBrowserFallback = document.getElementById('openBrowserFallback');
+const openBrowserBtn = document.getElementById('openBrowserBtn');
 
 /* --- Détection mobile : popup peu fiable sur mobile, on préfère la redirection --- */
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+/* --- Détection PWA installée (mode standalone) : le redirect Firebase peut
+   perdre la session dans ce contexte, on prévoit un fallback --- */
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true;
+
 /* --- Gestion des états visuels --- */
 function showButton() {
   googleBtn.hidden = false;
+  googleBtn.disabled = !termsCheckbox.checked;
   loadingState.hidden = true;
   errorState.hidden = true;
+  openBrowserFallback.hidden = true;
 }
 
 function showLoading(label) {
   googleBtn.hidden = true;
   errorState.hidden = true;
+  openBrowserFallback.hidden = true;
   loadingState.hidden = false;
   loadingLabel.textContent = label;
 }
@@ -38,9 +50,22 @@ function showLoading(label) {
 function showError(message) {
   googleBtn.hidden = true;
   loadingState.hidden = true;
+  openBrowserFallback.hidden = true;
   errorState.hidden = false;
   errorMessage.textContent = message;
 }
+
+function showFallback() {
+  googleBtn.hidden = true;
+  loadingState.hidden = true;
+  errorState.hidden = true;
+  openBrowserFallback.hidden = false;
+}
+
+/* --- La case à cocher pilote l'activation du bouton --- */
+termsCheckbox.addEventListener('change', () => {
+  googleBtn.disabled = !termsCheckbox.checked;
+});
 
 /* --- Traduction des erreurs Firebase courantes en messages clairs --- */
 function translateAuthError(error) {
@@ -115,6 +140,8 @@ async function completeSignIn(firebaseUser) {
 
 /* --- Lancement de la connexion Google --- */
 async function startGoogleSignIn() {
+  if (!termsCheckbox.checked) return;
+
   showLoading('Connexion à Google…');
   try {
     await setPersistence(auth, browserLocalPersistence);
@@ -149,16 +176,31 @@ async function checkRedirectResult() {
     }
 
     if (wasPending) {
-      // On attendait un retour mais rien n'est arrivé : on nettoie sans bloquer l'utilisateur
+      // On attendait un retour mais rien n'est arrivé.
       localStorage.removeItem(REDIRECT_KEY);
+      if (isStandalone) {
+        // Cas connu : en PWA installée, le redirect Firebase perd parfois la
+        // session. On propose d'ouvrir la connexion dans le navigateur classique.
+        showFallback();
+        return;
+      }
     }
     showButton();
   } catch (err) {
     console.error('Erreur getRedirectResult :', err);
     localStorage.removeItem(REDIRECT_KEY);
+    if (isStandalone) {
+      showFallback();
+      return;
+    }
     showError(translateAuthError(err));
   }
 }
+
+/* --- Ouvre la page de connexion dans le navigateur système (hors PWA) --- */
+openBrowserBtn.addEventListener('click', () => {
+  window.open(window.location.href.split('#')[0], '_blank', 'noopener');
+});
 
 googleBtn.addEventListener('click', startGoogleSignIn);
 retryBtn.addEventListener('click', showButton);
