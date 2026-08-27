@@ -1,172 +1,706 @@
-// sw.js
-// Service Worker de Kontra-Africa.
+import { auth, db } from '/js/firebase-config.js';
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { buildCountryOptionsHtml, cleanPhoneDigits } from '/js/phone-countries.js';
+
+const API_BASE_URL = 'https://kontra-africa.onrender.com';
+const CHECKOUT_TIMEOUT_MS = 60000;
+
+// -----------------------------------------------------------------------------
+// Auth state
+// -----------------------------------------------------------------------------
 //
-// Rôle strict de ce fichier : mettre en cache la COQUILLE de l'app
-// (HTML, CSS, JS, icônes) pour qu'elle reste utilisable hors ligne.
-// Aucune donnée Firestore n'est mise en cache ici — la persistance des
-// données hors ligne est gérée par js/offline-queue.js (IndexedDB) dans
-// chaque page.
+// IMPORTANT : Firebase peut prendre un petit moment pour restaurer une session
+// existante, particulièrement sur mobile/PWA.
 //
-// Stratégie : network-first avec repli sur le cache pour les ressources de
-// même origine (toujours à jour quand la connexion est bonne, fonctionne
-// hors ligne sinon). Cache-first pour les librairies externes versionnées
-// (Firebase CDN) car leur contenu est immuable une fois publié.
+// On ne redirige donc PAS immédiatement vers login.html lorsque user === null.
+// On laisse Firebase terminer sa restauration.
 //
-// IMPORTANT : incrémente CACHE_VERSION à chaque déploiement de fichiers
-// listés dans APP_SHELL_ASSETS, sinon les anciens visiteurs resteront sur
-// une version périmée du shell.
+// -----------------------------------------------------------------------------
 
-const CACHE_VERSION = 'v1';
-const SHELL_CACHE = `kontra-shell-${CACHE_VERSION}`;
-const CDN_CACHE = `kontra-cdn-${CACHE_VERSION}`;
+let authStateResolved = false;
+let currentAuthUser = null;
 
-// Pages et assets qui composent la coquille de l'app.
-// Ajoute ici tout nouveau fichier HTML/CSS/JS/icône statique que tu crées.
-const APP_SHELL_ASSETS = [
-  '/',
-  '/index.html',
-  '/login.html',
-  '/dashboard.html',
-  '/contracts.html',
-  '/sign.html',
-  '/finances.html',
-  '/profil.html',
-  '/manifest.json',
+function waitForAuthState(timeout = 15000) {
+  return new Promise((resolve) => {
+    let finished = false;
 
-  '/css/tokens.css',
-  '/css/landing.css',
-  '/css/login.css',
-  '/css/app.css',
-  '/css/contracts.css',
-  '/css/sign.css',
-  '/css/finances.css',
-  '/css/profil.css',
+    const finish = (user) => {
+      if (finished) return;
+      finished = true;
 
-  '/js/firebase-config.js',
-  '/js/auth-guard.js',
-  '/js/landing.js',
-  '/js/login.js',
-  '/js/dashboard.js',
-  '/js/contracts.js',
-  '/js/sign.js',
-  '/js/finances.js',
-  '/js/profil.js',
-  '/js/offline-queue.js',
-  '/js/sw-register.js',
+      clearTimeout(timeoutId);
 
-  '/public/logo.webp',
-  '/public/icons/icon-192.png',
-  '/public/icons/icon-512.png',
-  '/public/icons/icon-maskable.png',
-];
+      authStateResolved = true;
+      currentAuthUser = user || null;
 
-// Domaines externes dont on met en cache les réponses (cache-first, car
-// versionnées/immuables) pour que les imports ES modules fonctionnent hors
-// ligne après un premier chargement en ligne.
-const CACHEABLE_CDN_ORIGINS = ['https://www.gstatic.com'];
+      resolve(user || null);
+    };
 
-// ---------- Installation ----------
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) =>
-      // addAll échoue globalement si UNE ressource manque ; on protège donc
-      // chaque fichier individuellement pour ne pas bloquer l'installation
-      // à cause d'un fichier renommé/supprimé.
-      Promise.allSettled(
-        APP_SHELL_ASSETS.map((url) =>
-          cache.add(url).catch((err) => {
-            console.warn('[SW] Échec de mise en cache initiale :', url, err);
-          })
-        )
-      )
-    )
-  );
-  self.skipWaiting();
-});
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Firebase a maintenant répondu.
+      // On ne redirige pas avant que cet état soit réellement connu.
+      finish(user);
+      unsubscribe();
+    });
 
-// ---------- Activation : nettoyage des anciens caches ----------
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== SHELL_CACHE && key !== CDN_CACHE)
-          .map((key) => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
-});
+    // Sécurité : si Firebase ne répond vraiment jamais,
+    // on ne bloque pas éternellement l'application.
+    const timeoutId = setTimeout(() => {
+      if (finished) return;
 
-// ---------- Interception des requêtes ----------
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
+      console.warn('[AUTH] Timeout lors de la restauration de la session Firebase.');
 
-  // On ne touche jamais aux requêtes non-GET (POST/PUT vers l'API, écritures
-  // Firestore, etc.) : elles doivent échouer normalement si hors ligne, pour
-  // que le code applicatif (ex: js/finances.js, js/offline-queue.js) gère
-  // lui-même la mise en file d'attente.
-  if (request.method !== 'GET') return;
+      finished = true;
+      authStateResolved = true;
 
-  const url = new URL(request.url);
+      // On considère alors réellement l'utilisateur comme non connecté.
+      currentAuthUser = null;
 
-  // Ne jamais intercepter les appels vers le backend applicatif (données
-  // dynamiques, jamais mises en cache par ce Service Worker).
-  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
-    return;
+      unsubscribe();
+
+      resolve(null);
+    }, timeout);
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Détermine si l'accès doit être bloqué
+// -----------------------------------------------------------------------------
+
+function isSubscriptionBlocked(userData) {
+  const status = userData.subscriptionStatus;
+
+  if (status === 'expired' || status === 'cancelled') {
+    return true;
   }
 
-  // Ne jamais intercepter Firestore/Firebase Auth (RPC en temps réel).
-  if (
-    url.hostname.includes('firestore.googleapis.com') ||
-    url.hostname.includes('identitytoolkit.googleapis.com') ||
-    url.hostname.includes('firebaseinstallations.googleapis.com')
-  ) {
-    return;
+  if (status === 'trial') {
+    const trialEnd = toDate(userData.trialEndDate);
+
+    if (trialEnd && new Date() > trialEnd) {
+      return true;
+    }
   }
 
-  if (url.origin === self.location.origin) {
-    event.respondWith(networkFirst(request));
-  } else if (CACHEABLE_CDN_ORIGINS.some((origin) => url.origin === origin)) {
-    event.respondWith(cacheFirst(request));
+  return false;
+}
+
+// -----------------------------------------------------------------------------
+// Convertit un Timestamp Firestore (ou une date déjà stockée) en Date JS
+// -----------------------------------------------------------------------------
+
+function toDate(value) {
+  if (!value) return null;
+
+  if (typeof value.toDate === 'function') {
+    return value.toDate();
   }
-  // Toute autre origine externe non listée : comportement par défaut du
-  // navigateur (pas d'interception), pour rester prudent.
-});
 
-// ---------- Stratégies ----------
-async function networkFirst(request) {
-  const cache = await caches.open(SHELL_CACHE);
+  const parsed = new Date(value);
 
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// -----------------------------------------------------------------------------
+// Point d'entrée principal, appelé par chaque page protégée
+// -----------------------------------------------------------------------------
+
+export async function requireAppAccess() {
   try {
-    const networkResponse = await fetch(request);
-    if (networkResponse && networkResponse.status === 200) {
-      cache.put(request, networkResponse.clone());
+    // -------------------------------------------------------------------------
+    // IMPORTANT
+    //
+    // On attend que Firebase ait terminé de restaurer la session.
+    // C'est la correction principale du problème mobile.
+    // -------------------------------------------------------------------------
+
+    const user = await waitForAuthState();
+
+    if (!user) {
+      console.warn('[AUTH] Aucun utilisateur connecté après restauration.');
+
+      // Petite protection supplémentaire contre une redirection trop rapide
+      // sur mobile/PWA.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      window.location.replace('/login.html');
+      return null;
     }
-    return networkResponse;
+
+    currentAuthUser = user;
+
+    // -------------------------------------------------------------------------
+    // Vérification du profil Firestore
+    // -------------------------------------------------------------------------
+
+    const userSnap = await getDoc(
+      doc(db, 'users', user.uid)
+    );
+
+    if (!userSnap.exists()) {
+      console.warn(
+        '[AUTH] Utilisateur Firebase connecté mais profil Firestore absent :',
+        user.uid
+      );
+
+      // On ne déconnecte PAS l'utilisateur.
+      // On retourne simplement vers login comme dans le système original.
+      window.location.replace('/login.html');
+
+      return null;
+    }
+
+    const userData = userSnap.data();
+
+    // -------------------------------------------------------------------------
+    // Vérification abonnement
+    // -------------------------------------------------------------------------
+
+    if (isSubscriptionBlocked(userData)) {
+      renderPaywall(user);
+      return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Tout est OK
+    // -------------------------------------------------------------------------
+
+    return {
+      user,
+      userData
+    };
+
   } catch (err) {
-    const cached = await cache.match(request);
-    if (cached) return cached;
+    console.error(
+      '[AUTH] Erreur de vérification d’accès :',
+      err
+    );
 
-    // Repli ultime pour une navigation HTML non trouvée en cache : sert la
-    // page d'accueil pour éviter un écran d'erreur brut hors ligne.
-    if (request.mode === 'navigate') {
-      const fallback = await cache.match('/index.html');
-      if (fallback) return fallback;
-    }
+    renderFatalError();
 
-    throw err;
+    return null;
   }
 }
 
-async function cacheFirst(request) {
-  const cache = await caches.open(CDN_CACHE);
-  const cached = await cache.match(request);
-  if (cached) return cached;
+// -----------------------------------------------------------------------------
+// Déconnexion
+// -----------------------------------------------------------------------------
 
-  const networkResponse = await fetch(request);
-  if (networkResponse && networkResponse.status === 200) {
-    cache.put(request, networkResponse.clone());
+export async function logout() {
+  try {
+    const { signOut } = await import(
+      'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'
+    );
+
+    await signOut(auth);
+
+    // Nettoyage éventuel de notre état local.
+    currentAuthUser = null;
+    authStateResolved = false;
+
+    window.location.replace('/login.html');
+
+  } catch (err) {
+    console.error('[AUTH] Erreur lors de la déconnexion :', err);
+
+    // Même en cas de problème secondaire, on revient à la page login.
+    window.location.replace('/login.html');
   }
-  return networkResponse;
+}
+
+// -----------------------------------------------------------------------------
+// Rendu du paywall — remplace tout le contenu de la page
+// -----------------------------------------------------------------------------
+
+function renderPaywall(user) {
+  document.body.innerHTML = `
+    <main class="paywall">
+      <div class="paywall__card">
+
+        <img
+          src="/logo.webp"
+          alt="Kontra-Africa"
+          class="paywall__logo"
+        >
+
+        <p class="eyebrow">Abonnement</p>
+
+        <h1 class="paywall__title">
+          Votre période d'essai est terminée
+        </h1>
+
+        <p class="paywall__text">
+          Abonnez-vous pour continuer à créer des contrats,
+          les faire signer et suivre vos finances sur Kontra-Africa.
+        </p>
+
+        <div class="paywall__price">
+          <span class="paywall__currency">$</span>
+          5
+          <span class="paywall__period">/mois</span>
+        </div>
+
+        <div class="paywall__phone">
+
+          <label
+            for="paywallCountry"
+            class="paywall__phone-label"
+          >
+            Numéro Mobile Money (pour le paiement)
+          </label>
+
+          <div class="paywall__phone-row">
+
+            <select
+              id="paywallCountry"
+              class="paywall__phone-select"
+            >
+              ${buildCountryOptionsHtml()}
+            </select>
+
+            <span
+              class="paywall__phone-divider"
+              aria-hidden="true"
+            ></span>
+
+            <input
+              type="tel"
+              id="paywallPhone"
+              class="paywall__phone-input"
+              placeholder="8123456789"
+              inputmode="numeric"
+              autocomplete="tel"
+            >
+
+          </div>
+
+          <p
+            class="paywall__phone-error"
+            id="paywallPhoneError"
+            hidden
+          >
+            Entrez un numéro Mobile Money valide pour continuer.
+          </p>
+
+        </div>
+
+        <div
+          class="paywall__zone"
+          id="paywallZone"
+        >
+
+          <button
+            type="button"
+            id="checkoutBtn"
+            class="btn btn-primary btn-lg paywall__cta"
+          >
+            S'abonner maintenant
+          </button>
+
+        </div>
+
+        <p class="paywall__trust">
+          🔒 Paiement sécurisé via Mobile Money —
+          vous restez connecté à ce compte
+        </p>
+
+        <div class="paywall__license">
+
+          <p class="paywall__license-question">
+            Tu as déjà payé mais tu n'as pas accès ?
+          </p>
+
+          <label
+            for="paywallLicenseKey"
+            class="paywall__license-label"
+          >
+            Entre ta clé de licence (envoyée dans ton email Chariow)
+          </label>
+
+          <div class="paywall__license-row">
+
+            <input
+              type="text"
+              id="paywallLicenseKey"
+              class="paywall__license-input"
+              placeholder="ABC-123-XYZ-789"
+              autocomplete="off"
+            >
+
+            <button
+              type="button"
+              id="paywallVerifyLicenseBtn"
+              class="btn btn-secondary"
+            >
+              Vérifier
+            </button>
+
+          </div>
+
+          <p
+            class="paywall__license-error"
+            id="paywallLicenseError"
+            hidden
+          ></p>
+
+        </div>
+
+        <button
+          type="button"
+          id="paywallLogout"
+          class="btn btn-ghost paywall__logout"
+        >
+          Se déconnecter
+        </button>
+
+      </div>
+    </main>
+  `;
+
+  // ---------------------------------------------------------------------------
+  // Charge le CSS du paywall dynamiquement s'il n'est pas déjà présent
+  // ---------------------------------------------------------------------------
+
+  if (!document.querySelector('link[href="/css/app.css"]')) {
+    const link = document.createElement('link');
+
+    link.rel = 'stylesheet';
+    link.href = '/css/app.css';
+
+    document.head.appendChild(link);
+  }
+
+  const zone = document.getElementById('paywallZone');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  const logoutBtn = document.getElementById('paywallLogout');
+
+  const verifyLicenseBtn = document.getElementById(
+    'paywallVerifyLicenseBtn'
+  );
+
+  const licenseInput = document.getElementById(
+    'paywallLicenseKey'
+  );
+
+  const licenseError = document.getElementById(
+    'paywallLicenseError'
+  );
+
+  verifyLicenseBtn.addEventListener(
+    'click',
+    () => verifyLicense(
+      user,
+      licenseInput,
+      licenseError,
+      verifyLicenseBtn
+    )
+  );
+
+  checkoutBtn.addEventListener('click', () => {
+    const phoneNumber = cleanPhoneDigits(
+      document.getElementById('paywallPhone').value
+    );
+
+    const countryCode =
+      document.getElementById('paywallCountry').value;
+
+    const phoneErrorEl =
+      document.getElementById('paywallPhoneError');
+
+    if (phoneNumber.length < 8) {
+      phoneErrorEl.hidden = false;
+      return;
+    }
+
+    phoneErrorEl.hidden = true;
+
+    startCheckout(
+      user,
+      zone,
+      {
+        number: phoneNumber,
+        countryCode
+      }
+    );
+  });
+
+  logoutBtn.addEventListener('click', logout);
+}
+
+// -----------------------------------------------------------------------------
+// Checkout
+// -----------------------------------------------------------------------------
+
+async function startCheckout(
+  user,
+  zone,
+  phone,
+  isRetryAttempt = false
+) {
+  zone.innerHTML = `
+    <div class="paywall-state">
+      <span
+        class="spinner"
+        aria-hidden="true"
+      ></span>
+
+      <p>
+        Préparation du paiement…
+        (cela peut prendre jusqu'à 1 minute la première fois)
+      </p>
+    </div>
+  `;
+
+  const controller = new AbortController();
+
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    CHECKOUT_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/checkout`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+          firebaseUid: user.uid,
+          email: user.email || '',
+
+          firstName: user.displayName
+            ? user.displayName.split(' ')[0]
+            : 'Client',
+
+          lastName: user.displayName
+            ? user.displayName
+                .split(' ')
+                .slice(1)
+                .join(' ') || 'Inconnu'
+            : 'Inconnu',
+
+          phone: {
+            number: phone.number,
+            countryCode: phone.countryCode
+          }
+        }),
+
+        signal: controller.signal
+      }
+    );
+
+    // Render peut répondre 502/503 pendant son démarrage.
+    if (
+      (response.status === 502 ||
+        response.status === 503) &&
+      !isRetryAttempt
+    ) {
+      clearTimeout(timeoutId);
+
+      await new Promise(
+        (resolve) => setTimeout(resolve, 4000)
+      );
+
+      return startCheckout(
+        user,
+        zone,
+        phone,
+        true
+      );
+    }
+
+    if (!response.ok) {
+      const errBody =
+        await response.json().catch(() => ({}));
+
+      throw new Error(
+        errBody.message ||
+        errBody.error ||
+        `checkout a répondu avec le statut ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    if (data && data.reactivated) {
+      window.location.replace('/dashboard.html');
+      return;
+    }
+
+    if (!data || !data.checkoutUrl) {
+      throw new Error(
+        'Aucune URL de paiement reçue.'
+      );
+    }
+
+    window.location.href = data.checkoutUrl;
+
+  } catch (err) {
+    console.error(
+      'Erreur checkout :',
+      err
+    );
+
+    const message =
+      err.name === 'AbortError'
+        ? "Le serveur met plus de temps que prévu à démarrer. Réessayez dans un instant."
+        : (
+            err.message ||
+            "Impossible de préparer le paiement. Réessayez."
+          );
+
+    zone.innerHTML = `
+      <div
+        class="paywall-state paywall-state--error"
+        role="alert"
+      >
+
+        <p>${message}</p>
+
+        <button
+          type="button"
+          id="checkoutRetry"
+          class="btn btn-secondary"
+        >
+          Réessayer
+        </button>
+
+      </div>
+    `;
+
+    document
+      .getElementById('checkoutRetry')
+      .addEventListener(
+        'click',
+        () => startCheckout(
+          user,
+          zone,
+          phone
+        )
+      );
+
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Vérification manuelle de clé de licence
+// -----------------------------------------------------------------------------
+
+async function verifyLicense(
+  user,
+  inputEl,
+  errorEl,
+  buttonEl
+) {
+  errorEl.hidden = true;
+
+  const licenseKey =
+    inputEl.value.trim();
+
+  if (!licenseKey) {
+    errorEl.textContent =
+      "Entre la clé de licence reçue par email après ton paiement.";
+
+    errorEl.hidden = false;
+
+    return;
+  }
+
+  buttonEl.disabled = true;
+  buttonEl.textContent = 'Vérification…';
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/verify-license`,
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+          firebaseUid: user.uid,
+          licenseKey
+        })
+      }
+    );
+
+    const data =
+      await response.json();
+
+    if (
+      data &&
+      data.valid &&
+      data.reactivated
+    ) {
+      window.location.reload();
+      return;
+    }
+
+    errorEl.textContent =
+      (data && data.error) ||
+      "Clé de licence invalide.";
+
+    errorEl.hidden = false;
+
+  } catch (err) {
+    console.error(
+      'Erreur de vérification de licence :',
+      err
+    );
+
+    errorEl.textContent =
+      "Impossible de vérifier la clé pour le moment. Réessaie dans un instant.";
+
+    errorEl.hidden = false;
+
+  } finally {
+    buttonEl.disabled = false;
+    buttonEl.textContent = 'Vérifier';
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Erreur fatale
+// -----------------------------------------------------------------------------
+
+function renderFatalError() {
+  document.body.innerHTML = `
+    <main class="paywall">
+      <div class="paywall__card">
+
+        <img
+          src="/logo.webp"
+          alt="Kontra-Africa"
+          class="paywall__logo"
+        >
+
+        <h1 class="paywall__title">
+          Impossible de charger votre compte
+        </h1>
+
+        <p class="paywall__text">
+          Vérifiez votre connexion internet,
+          puis rechargez la page.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick="window.location.reload()"
+        >
+          Recharger
+        </button>
+
+      </div>
+    </main>
+  `;
 }
