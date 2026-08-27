@@ -1,10 +1,16 @@
 /* ==========================================================================
    Kontra-Africa — Panneau Admin
-   Statistiques utilisateurs, gains réels, conversion USD ⇄ FC.
+   Connexion Google intégrée (réservée à un seul email), statistiques
+   utilisateurs, gains réels, conversion USD ⇄ FC.
    ========================================================================== */
 
-import { auth, db } from '/js/firebase-config.js';
-import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { auth, db, googleProvider } from '/js/firebase-config.js';
+import {
+  onAuthStateChanged,
+  signOut,
+  signInWithPopup,
+  signInWithRedirect,
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import {
   collection,
   getDocs,
@@ -14,7 +20,12 @@ import {
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
+// Seul ce compte Google a le droit d'accéder au panneau admin.
+// Rappel : la vraie sécurité doit AUSSI être appliquée côté règles Firestore
+// (voir firestore.rules.admin-a-fusionner.txt), sinon cette vérification
+// côté client seule n'empêche pas quelqu'un de lire les données autrement.
 const ADMIN_EMAIL = 'optisitedigital@gmail.com';
+
 const SUBSCRIPTION_PRICE_USD = 5;
 const CHARIOW_FEE_RATE = 0.15; // Chariow prend 15% par abonnement
 const DEFAULT_EXCHANGE_RATE = 2250; // 1 $ = 2250 FC par défaut
@@ -24,9 +35,17 @@ let allUsers = [];
 let exchangeRate = DEFAULT_EXCHANGE_RATE;
 let viewCurrency = 'USD'; // 'USD' ou 'FC'
 
-// ---------- Éléments DOM ----------
+// ---------- Éléments DOM : écrans ----------
 const loadingScreen = document.getElementById('adminLoadingScreen');
+const loginScreen = document.getElementById('adminLoginScreen');
+const deniedScreen = document.getElementById('adminDeniedScreen');
 const shell = document.getElementById('adminShell');
+
+const adminGoogleBtn = document.getElementById('adminGoogleBtn');
+const adminLoginError = document.getElementById('adminLoginError');
+const deniedEmail = document.getElementById('deniedEmail');
+const btnDeniedLogout = document.getElementById('btnDeniedLogout');
+
 const errorBanner = document.getElementById('adminErrorBanner');
 
 const statTotalUsers = document.getElementById('statTotalUsers');
@@ -53,32 +72,69 @@ const usersTableEmpty = document.getElementById('usersTableEmpty');
 const btnRefresh = document.getElementById('btnRefresh');
 const btnLogout = document.getElementById('btnLogout');
 
+function hideAllScreens() {
+  loadingScreen.hidden = true;
+  loginScreen.hidden = true;
+  deniedScreen.hidden = true;
+  shell.hidden = true;
+}
+
 // ---------- Garde d'accès ----------
 onAuthStateChanged(auth, async (user) => {
-  if (!user || !user.email || user.email.toLowerCase() !== ADMIN_EMAIL) {
-    // Pas connecté, ou connecté avec un autre compte que l'admin :
-    // on renvoie vers la connexion Google habituelle de l'app.
-    window.location.href = '/login.html';
+  if (!user) {
+    hideAllScreens();
+    loginScreen.hidden = false;
     return;
   }
 
+  if (!user.email || user.email.toLowerCase() !== ADMIN_EMAIL) {
+    hideAllScreens();
+    deniedScreen.hidden = false;
+    deniedEmail.textContent = user.email || 'compte inconnu';
+    return;
+  }
+
+  // Bon compte : on charge le tableau de bord.
+  hideAllScreens();
   loadingScreen.hidden = false;
-  shell.hidden = true;
 
   try {
     await loadExchangeRate();
     await loadUsers();
+    hideAllScreens();
     shell.hidden = false;
   } catch (err) {
     console.error('Erreur de chargement admin :', err);
+    hideAllScreens();
+    shell.hidden = false;
     showErrorBanner(
       "Impossible de charger les données. Vérifiez les règles Firestore " +
       "(l'admin doit avoir le droit de lire la collection 'users' et le document 'admin_settings/global')."
     );
-    shell.hidden = false;
-  } finally {
-    loadingScreen.hidden = true;
   }
+});
+
+// ---------- Connexion Google (bouton sur l'écran de login) ----------
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+adminGoogleBtn.addEventListener('click', async () => {
+  adminLoginError.hidden = true;
+  try {
+    if (isMobile) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+    await signInWithPopup(auth, googleProvider);
+    // onAuthStateChanged prend le relais automatiquement.
+  } catch (err) {
+    console.error('Erreur de connexion Google :', err);
+    adminLoginError.textContent = "La connexion avec Google a échoué. Réessayez.";
+    adminLoginError.hidden = false;
+  }
+});
+
+btnDeniedLogout.addEventListener('click', async () => {
+  await signOut(auth);
 });
 
 function showErrorBanner(message) {
@@ -137,7 +193,7 @@ function renderRevenue() {
   const activeCount = allUsers.filter((u) => u.subscriptionStatus === 'active').length;
   const grossUSD = activeCount * SUBSCRIPTION_PRICE_USD;
   const chariowCutUSD = grossUSD * CHARIOW_FEE_RATE;
-  const netUSD = grossUSD - chariowCutUSD;
+  const netUSD = grossUSD - chariowCutUSD; // = activeCount * 4.25 $
 
   revenueActiveCount.textContent = activeCount.toLocaleString('fr-FR');
   revenueGrossValue.textContent = formatMoney(grossUSD);
@@ -270,5 +326,4 @@ btnRefresh.addEventListener('click', async () => {
 
 btnLogout.addEventListener('click', async () => {
   await signOut(auth);
-  window.location.href = '/login.html';
 });
