@@ -2,15 +2,12 @@ import { auth, googleProvider } from '/js/firebase-config.js';
 
 import {
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   setPersistence,
   browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 
-const REDIRECT_KEY = 'kontra_auth_pending';
 const INIT_USER_TIMEOUT_MS = 60000;
 
 const googleBtn = document.getElementById('googleBtn');
@@ -24,56 +21,42 @@ const errorMessage = document.getElementById('errorMessage');
 
 const retryBtn = document.getElementById('retryBtn');
 
-const openBrowserFallback =
-  document.getElementById('openBrowserFallback');
-
-const openBrowserBtn =
-  document.getElementById('openBrowserBtn');
-
-const isMobile =
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-const isStandalone =
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.navigator.standalone === true;
-
 
 // ============================================================
 // UI
 // ============================================================
 
 function showButton() {
+
   googleBtn.hidden = false;
   googleBtn.disabled = !termsCheckbox.checked;
 
   loadingState.hidden = true;
   errorState.hidden = true;
-  openBrowserFallback.hidden = true;
 }
 
+
 function showLoading(label) {
+
   googleBtn.hidden = true;
+
   loadingState.hidden = false;
   errorState.hidden = true;
-  openBrowserFallback.hidden = true;
 
   loadingLabel.textContent = label;
 }
 
+
 function showError(message) {
-  googleBtn.hidden = true;
+
+  googleBtn.hidden = false;
+  googleBtn.disabled = false;
+
   loadingState.hidden = true;
+
   errorState.hidden = false;
-  openBrowserFallback.hidden = true;
 
   errorMessage.textContent = message;
-}
-
-function showFallback() {
-  googleBtn.hidden = true;
-  loadingState.hidden = true;
-  errorState.hidden = true;
-  openBrowserFallback.hidden = false;
 }
 
 
@@ -96,10 +79,10 @@ function translateAuthError(error) {
       return "La connexion a été annulée. Réessayez.";
 
     case 'auth/popup-blocked':
-      return "Le navigateur a bloqué la fenêtre Google. Réessayez.";
+      return "Le navigateur a bloqué la fenêtre Google. Autorisez les fenêtres pop-up puis réessayez.";
 
     case 'auth/network-request-failed':
-      return "Problème de connexion Internet. Vérifiez votre réseau.";
+      return "Problème de connexion Internet. Vérifiez votre connexion.";
 
     case 'auth/unauthorized-domain':
       return "Ce domaine n'est pas autorisé dans Firebase Authentication.";
@@ -109,6 +92,9 @@ function translateAuthError(error) {
 
     case 'auth/invalid-credential':
       return "Les informations Google reçues sont invalides. Réessayez.";
+
+    case 'auth/internal-error':
+      return "Google a rencontré une erreur interne. Réessayez.";
 
     default:
       return "La connexion avec Google a échoué. Réessayez.";
@@ -123,59 +109,92 @@ function translateAuthError(error) {
 async function initUserOnBackend(firebaseUser) {
 
   const payload = {
+
     uid: firebaseUser.uid,
-    email: firebaseUser.email,
-    displayName: firebaseUser.displayName,
-    photoURL: firebaseUser.photoURL
+
+    email: firebaseUser.email || '',
+
+    displayName:
+      firebaseUser.displayName || '',
+
+    photoURL:
+      firebaseUser.photoURL || ''
   };
+
 
   showLoading(
     "Préparation de votre espace… cela peut prendre jusqu'à 1 minute."
   );
 
-  const controller = new AbortController();
 
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    INIT_USER_TIMEOUT_MS
-  );
+  const controller =
+    new AbortController();
+
+
+  const timeoutId =
+    setTimeout(
+      () => controller.abort(),
+      INIT_USER_TIMEOUT_MS
+    );
+
 
   try {
 
-    const response = await fetch(
-      `${API_BASE_URL}/api/init-user`,
-      {
-        method: 'POST',
+    const response =
+      await fetch(
+        `${API_BASE_URL}/api/init-user`,
+        {
 
-        headers: {
-          'Content-Type': 'application/json'
-        },
+          method: 'POST',
 
-        body: JSON.stringify(payload),
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
 
-        signal: controller.signal
-      }
-    );
+          body: JSON.stringify(
+            payload
+          ),
+
+          signal:
+            controller.signal
+        }
+      );
+
 
     if (!response.ok) {
+
       throw new Error(
         `init-user a répondu avec le statut ${response.status}`
       );
     }
 
-    return await response.json().catch(() => ({}));
+
+    return await response
+      .json()
+      .catch(
+        () => ({})
+      );
+
 
   } catch (err) {
 
-    if (err.name === 'AbortError') {
-      throw new Error('TIMEOUT_INIT_USER');
+    if (
+      err.name === 'AbortError'
+    ) {
+
+      throw new Error(
+        'TIMEOUT_INIT_USER'
+      );
     }
 
     throw err;
 
   } finally {
 
-    clearTimeout(timeoutId);
+    clearTimeout(
+      timeoutId
+    );
   }
 }
 
@@ -193,23 +212,36 @@ async function completeSignIn(firebaseUser) {
       firebaseUser.email
     );
 
-    await initUserOnBackend(firebaseUser);
 
-    localStorage.removeItem(REDIRECT_KEY);
+    await initUserOnBackend(
+      firebaseUser
+    );
 
-    window.location.href = '/dashboard.html';
+
+    console.log(
+      '✅ Utilisateur initialisé côté serveur'
+    );
+
+
+    window.location.href =
+      '/dashboard.html';
+
 
   } catch (err) {
 
-    console.error('Erreur init-user :', err);
+    console.error(
+      '❌ Erreur init-user :',
+      err
+    );
 
-    localStorage.removeItem(REDIRECT_KEY);
 
-    if (err.message === 'TIMEOUT_INIT_USER') {
+    if (
+      err.message ===
+      'TIMEOUT_INIT_USER'
+    ) {
 
       showError(
-        "Le serveur met trop de temps à démarrer. " +
-        "Réessayez dans quelques secondes."
+        "Le serveur met trop de temps à démarrer. Réessayez dans quelques secondes."
       );
 
     } else {
@@ -223,56 +255,53 @@ async function completeSignIn(firebaseUser) {
 
 
 // ============================================================
-// LANCER GOOGLE
+// CONNEXION GOOGLE
 // ============================================================
 
 async function startGoogleSignIn() {
 
-  if (!termsCheckbox.checked) {
+  if (
+    !termsCheckbox.checked
+  ) {
+
     return;
   }
 
-  showLoading("Connexion à Google…");
+
+  showLoading(
+    "Connexion à Google…"
+  );
+
 
   try {
 
-    // IMPORTANT :
-    // On définit la persistence AVANT le redirect.
+    // --------------------------------------------------------
+    // PERSISTENCE FIREBASE
+    // --------------------------------------------------------
+
     await setPersistence(
       auth,
       browserLocalPersistence
     );
 
-    // --------------------------------------------------------
-    // MOBILE
-    // --------------------------------------------------------
 
-    if (isMobile) {
+    console.log(
+      '🔐 Persistence Firebase configurée'
+    );
 
-      console.log(
-        '📱 Mobile détecté → Google Redirect'
-      );
-
-      localStorage.setItem(
-        REDIRECT_KEY,
-        '1'
-      );
-
-      await signInWithRedirect(
-        auth,
-        googleProvider
-      );
-
-      return;
-    }
 
     // --------------------------------------------------------
-    // PC
+    // GOOGLE POPUP
+    //
+    // IMPORTANT :
+    // Aucun signInWithRedirect()
+    // Aucun getRedirectResult()
     // --------------------------------------------------------
 
     console.log(
-      '💻 PC détecté → Google Popup'
+      '🌐 Connexion Google avec Popup'
     );
+
 
     const result =
       await signInWithPopup(
@@ -280,12 +309,32 @@ async function startGoogleSignIn() {
         googleProvider
       );
 
-    if (result?.user) {
 
-      await completeSignIn(
-        result.user
+    if (
+      !result ||
+      !result.user
+    ) {
+
+      throw new Error(
+        'Aucun utilisateur Google reçu.'
       );
     }
+
+
+    console.log(
+      '✅ Google connecté :',
+      result.user.email
+    );
+
+
+    // --------------------------------------------------------
+    // INITIALISER LE COMPTE
+    // --------------------------------------------------------
+
+    await completeSignIn(
+      result.user
+    );
+
 
   } catch (err) {
 
@@ -294,9 +343,6 @@ async function startGoogleSignIn() {
       err
     );
 
-    localStorage.removeItem(
-      REDIRECT_KEY
-    );
 
     showError(
       translateAuthError(err)
@@ -306,100 +352,7 @@ async function startGoogleSignIn() {
 
 
 // ============================================================
-// RETOUR DE GOOGLE
-// ============================================================
-
-async function checkRedirectResult() {
-
-  const wasPending =
-    localStorage.getItem(
-      REDIRECT_KEY
-    );
-
-  try {
-
-    console.log(
-      '🔄 Vérification du retour Google...'
-    );
-
-    await setPersistence(
-      auth,
-      browserLocalPersistence
-    );
-
-    const result =
-      await getRedirectResult(auth);
-
-    // --------------------------------------------------------
-    // GOOGLE A BIEN RENVOYÉ L'UTILISATEUR
-    // --------------------------------------------------------
-
-    if (result?.user) {
-
-      console.log(
-        '✅ Retour Google réussi :',
-        result.user.email
-      );
-
-      await completeSignIn(
-        result.user
-      );
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // PAS DE RESULTAT
-    // --------------------------------------------------------
-
-    if (wasPending) {
-
-      console.warn(
-        '⚠️ Redirect Google attendu mais aucun utilisateur reçu.'
-      );
-
-      localStorage.removeItem(
-        REDIRECT_KEY
-      );
-
-      // Seulement pour une PWA installée.
-      if (isStandalone) {
-
-        showFallback();
-
-        return;
-      }
-    }
-
-    showButton();
-
-  } catch (err) {
-
-    console.error(
-      '❌ Erreur getRedirectResult:',
-      err
-    );
-
-    localStorage.removeItem(
-      REDIRECT_KEY
-    );
-
-    if (isStandalone) {
-
-      showFallback();
-
-      return;
-    }
-
-    showError(
-      translateAuthError(err)
-    );
-  }
-}
-
-
-// ============================================================
-// CHECKBOX CONDITIONS
+// CHECKBOX
 // ============================================================
 
 termsCheckbox.addEventListener(
@@ -413,30 +366,7 @@ termsCheckbox.addEventListener(
 
 
 // ============================================================
-// FALLBACK PWA → NAVIGATEUR
-// ============================================================
-
-if (openBrowserBtn) {
-
-  openBrowserBtn.addEventListener(
-    'click',
-    () => {
-
-      const url =
-        window.location.href.split('#')[0];
-
-      window.open(
-        url,
-        '_blank',
-        'noopener,noreferrer'
-      );
-    }
-  );
-}
-
-
-// ============================================================
-// BOUTONS
+// BOUTON GOOGLE
 // ============================================================
 
 googleBtn.addEventListener(
@@ -444,14 +374,30 @@ googleBtn.addEventListener(
   startGoogleSignIn
 );
 
-retryBtn.addEventListener(
-  'click',
-  showButton
-);
+
+// ============================================================
+// BOUTON RETRY
+// ============================================================
+
+if (retryBtn) {
+
+  retryBtn.addEventListener(
+    'click',
+    () => {
+
+      showButton();
+
+    }
+  );
+}
 
 
 // ============================================================
 // INITIALISATION
 // ============================================================
 
-checkRedirectResult();
+showButton();
+
+console.log(
+  '✅ Kontra-Africa Login chargé'
+);
