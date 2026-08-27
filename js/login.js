@@ -5,7 +5,8 @@ import {
   signInWithRedirect,
   getRedirectResult,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 
@@ -76,41 +77,15 @@ const isStandalone =
 
 
 /* ==========================================================================
-   VÉRIFICATION DES ÉLÉMENTS
-   ========================================================================== */
-
-if (
-  !googleBtn ||
-  !termsCheckbox ||
-  !loadingState ||
-  !loadingLabel ||
-  !errorState ||
-  !errorMessage ||
-  !retryBtn ||
-  !openBrowserFallback ||
-  !openBrowserBtn
-) {
-  console.error(
-    '[AUTH] Un ou plusieurs éléments HTML de connexion sont introuvables.'
-  );
-}
-
-
-/* ==========================================================================
-   SYNCHRONISATION DE LA CHECKBOX AVEC LE BOUTON GOOGLE
+   SYNCHRONISATION DU BOUTON GOOGLE
    ========================================================================== */
 
 /*
- * IMPORTANT :
+ * Le HTML commence volontairement avec :
  *
- * login.html démarre avec :
+ * disabled
  *
- * <button ... disabled>
- *
- * Sur certains téléphones, le navigateur peut restaurer visuellement
- * la checkbox comme cochée sans déclencher immédiatement "change".
- *
- * On ne dépend donc plus uniquement de l'événement change.
+ * On synchronise ensuite avec l'état réel de la checkbox.
  */
 
 function syncGoogleButton() {
@@ -122,51 +97,91 @@ function syncGoogleButton() {
     return;
   }
 
-  const accepted =
-    termsCheckbox.checked === true;
-
   googleBtn.disabled =
-    !accepted;
+    !termsCheckbox.checked;
 
-  console.log(
-    '[AUTH] Checkbox:',
-    accepted,
-    '| Google button disabled:',
-    googleBtn.disabled
-  );
 }
 
 
-/*
- * Événement classique.
- */
+/* ==========================================================================
+   ÉTATS VISUELS
+   ========================================================================== */
+
+function showButton() {
+
+  googleBtn.hidden = false;
+
+  loadingState.hidden = true;
+
+  errorState.hidden = true;
+
+  openBrowserFallback.hidden = true;
+
+  syncGoogleButton();
+}
+
+
+function showLoading(label) {
+
+  googleBtn.hidden = true;
+
+  loadingState.hidden = false;
+
+  errorState.hidden = true;
+
+  openBrowserFallback.hidden = true;
+
+  loadingLabel.textContent =
+    label;
+}
+
+
+function showError(message) {
+
+  googleBtn.hidden = true;
+
+  loadingState.hidden = true;
+
+  errorState.hidden = false;
+
+  openBrowserFallback.hidden = true;
+
+  errorMessage.textContent =
+    message;
+}
+
+
+function showFallback() {
+
+  googleBtn.hidden = true;
+
+  loadingState.hidden = true;
+
+  errorState.hidden = true;
+
+  openBrowserFallback.hidden = false;
+}
+
+
+/* ==========================================================================
+   CHECKBOX
+   ========================================================================== */
+
 termsCheckbox.addEventListener(
   'change',
   syncGoogleButton
 );
 
-
-/*
- * Événement supplémentaire sur mobile.
- */
 termsCheckbox.addEventListener(
   'input',
   syncGoogleButton
 );
 
-
-/*
- * Le navigateur peut restaurer les formulaires après le chargement.
- */
 window.addEventListener(
   'pageshow',
   syncGoogleButton
 );
 
-
-/*
- * Lorsque la page reprend le focus.
- */
 window.addEventListener(
   'focus',
   syncGoogleButton
@@ -174,19 +189,16 @@ window.addEventListener(
 
 
 /*
- * Première synchronisation.
+ * Synchronisation immédiate.
  */
+
 syncGoogleButton();
 
 
 /*
- * Vérifications supplémentaires contre la restauration automatique
- * du navigateur / PWA.
+ * Certains navigateurs mobiles restaurent l'état d'un formulaire
+ * légèrement après le chargement.
  */
-setTimeout(
-  syncGoogleButton,
-  50
-);
 
 setTimeout(
   syncGoogleButton,
@@ -208,73 +220,6 @@ setTimeout(
   1000
 );
 
-setTimeout(
-  syncGoogleButton,
-  2000
-);
-
-
-/* ==========================================================================
-   ÉTATS VISUELS
-   ========================================================================== */
-
-function showButton() {
-
-  googleBtn.hidden = false;
-
-  loadingState.hidden = true;
-
-  errorState.hidden = true;
-
-  openBrowserFallback.hidden = true;
-
-  /*
-   * Très important :
-   * on resynchronise ici après les opérations Firebase.
-   */
-  syncGoogleButton();
-}
-
-
-function showLoading(label) {
-
-  googleBtn.hidden = true;
-
-  errorState.hidden = true;
-
-  openBrowserFallback.hidden = true;
-
-  loadingState.hidden = false;
-
-  loadingLabel.textContent = label;
-}
-
-
-function showError(message) {
-
-  googleBtn.hidden = true;
-
-  loadingState.hidden = true;
-
-  openBrowserFallback.hidden = true;
-
-  errorState.hidden = false;
-
-  errorMessage.textContent = message;
-}
-
-
-function showFallback() {
-
-  googleBtn.hidden = true;
-
-  loadingState.hidden = true;
-
-  errorState.hidden = true;
-
-  openBrowserFallback.hidden = false;
-}
-
 
 /* ==========================================================================
    TRADUCTION DES ERREURS FIREBASE
@@ -283,7 +228,8 @@ function showFallback() {
 function translateAuthError(error) {
 
   const code =
-    error && error.code;
+    error &&
+    error.code;
 
   switch (code) {
 
@@ -313,14 +259,14 @@ function translateAuthError(error) {
     case 'auth/unauthorized-domain':
 
       return (
-        "Ce domaine n'est pas autorisé par Firebase Authentication."
+        "Ce domaine n'est pas autorisé dans Firebase Authentication."
       );
 
 
     case 'auth/operation-not-allowed':
 
       return (
-        "La connexion Google n'est pas activée dans Firebase."
+        "La connexion avec Google n'est pas activée dans Firebase."
       );
 
 
@@ -392,7 +338,9 @@ async function initUserOnBackend(
           },
 
           body:
-            JSON.stringify(payload),
+            JSON.stringify(
+              payload
+            ),
 
           signal:
             controller.signal
@@ -437,55 +385,10 @@ async function initUserOnBackend(
 
 
 /* ==========================================================================
-   ATTEND LA RESTAURATION FIREBASE
+   RESTAURATION DE LA SESSION FIREBASE
    ========================================================================== */
 
-/*
- * Correction importante pour mobile/PWA.
- *
- * getRedirectResult() peut parfois retourner null alors que Firebase
- * est encore en train de restaurer auth.currentUser.
- *
- * On attend donc explicitement que Firebase ait terminé.
- */
-
-async function waitForFirebaseAuth() {
-
-  /*
-   * Firebase moderne possède authStateReady().
-   */
-
-  if (
-    typeof auth.authStateReady ===
-    'function'
-  ) {
-
-    try {
-
-      await auth.authStateReady();
-
-      console.log(
-        '[AUTH] Firebase a terminé la restauration de la session.'
-      );
-
-      return (
-        auth.currentUser ||
-        null
-      );
-
-    } catch (error) {
-
-      console.warn(
-        '[AUTH] authStateReady() a rencontré une erreur:',
-        error
-      );
-    }
-  }
-
-
-  /*
-   * Fallback avec onAuthStateChanged.
-   */
+function waitForFirebaseAuth() {
 
   return new Promise(
     (resolve) => {
@@ -495,23 +398,40 @@ async function waitForFirebaseAuth() {
       let unsubscribe = null;
 
 
+      const finish = (
+        user
+      ) => {
+
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+
+        clearTimeout(
+          timeoutId
+        );
+
+        if (unsubscribe) {
+          unsubscribe();
+        }
+
+        resolve(
+          user || null
+        );
+      };
+
+
       const timeoutId =
         setTimeout(
           () => {
 
-            if (finished) {
-              return;
-            }
+            console.warn(
+              '[AUTH] Timeout restauration Firebase.'
+            );
 
-            finished = true;
-
-            if (unsubscribe) {
-              unsubscribe();
-            }
-
-            resolve(
-              auth.currentUser ||
-              null
+            finish(
+              auth.currentUser
             );
 
           },
@@ -520,26 +440,28 @@ async function waitForFirebaseAuth() {
 
 
       unsubscribe =
-        auth.onAuthStateChanged(
+        onAuthStateChanged(
+          auth,
           (user) => {
 
-            if (finished) {
-              return;
-            }
-
-            finished = true;
-
-            clearTimeout(
-              timeoutId
+            console.log(
+              '[AUTH] État Firebase:',
+              user
+                ? 'connecté'
+                : 'non connecté'
             );
 
-            if (unsubscribe) {
-              unsubscribe();
-            }
+            finish(user);
+          },
+          (error) => {
 
-            resolve(
-              user ||
-              null
+            console.error(
+              '[AUTH] Erreur restauration Firebase:',
+              error
+            );
+
+            finish(
+              auth.currentUser
             );
           }
         );
@@ -567,10 +489,15 @@ async function completeSignIn(
   try {
 
     console.log(
-      '[AUTH] Utilisateur Firebase:',
+      '[AUTH] Utilisateur connecté:',
       firebaseUser.uid
     );
 
+
+    /*
+     * Maintenant seulement :
+     * création / initialisation du profil backend.
+     */
 
     await initUserOnBackend(
       firebaseUser
@@ -578,7 +505,7 @@ async function completeSignIn(
 
 
     /*
-     * On supprime le marqueur uniquement lorsque tout est terminé.
+     * La redirection est terminée.
      */
 
     localStorage.removeItem(
@@ -587,14 +514,9 @@ async function completeSignIn(
 
 
     console.log(
-      '[AUTH] Connexion réussie.'
+      '[AUTH] Connexion terminée.'
     );
 
-
-    /*
-     * replace() évite de revenir sur la page login avec le bouton
-     * retour du navigateur.
-     */
 
     window.location.replace(
       '/dashboard.html'
@@ -639,7 +561,8 @@ async function completeSignIn(
 async function startGoogleSignIn() {
 
   /*
-   * Vérification de sécurité.
+   * Sécurité :
+   * les CGU doivent être acceptées.
    */
 
   if (
@@ -669,13 +592,17 @@ async function startGoogleSignIn() {
     );
 
 
-    /*
-     * MOBILE
-     *
-     * On conserve ton système Redirect.
-     */
+    /* ----------------------------------------------------------------------
+       MOBILE
+       ---------------------------------------------------------------------- */
 
     if (isMobile) {
+
+      /*
+       * IMPORTANT :
+       *
+       * On écrit le marqueur AVANT le redirect.
+       */
 
       localStorage.setItem(
         REDIRECT_KEY,
@@ -684,7 +611,7 @@ async function startGoogleSignIn() {
 
 
       console.log(
-        '[AUTH] Mobile détecté : utilisation de signInWithRedirect().'
+        '[AUTH] Lancement connexion Google mobile.'
       );
 
 
@@ -695,18 +622,16 @@ async function startGoogleSignIn() {
 
 
       /*
-       * La page est rechargée après Google.
+       * La page va être rechargée.
        */
 
       return;
     }
 
 
-    /*
-     * ORDINATEUR
-     *
-     * On conserve ton système Popup.
-     */
+    /* ----------------------------------------------------------------------
+       ORDINATEUR
+       ---------------------------------------------------------------------- */
 
     const result =
       await signInWithPopup(
@@ -722,24 +647,6 @@ async function startGoogleSignIn() {
 
       await completeSignIn(
         result.user
-      );
-
-      return;
-    }
-
-
-    /*
-     * Sécurité supplémentaire.
-     */
-
-    const currentUser =
-      await waitForFirebaseAuth();
-
-
-    if (currentUser) {
-
-      await completeSignIn(
-        currentUser
       );
 
       return;
@@ -771,26 +678,66 @@ async function startGoogleSignIn() {
 
 
 /* ==========================================================================
-   TRAITEMENT DU RETOUR GOOGLE REDIRECT
+   TRAITEMENT DU RETOUR GOOGLE
    ========================================================================== */
+
+/*
+ * C'EST ICI QUE NOUS CORRIGEONS TON PROBLÈME.
+ *
+ * Si l'utilisateur arrive normalement sur login.html :
+ *
+ *     REDIRECT_KEY = absent
+ *
+ * alors on NE montre PAS :
+ *
+ *     "Préparation de votre espace..."
+ *
+ * et on NE lance PAS initUser.
+ *
+ * On affiche simplement le bouton.
+ */
 
 async function checkRedirectResult() {
 
   const wasPending =
     localStorage.getItem(
       REDIRECT_KEY
-    );
+    ) === '1';
+
+
+  /* ------------------------------------------------------------------------
+     CAS NORMAL :
+     aucune connexion Google n'a été lancée.
+     ------------------------------------------------------------------------ */
+
+  if (!wasPending) {
+
+    /*
+     * NE PAS afficher de loading.
+     * NE PAS appeler initUser.
+     * NE PAS utiliser currentUser pour démarrer automatiquement une connexion.
+     */
+
+    showButton();
+
+    return;
+  }
+
+
+  /* ------------------------------------------------------------------------
+     CAS REDIRECT :
+     une connexion Google mobile était réellement en cours.
+     ------------------------------------------------------------------------ */
+
+  showLoading(
+    'Vérification de votre connexion…'
+  );
 
 
   try {
 
-    showLoading(
-      'Vérification de votre connexion…'
-    );
-
-
     /*
-     * Persistance locale.
+     * On remet la persistance locale.
      */
 
     await setPersistence(
@@ -800,8 +747,7 @@ async function checkRedirectResult() {
 
 
     /*
-     * Première tentative :
-     * récupérer le résultat du redirect.
+     * Récupération du résultat Google.
      */
 
     let result = null;
@@ -820,18 +766,12 @@ async function checkRedirectResult() {
         '[AUTH] getRedirectResult() erreur:',
         redirectError
       );
-
-      /*
-       * IMPORTANT :
-       *
-       * On ne redirige PAS immédiatement vers login.
-       * On vérifie d'abord auth.currentUser.
-       */
     }
 
 
     /* ----------------------------------------------------------------------
-       CAS 1 : résultat Google récupéré
+       CAS 1 :
+       Google a retourné un utilisateur.
        ---------------------------------------------------------------------- */
 
     if (
@@ -854,7 +794,9 @@ async function checkRedirectResult() {
 
 
     /* ----------------------------------------------------------------------
-       CAS 2 : getRedirectResult() null MAIS session Firebase disponible
+       CAS 2 :
+       getRedirectResult() ne donne rien.
+       On laisse Firebase restaurer sa session.
        ---------------------------------------------------------------------- */
 
     const restoredUser =
@@ -864,7 +806,7 @@ async function checkRedirectResult() {
     if (restoredUser) {
 
       console.log(
-        '[AUTH] Session Firebase restaurée avec succès.'
+        '[AUTH] Session Firebase restaurée après redirect.'
       );
 
 
@@ -878,46 +820,12 @@ async function checkRedirectResult() {
 
 
     /* ----------------------------------------------------------------------
-       CAS 3 : aucune session
+       CAS 3 :
+       aucune session après un vrai redirect.
        ---------------------------------------------------------------------- */
 
-    if (wasPending) {
-
-      console.warn(
-        '[AUTH] Une connexion redirect était attendue, mais aucune session n’a été restaurée.'
-      );
-
-
-      localStorage.removeItem(
-        REDIRECT_KEY
-      );
-
-
-      /*
-       * Si nous sommes dans la PWA installée,
-       * on affiche le fallback navigateur.
-       */
-
-      if (isStandalone) {
-
-        showFallback();
-
-        return;
-      }
-    }
-
-
-    /*
-     * Retour normal sur login.
-     */
-
-    showButton();
-
-  } catch (err) {
-
-    console.error(
-      '[AUTH] Erreur checkRedirectResult:',
-      err
+    console.warn(
+      '[AUTH] Aucun utilisateur après le redirect Google.'
     );
 
 
@@ -926,39 +834,29 @@ async function checkRedirectResult() {
     );
 
 
-    /*
-     * Dernière tentative :
-     * vérifier directement auth.currentUser.
-     */
+    if (isStandalone) {
 
-    try {
+      showFallback();
 
-      const currentUser =
-        await waitForFirebaseAuth();
-
-
-      if (currentUser) {
-
-        console.log(
-          '[AUTH] Session récupérée lors de la dernière tentative.'
-        );
-
-
-        await completeSignIn(
-          currentUser
-        );
-
-
-        return;
-      }
-
-    } catch (fallbackError) {
-
-      console.error(
-        '[AUTH] Impossible de restaurer Firebase:',
-        fallbackError
-      );
+      return;
     }
+
+
+    showError(
+      "La connexion Google n'a pas pu être finalisée. Réessayez."
+    );
+
+  } catch (err) {
+
+    console.error(
+      '[AUTH] Erreur traitement redirect:',
+      err
+    );
+
+
+    localStorage.removeItem(
+      REDIRECT_KEY
+    );
 
 
     if (isStandalone) {
@@ -977,16 +875,12 @@ async function checkRedirectResult() {
 
 
 /* ==========================================================================
-   OUVRIR LA CONNEXION DANS LE NAVIGATEUR
+   OUVRIR DANS LE NAVIGATEUR
    ========================================================================== */
 
 openBrowserBtn.addEventListener(
   'click',
   () => {
-
-    /*
-     * Ouvre login.html dans un nouvel onglet/fenêtre du navigateur.
-     */
 
     window.open(
       window.location.href.split('#')[0],
@@ -1015,9 +909,16 @@ retryBtn.addEventListener(
   'click',
   () => {
 
-    showButton();
+    /*
+     * Le bouton Réessayer doit simplement remettre
+     * l'écran de login normal.
+     */
 
-    syncGoogleButton();
+    localStorage.removeItem(
+      REDIRECT_KEY
+    );
+
+    showButton();
   }
 );
 
@@ -1027,7 +928,7 @@ retryBtn.addEventListener(
    ========================================================================== */
 
 console.log(
-  '[AUTH] Initialisation login.js'
+  '[AUTH] login.js chargé.'
 );
 
 console.log(
@@ -1041,20 +942,25 @@ console.log(
 );
 
 console.log(
-  '[AUTH] Checkbox initialement cochée:',
-  termsCheckbox.checked
+  '[AUTH] Redirect en attente:',
+  localStorage.getItem(
+    REDIRECT_KEY
+  )
 );
 
 
 /*
- * Synchronisation immédiate.
+ * Affichage immédiat de l'interface.
+ *
+ * Puis checkRedirectResult() décidera uniquement s'il y a
+ * réellement un redirect Google en cours.
  */
 
-syncGoogleButton();
+showButton();
 
 
 /*
- * Puis traitement Firebase.
+ * Traitement du retour Google uniquement si nécessaire.
  */
 
 checkRedirectResult();
