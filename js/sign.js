@@ -9,6 +9,10 @@ const params = new URLSearchParams(
 
 const token = params.get('token');
 
+// ============================================================
+// ÉLÉMENTS DOM
+// ============================================================
+
 const els = {
   loading:
     document.getElementById('state-loading'),
@@ -20,72 +24,66 @@ const els = {
     document.getElementById('error-message'),
 
   alreadySigned:
-    document.getElementById(
-      'state-already-signed'
-    ),
+    document.getElementById('state-already-signed'),
 
   alreadySignedDate:
-    document.getElementById(
-      'already-signed-date'
-    ),
+    document.getElementById('already-signed-date'),
 
   linkDownloadPdf:
-    document.getElementById(
-      'link-download-pdf'
-    ),
+    document.getElementById('link-download-pdf'),
 
   contractView:
-    document.getElementById(
-      'contract-view'
-    ),
+    document.getElementById('contract-view'),
 
   title:
-    document.getElementById(
-      'contract-title'
-    ),
+    document.getElementById('contract-title'),
 
   creatorName:
-    document.getElementById(
-      'contract-creator-name'
-    ),
+    document.getElementById('contract-creator-name'),
 
   content:
-    document.getElementById(
-      'contract-content'
-    ),
+    document.getElementById('contract-content'),
 
   checkboxTerms:
-    document.getElementById(
-      'checkbox-terms'
-    ),
+    document.getElementById('checkbox-terms'),
 
   typedName:
-    document.getElementById(
-      'input-typed-name'
-    ),
+    document.getElementById('input-typed-name'),
 
   signError:
-    document.getElementById(
-      'sign-error'
-    ),
+    document.getElementById('sign-error'),
 
   btnSign:
-    document.getElementById(
-      'btn-sign'
-    ),
+    document.getElementById('btn-sign'),
 
   success:
-    document.getElementById(
-      'state-success'
-    ),
+    document.getElementById('state-success'),
 
   linkDownloadPdfSuccess:
     document.getElementById(
       'link-download-pdf-success'
     ),
+
+  // Compte à rebours
+  countdown:
+    document.getElementById(
+      'contract-countdown'
+    ),
+
+  countdownContainer:
+    document.getElementById(
+      'countdown-container'
+    ),
+
+  expirationMessage:
+    document.getElementById(
+      'expiration-message'
+    ),
 };
 
 let signaturePad = null;
+let countdownInterval = null;
+let contractExpiresAt = null;
 
 // ============================================================
 // AFFICHAGE DES ÉTATS
@@ -106,7 +104,7 @@ function showOnly(element) {
 }
 
 // ============================================================
-// ERREUR DE CHARGEMENT
+// ERREUR
 // ============================================================
 
 function showLoadError(message) {
@@ -190,7 +188,7 @@ async function fetchJson(
       'AbortError'
     ) {
       throw new Error(
-        'Le serveur met trop de temps à répondre. Le serveur Kontra-Africa est peut-être en cours de démarrage.'
+        'Le serveur met trop de temps à répondre.'
       );
     }
 
@@ -201,6 +199,322 @@ async function fetchJson(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// ============================================================
+// URL PDF
+// ============================================================
+
+function buildPdfUrl(currentToken) {
+  return (
+    `${API_BASE}/api/contracts/public/` +
+    `${encodeURIComponent(
+      currentToken
+    )}/pdf`
+  );
+}
+
+// ============================================================
+// CONVERSION DATE
+// ============================================================
+
+function getExpirationTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number'
+  ) {
+    const time =
+      new Date(value).getTime();
+
+    return Number.isNaN(time)
+      ? null
+      : time;
+  }
+
+  if (
+    value &&
+    typeof value.seconds ===
+      'number'
+  ) {
+    return (
+      value.seconds * 1000 +
+      Math.floor(
+        (value.nanoseconds || 0) /
+          1000000
+      )
+    );
+  }
+
+  return null;
+}
+
+// ============================================================
+// FORMATAGE DU COMPTE À REBOURS
+// ============================================================
+
+function formatCountdown(
+  milliseconds
+) {
+  if (
+    milliseconds <= 0
+  ) {
+    return '00h 00min 00s';
+  }
+
+  const totalSeconds =
+    Math.floor(
+      milliseconds / 1000
+    );
+
+  const days =
+    Math.floor(
+      totalSeconds /
+        86400
+    );
+
+  const hours =
+    Math.floor(
+      (totalSeconds %
+        86400) /
+        3600
+    );
+
+  const minutes =
+    Math.floor(
+      (totalSeconds %
+        3600) /
+        60
+    );
+
+  const seconds =
+    totalSeconds % 60;
+
+  const hh =
+    String(hours).padStart(
+      2,
+      '0'
+    );
+
+  const mm =
+    String(minutes).padStart(
+      2,
+      '0'
+    );
+
+  const ss =
+    String(seconds).padStart(
+      2,
+      '0'
+    );
+
+  if (days > 0) {
+    return `${days}j ${hh}h ${mm}min ${ss}s`;
+  }
+
+  return `${hh}h ${mm}min ${ss}s`;
+}
+
+// ============================================================
+// COMPTE À REBOURS
+// ============================================================
+
+function startCountdown(
+  expiresAt
+) {
+  stopCountdown();
+
+  const expiration =
+    getExpirationTime(
+      expiresAt
+    );
+
+  if (!expiration) {
+    return;
+  }
+
+  contractExpiresAt =
+    expiration;
+
+  updateCountdown();
+
+  countdownInterval =
+    setInterval(
+      updateCountdown,
+      1000
+    );
+}
+
+function updateCountdown() {
+  if (
+    !contractExpiresAt
+  ) {
+    return;
+  }
+
+  const remaining =
+    contractExpiresAt -
+    Date.now();
+
+  if (
+    remaining <= 0
+  ) {
+    expireContract();
+
+    return;
+  }
+
+  if (
+    els.countdown
+  ) {
+    els.countdown.textContent =
+      formatCountdown(
+        remaining
+      );
+  }
+
+  if (
+    els.countdownContainer
+  ) {
+    els.countdownContainer.hidden =
+      false;
+  }
+
+  if (
+    els.expirationMessage
+  ) {
+    els.expirationMessage.hidden =
+      true;
+  }
+}
+
+function stopCountdown() {
+  if (
+    countdownInterval
+  ) {
+    clearInterval(
+      countdownInterval
+    );
+
+    countdownInterval =
+      null;
+  }
+}
+
+// ============================================================
+// EXPIRATION
+// ============================================================
+
+function expireContract() {
+  stopCountdown();
+
+  if (
+    els.countdown
+  ) {
+    els.countdown.textContent =
+      '00h 00min 00s';
+  }
+
+  if (
+    els.expirationMessage
+  ) {
+    els.expirationMessage.textContent =
+      'Le délai de 24 heures est expiré. Le PDF n’est plus disponible.';
+
+    els.expirationMessage.hidden =
+      false;
+  }
+
+  if (
+    els.countdownContainer
+  ) {
+    els.countdownContainer.hidden =
+      false;
+  }
+
+  if (
+    els.linkDownloadPdfSuccess
+  ) {
+    els.linkDownloadPdfSuccess.removeAttribute(
+      'href'
+    );
+
+    els.linkDownloadPdfSuccess.textContent =
+      'Contrat expiré';
+
+    els.linkDownloadPdfSuccess.classList.add(
+      'disabled'
+    );
+
+    els.linkDownloadPdfSuccess.setAttribute(
+      'aria-disabled',
+      'true'
+    );
+  }
+
+  if (
+    els.linkDownloadPdf
+  ) {
+    els.linkDownloadPdf.removeAttribute(
+      'href'
+    );
+
+    els.linkDownloadPdf.textContent =
+      'Contrat expiré';
+
+    els.linkDownloadPdf.classList.add(
+      'disabled'
+    );
+
+    els.linkDownloadPdf.setAttribute(
+      'aria-disabled',
+      'true'
+    );
+  }
+}
+
+// ============================================================
+// AFFICHER PDF
+// ============================================================
+
+function enablePdfDownload(
+  currentToken,
+  linkElement
+) {
+  if (!linkElement) {
+    return;
+  }
+
+  const expiration =
+    contractExpiresAt;
+
+  if (
+    expiration &&
+    Date.now() >= expiration
+  ) {
+    expireContract();
+
+    return;
+  }
+
+  linkElement.href =
+    buildPdfUrl(
+      currentToken
+    );
+
+  linkElement.hidden =
+    false;
+
+  linkElement.classList.remove(
+    'disabled'
+  );
+
+  linkElement.removeAttribute(
+    'aria-disabled'
+  );
 }
 
 // ============================================================
@@ -218,7 +532,9 @@ async function init() {
     return;
   }
 
-  showOnly(els.loading);
+  showOnly(
+    els.loading
+  );
 
   try {
 
@@ -230,7 +546,28 @@ async function init() {
       response,
       body,
     } =
-      await fetchJson(url);
+      await fetchJson(
+        url
+      );
+
+    // ========================================================
+    // CONTRAT EXPIRÉ
+    // ========================================================
+
+    if (
+      response.status ===
+      410 ||
+      body.status ===
+        'expired'
+    ) {
+
+      showLoadError(
+        body.message ||
+        'Le délai de 24 heures de ce contrat est expiré.'
+      );
+
+      return;
+    }
 
     if (!response.ok) {
 
@@ -242,7 +579,8 @@ async function init() {
       return;
     }
 
-    const contract = body;
+    const contract =
+      body;
 
     // ========================================================
     // CONTRAT DÉJÀ SIGNÉ
@@ -254,28 +592,35 @@ async function init() {
     ) {
 
       if (
+        contract.signerSignedAt &&
         els.alreadySignedDate
       ) {
 
         els.alreadySignedDate.textContent =
-          contract.signerSignedAt
-            ? new Date(
-                contract.signerSignedAt
-              ).toLocaleDateString(
-                'fr-FR'
-              )
-            : '';
+          new Date(
+            contract.signerSignedAt
+          ).toLocaleDateString(
+            'fr-FR'
+          );
       }
 
+      // Enregistrement de l'expiration
+      contractExpiresAt =
+        getExpirationTime(
+          contract.expiresAt
+        );
+
       if (
-        els.linkDownloadPdf
+        contractExpiresAt
       ) {
+        startCountdown(
+          contract.expiresAt
+        );
 
-        els.linkDownloadPdf.href =
-          buildPdfUrl(token);
-
-        els.linkDownloadPdf.hidden =
-          false;
+        enablePdfDownload(
+          token,
+          els.linkDownloadPdf
+        );
       }
 
       showOnly(
@@ -318,7 +663,7 @@ async function init() {
     }
 
     // ========================================================
-    // AFFICHER LE CONTRAT
+    // AFFICHER LES INFOS
     // ========================================================
 
     if (els.title) {
@@ -326,28 +671,41 @@ async function init() {
         contract.title || '';
     }
 
-    if (els.creatorName) {
+    if (
+      els.creatorName
+    ) {
       els.creatorName.textContent =
-        contract.creatorName || '';
+        contract.creatorName ||
+        '';
     }
 
-    if (els.content) {
+    if (
+      els.content
+    ) {
       els.content.textContent =
-        contract.content || '';
+        contract.content ||
+        '';
     }
 
     // ========================================================
-    // IMPORTANT :
-    // NE PAS PRÉREMPLIR LE NOM DU CLIENT
+    // NOM CLIENT
     // ========================================================
 
-    if (els.typedName) {
+    /*
+     * IMPORTANT :
+     *
+     * Le champ est TOUJOURS vide.
+     *
+     * Le nom attendu provenant de Firestore
+     * n'est PAS injecté dans le champ.
+     */
 
-      els.typedName.value = '';
+    if (
+      els.typedName
+    ) {
 
-      els.typedName.removeAttribute(
-        'value'
-      );
+      els.typedName.value =
+        '';
 
       els.typedName.placeholder =
         'Saisissez votre nom complet';
@@ -355,6 +713,10 @@ async function init() {
       els.typedName.autocomplete =
         'name';
     }
+
+    // ========================================================
+    // AFFICHAGE
+    // ========================================================
 
     showOnly(
       els.contractView
@@ -377,7 +739,7 @@ async function init() {
 }
 
 // ============================================================
-// SIGNATURE SUR CANVAS
+// SIGNATURE CANVAS
 // ============================================================
 
 function initSignaturePad() {
@@ -401,10 +763,6 @@ function initSignaturePad() {
     );
 
   if (!ctx) {
-    console.error(
-      'Impossible d’initialiser le canvas.'
-    );
-
     return;
   }
 
@@ -415,15 +773,27 @@ function initSignaturePad() {
     canvas.height
   );
 
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#2A2140';
+  ctx.lineWidth =
+    2.5;
 
-  let drawing = false;
-  let hasStroke = false;
+  ctx.lineCap =
+    'round';
 
-  function getPoint(event) {
+  ctx.lineJoin =
+    'round';
+
+  ctx.strokeStyle =
+    '#2A2140';
+
+  let drawing =
+    false;
+
+  let hasStroke =
+    false;
+
+  function getPoint(
+    event
+  ) {
 
     const rect =
       canvas.getBoundingClientRect();
@@ -455,13 +825,20 @@ function initSignaturePad() {
     };
   }
 
-  function start(event) {
+  function start(
+    event
+  ) {
 
-    drawing = true;
-    hasStroke = true;
+    drawing =
+      true;
+
+    hasStroke =
+      true;
 
     const point =
-      getPoint(event);
+      getPoint(
+        event
+      );
 
     ctx.beginPath();
 
@@ -473,14 +850,18 @@ function initSignaturePad() {
     event.preventDefault();
   }
 
-  function move(event) {
+  function move(
+    event
+  ) {
 
     if (!drawing) {
       return;
     }
 
     const point =
-      getPoint(event);
+      getPoint(
+        event
+      );
 
     ctx.lineTo(
       point.x,
@@ -493,7 +874,8 @@ function initSignaturePad() {
   }
 
   function end() {
-    drawing = false;
+    drawing =
+      false;
   }
 
   canvas.onmousedown =
@@ -537,7 +919,8 @@ function initSignaturePad() {
           canvas.height
         );
 
-        hasStroke = false;
+        hasStroke =
+          false;
       };
   }
 
@@ -555,23 +938,7 @@ function initSignaturePad() {
 }
 
 // ============================================================
-// URL DU PDF
-// ============================================================
-
-function buildPdfUrl(
-  currentToken
-) {
-
-  return (
-    `${API_BASE}/api/contracts/public/` +
-    `${encodeURIComponent(
-      currentToken
-    )}/pdf`
-  );
-}
-
-// ============================================================
-// ERREUR DE SIGNATURE
+// ERREUR SIGNATURE
 // ============================================================
 
 function showSignError(
@@ -595,14 +962,16 @@ function showSignError(
 
 async function signContract() {
 
-  if (els.signError) {
+  if (
+    els.signError
+  ) {
     els.signError.hidden =
       true;
   }
 
-  // ----------------------------------------------------------
-  // CONDITIONS
-  // ----------------------------------------------------------
+  // ==========================================================
+  // ACCEPTATION
+  // ==========================================================
 
   if (
     !els.checkboxTerms ||
@@ -616,9 +985,9 @@ async function signContract() {
     return;
   }
 
-  // ----------------------------------------------------------
-  // NOM DU CLIENT
-  // ----------------------------------------------------------
+  // ==========================================================
+  // NOM CLIENT
+  // ==========================================================
 
   const typedName =
     els.typedName
@@ -631,7 +1000,9 @@ async function signContract() {
       'Vous devez saisir votre nom complet avant de signer.'
     );
 
-    if (els.typedName) {
+    if (
+      els.typedName
+    ) {
       els.typedName.focus();
     }
 
@@ -660,9 +1031,9 @@ async function signContract() {
     return;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // SIGNATURE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (
     !signaturePad ||
@@ -685,11 +1056,13 @@ async function signContract() {
     return;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // BOUTON
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (els.btnSign) {
+  if (
+    els.btnSign
+  ) {
 
     els.btnSign.disabled =
       true;
@@ -737,7 +1110,28 @@ async function signContract() {
         30000
       );
 
-    if (!response.ok) {
+    // ========================================================
+    // EXPIRATION / ERREUR
+    // ========================================================
+
+    if (
+      response.status ===
+      410 ||
+      body.status ===
+        'expired'
+    ) {
+
+      showSignError(
+        body.message ||
+        'Le contrat a expiré.'
+      );
+
+      return;
+    }
+
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
         body.message ||
@@ -755,12 +1149,32 @@ async function signContract() {
       );
     }
 
-    // --------------------------------------------------------
-    // SUCCÈS
-    // --------------------------------------------------------
+    // ========================================================
+    // EXPIRATION
+    // ========================================================
+
+    contractExpiresAt =
+      getExpirationTime(
+        body.expiresAt
+      );
+
+    if (
+      contractExpiresAt
+    ) {
+
+      startCountdown(
+        body.expiresAt
+      );
+    }
+
+    // ========================================================
+    // PDF
+    // ========================================================
 
     const pdfUrl =
-      buildPdfUrl(token);
+      buildPdfUrl(
+        token
+      );
 
     if (
       els.linkDownloadPdfSuccess
@@ -771,18 +1185,26 @@ async function signContract() {
 
       els.linkDownloadPdfSuccess.hidden =
         false;
+
+      els.linkDownloadPdfSuccess.classList.remove(
+        'disabled'
+      );
     }
+
+    // ========================================================
+    // SUCCÈS
+    // ========================================================
 
     showOnly(
       els.success
     );
 
-    // Ouvre le PDF signé dans un nouvel onglet.
-    window.open(
-      pdfUrl,
-      '_blank',
-      'noopener'
-    );
+    /*
+     * Le PDF n'est pas stocké.
+     *
+     * Le serveur le génère uniquement lorsque
+     * l'utilisateur clique sur Télécharger.
+     */
 
   } catch (error) {
 
@@ -798,7 +1220,9 @@ async function signContract() {
 
   } finally {
 
-    if (els.btnSign) {
+    if (
+      els.btnSign
+    ) {
 
       els.btnSign.disabled =
         false;
@@ -813,19 +1237,26 @@ async function signContract() {
 // BOUTON SIGNER
 // ============================================================
 
-if (els.btnSign) {
+if (
+  els.btnSign
+) {
 
   els.btnSign.addEventListener(
     'click',
     signContract
   );
-
-} else {
-
-  console.error(
-    'Bouton de signature introuvable.'
-  );
 }
+
+// ============================================================
+// NETTOYAGE
+// ============================================================
+
+window.addEventListener(
+  'beforeunload',
+  () => {
+    stopCountdown();
+  }
+);
 
 // ============================================================
 // DÉMARRAGE
