@@ -1,31 +1,96 @@
-// js/sw-register.js
-// Enregistre le Service Worker (sw.js) sur toutes les pages.
-// À inclure via <script type="module" src="/js/sw-register.js"></script>
-// juste avant la fermeture de </body> sur CHAQUE page HTML de l'app
-// (index.html, login.html, dashboard.html, contracts.html, sign.html,
-// finances.html, profil.html).
+// =============================================================================
+// KONTRA-AFRICA — SERVICE WORKER REGISTER
+// =============================================================================
+// Ce fichier sert uniquement à enregistrer /sw.js.
+// Le vrai Service Worker se trouve à la racine du projet :
+// /sw.js
+// =============================================================================
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        // Si une nouvelle version du Service Worker est trouvée, on la
-        // laisse s'installer normalement ; elle prendra le relais au
-        // prochain chargement de page grâce à skipWaiting()/clients.claim()
-        // déjà activés dans sw.js.
-        registration.addEventListener('updatefound', () => {
+(function () {
+  'use strict';
+
+  // Vérifie que le navigateur supporte les Service Workers
+  if (!('serviceWorker' in navigator)) {
+    console.warn(
+      '[PWA] Les Service Workers ne sont pas supportés par ce navigateur.'
+    );
+
+    return;
+  }
+
+  // Attend que la page soit complètement chargée
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register(
+        '/sw.js',
+        {
+          scope: '/'
+        }
+      );
+
+      console.log(
+        '[PWA] Service Worker enregistré avec succès.',
+        registration.scope
+      );
+
+      // -----------------------------------------------------------------------
+      // Vérifie régulièrement si une nouvelle version du Service Worker existe
+      // -----------------------------------------------------------------------
+
+      try {
+        await registration.update();
+
+        console.log(
+          '[PWA] Vérification de mise à jour effectuée.'
+        );
+      } catch (updateError) {
+        console.warn(
+          '[PWA] Impossible de vérifier la mise à jour du Service Worker:',
+          updateError
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // Lorsqu'une nouvelle version est détectée
+      // -----------------------------------------------------------------------
+
+      registration.addEventListener(
+        'updatefound',
+        () => {
           const newWorker = registration.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'activated') {
-              console.info('[SW] Nouvelle version de l’app installée.');
+
+          if (!newWorker) {
+            return;
+          }
+
+          newWorker.addEventListener(
+            'statechange',
+            () => {
+              console.log(
+                '[PWA] État du nouveau Service Worker:',
+                newWorker.state
+              );
+
+              // Le nouveau SW est installé et attend de prendre le contrôle.
+              if (
+                newWorker.state === 'installed' &&
+                navigator.serviceWorker.controller
+              ) {
+                console.log(
+                  '[PWA] Nouvelle version disponible.'
+                );
+              }
             }
-          });
-        });
-      })
-      .catch((err) => {
-        console.warn('[SW] Échec de l’enregistrement :', err);
-      });
+          );
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        '[PWA] Échec de l’enregistrement du Service Worker:',
+        error
+      );
+    }
   });
-}
+
+})();
