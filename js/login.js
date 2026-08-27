@@ -6,12 +6,17 @@ import { auth, googleProvider } from '/js/firebase-config.js';
 import {
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult
+  getRedirectResult,
+  onAuthStateChanged,
+  setPersistence,
+  indexedDBLocalPersistence,
+  browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 const REDIRECT_KEY = 'kontra_auth_pending'; // marque qu'une connexion par redirection est en cours
 const INIT_USER_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
+const STANDALONE_STUCK_TIMEOUT_MS = 12000; // si rien ne se passe après 12s en mode PWA installée, on propose une solution de secours
 
 const googleBtn = document.getElementById('googleBtn');
 const loadingState = document.getElementById('loadingState');
@@ -20,13 +25,24 @@ const errorState = document.getElementById('errorState');
 const errorMessage = document.getElementById('errorMessage');
 const retryBtn = document.getElementById('retryBtn');
 const termsCheckbox = document.getElementById('termsCheckbox');
+const openBrowserFallback = document.getElementById('openBrowserFallback');
+const openBrowserBtn = document.getElementById('openBrowserBtn');
 
-/* --- Détection mobile : popup peu fiable sur mobile, on préfère la redirection --- */
+/* --- Détection mobile --- */
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+/* --- Détection "PWA installée" (mode standalone) : c'est ce mode qui pose
+   problème avec l'authentification Google (stockage de session isolé sur
+   certains navigateurs). On le détecte pour adapter le comportement. --- */
+const isStandalonePWA =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true; // iOS Safari
+
+let redirectWatchdog = null;
+let authHandledByListener = false;
+
 /* --- CGU obligatoires : le bouton Google reste désactivé tant que la case
-   n'est pas cochée, que ce soit pour se connecter ou pour s'inscrire
-   (un seul et même bouton gère les deux cas côté Firebase). --- */
+   n'est pas cochée. --- */
 function updateGoogleBtnState() {
   googleBtn.disabled = !termsCheckbox.checked;
 }
@@ -40,6 +56,7 @@ function showButton() {
   googleBtn.hidden = false;
   loadingState.hidden = true;
   errorState.hidden = true;
+  if (openBrowserFallback) openBrowserFallback.hidden = true;
   updateGoogleBtnState();
 }
 
@@ -55,6 +72,26 @@ function showError(message) {
   loadingState.hidden = true;
   errorState.hidden = false;
   errorMessage.textContent = message;
+  if (openBrowserFallback) openBrowserFallback.hidden = true;
+}
+
+/* --- Si on est en PWA installée et que rien n'a bougé après quelques
+   secondes, on propose d'ouvrir la page dans le navigateur normal : ça
+   contourne 100% des cas de blocage liés au mode standalone. --- */
+function armStandaloneWatchdog() {
+  if (!isStandalonePWA) return;
+  clearStandaloneWatchdog();
+  redirectWatchdog = setTimeout(() => {
+    if (authHandledByListener) return;
+    if (openBrowserFallback) openBrowserFallback.hidden = false;
+  }, STANDALONE_STUCK_TIMEOUT_MS);
+}
+
+function clearStandaloneWatchdog() {
+  if (redirectWatchdog) {
+    clearTimeout(redirectWatchdog);
+    redirectWatchdog = null;
+  }
 }
 
 /* --- Traduction des erreurs Firebase courantes en messages clairs --- */
@@ -68,14 +105,33 @@ function translateAuthError(error) {
       return "Problème de connexion internet. Vérifiez votre réseau et réessayez.";
     case 'auth/popup-blocked':
       return "La fenêtre de connexion a été bloquée par le navigateur. Réessayez.";
+    case 'auth/operation-not-supported-in-this-environment':
+      return "Cette méthode de connexion n'est pas prise en charge ici. Essayez d'ouvrir la page dans votre navigateur.";
     default:
       return "La connexion avec Google a échoué. Réessayez.";
   }
 }
 
-/* --- Appel backend : crée/initialise le profil utilisateur ---
-   Timeout étendu à 60s pour laisser le temps au cold start Render (plan gratuit).
-   Le message affiché change pour prévenir l'utilisateur que ça peut prendre du temps. */
+/* --- Assure une persistance de session robuste avant toute tentative de
+   connexion. En mode PWA installée, certains navigateurs (Safari iOS,
+   Samsung Internet, WebView Android) perdent l'état de session par défaut
+   après un retour de redirection OAuth. indexedDBLocalPersistence est la
+   plus fiable dans ce contexte ; on retombe sur browserLocalPersistence
+   si elle n'est pas disponible. --- */
+async function ensureRobustPersistence() {
+  try {
+    await setPersistence(auth, indexedDBLocalPersistence);
+  } catch (err) {
+    console.warn('indexedDBLocalPersistence indisponible, repli sur browserLocalPersistence', err);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (err2) {
+      console.warn('Persistance renforcée indisponible, utilisation de la persistance par défaut', err2);
+    }
+  }
+}
+
+/* --- Appel backend : crée/initialise le profil utilisateur --- */
 async function initUserOnBackend(firebaseUser) {
   const payload = {
     uid: firebaseUser.uid,
@@ -84,7 +140,6 @@ async function initUserOnBackend(firebaseUser) {
     photoURL: firebaseUser.photoURL
   };
 
-  // Affiche le message "cold start" dès le départ, avant même de savoir si ça va traîner
   showLoading('Préparation de votre espace… (cela peut prendre jusqu\'à 1 minute la première fois)');
 
   const controller = new AbortController();
@@ -115,6 +170,7 @@ async function initUserOnBackend(firebaseUser) {
 
 /* --- Flux complet après authentification Firebase réussie --- */
 async function completeSignIn(firebaseUser) {
+  clearStandaloneWatchdog();
   try {
     await initUserOnBackend(firebaseUser);
     sessionStorage.removeItem(REDIRECT_KEY);
@@ -135,13 +191,17 @@ async function completeSignIn(firebaseUser) {
 async function startGoogleSignIn() {
   if (termsCheckbox && !termsCheckbox.checked) return;
 
+  await ensureRobustPersistence();
   showLoading('Connexion à Google…');
 
   try {
-    if (isMobile) {
+    // En mode PWA installée OU sur mobile, on utilise toujours la redirection :
+    // signInWithPopup ne fonctionne jamais en mode standalone (aucune fenêtre
+    // popup n'est disponible), même si le navigateur ne renvoie pas d'erreur claire.
+    if (isMobile || isStandalonePWA) {
       sessionStorage.setItem(REDIRECT_KEY, '1');
+      armStandaloneWatchdog();
       await signInWithRedirect(auth, googleProvider);
-      // La page se recharge après la redirection ; le résultat est traité au chargement.
       return;
     }
 
@@ -150,36 +210,69 @@ async function startGoogleSignIn() {
   } catch (err) {
     console.error('Erreur signInWithGoogle :', err);
     sessionStorage.removeItem(REDIRECT_KEY);
+    clearStandaloneWatchdog();
     showError(translateAuthError(err));
   }
 }
 
-/* --- Au chargement : vérifie si on revient d'une redirection Google (mobile) --- */
+/* --- Au chargement : vérifie si on revient d'une redirection Google --- */
 async function checkRedirectResult() {
   const wasPending = sessionStorage.getItem(REDIRECT_KEY);
+
+  await ensureRobustPersistence();
+
   if (!wasPending) {
     showButton();
     return;
   }
 
   showLoading('Finalisation de la connexion…');
+  armStandaloneWatchdog();
 
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
+      authHandledByListener = true;
       await completeSignIn(result.user);
-    } else {
-      sessionStorage.removeItem(REDIRECT_KEY);
-      showButton();
     }
+    // Si result est null, on ne fait rien ici : le listener onAuthStateChanged
+    // ci-dessous sert de filet de sécurité pour le cas où getRedirectResult
+    // ne renvoie rien alors que la connexion a bien fonctionné (bug connu de
+    // certains navigateurs en mode PWA standalone).
   } catch (err) {
     console.error('Erreur getRedirectResult :', err);
     sessionStorage.removeItem(REDIRECT_KEY);
+    clearStandaloneWatchdog();
     showError(translateAuthError(err));
   }
 }
 
+/* --- Filet de sécurité : capte l'utilisateur connecté même si
+   getRedirectResult() n'a rien renvoyé (bug de stockage en mode PWA). --- */
+onAuthStateChanged(auth, (user) => {
+  if (authHandledByListener) return;
+  const wasPending = sessionStorage.getItem(REDIRECT_KEY);
+  if (user && wasPending) {
+    authHandledByListener = true;
+    completeSignIn(user);
+  }
+});
+
+/* --- Solution de secours : ouvrir la page de connexion dans le navigateur
+   par défaut (hors mode PWA installée), pour contourner les blocages de
+   stockage de session propres au mode standalone. --- */
+if (openBrowserBtn) {
+  openBrowserBtn.addEventListener('click', () => {
+    sessionStorage.removeItem(REDIRECT_KEY);
+    window.open(window.location.href, '_blank');
+  });
+}
+
 googleBtn.addEventListener('click', startGoogleSignIn);
-retryBtn.addEventListener('click', showButton);
+retryBtn.addEventListener('click', () => {
+  sessionStorage.removeItem(REDIRECT_KEY);
+  clearStandaloneWatchdog();
+  showButton();
+});
 
 checkRedirectResult();
