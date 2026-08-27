@@ -1,84 +1,122 @@
 import { auth, db } from '/js/firebase-config.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
-import { buildCountryOptionsHtml, cleanPhoneDigits } from '/js/phone-countries.js';
+
+import {
+  onAuthStateChanged,
+  signOut
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+
+import {
+  doc,
+  getDoc
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+import {
+  buildCountryOptionsHtml,
+  cleanPhoneDigits
+} from '/js/phone-countries.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
+
 const CHECKOUT_TIMEOUT_MS = 60000;
 
-// -----------------------------------------------------------------------------
-// Auth state
-// -----------------------------------------------------------------------------
-//
-// IMPORTANT : Firebase peut prendre un petit moment pour restaurer une session
-// existante, particulièrement sur mobile/PWA.
-//
-// On ne redirige donc PAS immédiatement vers login.html lorsque user === null.
-// On laisse Firebase terminer sa restauration.
-//
-// -----------------------------------------------------------------------------
+// Temps maximum laissé à Firebase pour restaurer la session.
+// Important pour les téléphones et les PWA.
+const AUTH_RESTORE_TIMEOUT_MS = 15000;
 
-let authStateResolved = false;
-let currentAuthUser = null;
 
-function waitForAuthState(timeout = 15000) {
+/* ==========================================================================
+   AUTHENTIFICATION
+   ========================================================================== */
+
+/**
+ * Attend que Firebase ait terminé de restaurer la session.
+ *
+ * Le problème de l'ancien code était ici :
+ *
+ * onAuthStateChanged()
+ *      ↓
+ * user === null
+ *      ↓
+ * /login.html immédiatement
+ *
+ * Sur mobile/PWA, Firebase peut avoir besoin d'un court délai
+ * pour restaurer la session locale.
+ *
+ * On attend donc explicitement le premier état Firebase.
+ */
+function waitForAuthUser() {
   return new Promise((resolve) => {
     let finished = false;
+    let unsubscribe = null;
 
     const finish = (user) => {
       if (finished) return;
+
       finished = true;
 
-      clearTimeout(timeoutId);
+      if (unsubscribe) {
+        unsubscribe();
+      }
 
-      authStateResolved = true;
-      currentAuthUser = user || null;
+      clearTimeout(timeoutId);
 
       resolve(user || null);
     };
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Firebase a maintenant répondu.
-      // On ne redirige pas avant que cet état soit réellement connu.
-      finish(user);
-      unsubscribe();
-    });
-
-    // Sécurité : si Firebase ne répond vraiment jamais,
-    // on ne bloque pas éternellement l'application.
     const timeoutId = setTimeout(() => {
-      if (finished) return;
+      console.warn(
+        '[AUTH] Timeout pendant la restauration de la session Firebase.'
+      );
 
-      console.warn('[AUTH] Timeout lors de la restauration de la session Firebase.');
+      finish(auth.currentUser || null);
+    }, AUTH_RESTORE_TIMEOUT_MS);
 
-      finished = true;
-      authStateResolved = true;
+    unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        console.log(
+          '[AUTH] État Firebase restauré:',
+          user ? user.uid : 'aucun utilisateur'
+        );
 
-      // On considère alors réellement l'utilisateur comme non connecté.
-      currentAuthUser = null;
+        finish(user);
+      },
+      (error) => {
+        console.error(
+          '[AUTH] Erreur onAuthStateChanged:',
+          error
+        );
 
-      unsubscribe();
-
-      resolve(null);
-    }, timeout);
+        finish(auth.currentUser || null);
+      }
+    );
   });
 }
 
-// -----------------------------------------------------------------------------
-// Détermine si l'accès doit être bloqué
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   DÉTERMINE SI L'ABONNEMENT EST BLOQUÉ
+   ========================================================================== */
 
 function isSubscriptionBlocked(userData) {
   const status = userData.subscriptionStatus;
 
-  if (status === 'expired' || status === 'cancelled') {
+  if (
+    status === 'expired' ||
+    status === 'cancelled'
+  ) {
     return true;
   }
 
   if (status === 'trial') {
-    const trialEnd = toDate(userData.trialEndDate);
+    const trialEnd = toDate(
+      userData.trialEndDate
+    );
 
-    if (trialEnd && new Date() > trialEnd) {
+    if (
+      trialEnd &&
+      new Date() > trialEnd
+    ) {
       return true;
     }
   }
@@ -86,94 +124,115 @@ function isSubscriptionBlocked(userData) {
   return false;
 }
 
-// -----------------------------------------------------------------------------
-// Convertit un Timestamp Firestore (ou une date déjà stockée) en Date JS
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   CONVERTIT UNE DATE FIRESTORE EN DATE JS
+   ========================================================================== */
 
 function toDate(value) {
   if (!value) return null;
 
-  if (typeof value.toDate === 'function') {
+  if (
+    typeof value.toDate === 'function'
+  ) {
     return value.toDate();
   }
 
   const parsed = new Date(value);
 
-  return isNaN(parsed.getTime()) ? null : parsed;
+  return isNaN(parsed.getTime())
+    ? null
+    : parsed;
 }
 
-// -----------------------------------------------------------------------------
-// Point d'entrée principal, appelé par chaque page protégée
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   POINT D'ENTRÉE PRINCIPAL
+   ========================================================================== */
 
 export async function requireAppAccess() {
+
+  /*
+   * IMPORTANT :
+   *
+   * On attend maintenant Firebase avant toute redirection.
+   */
+  const user = await waitForAuthUser();
+
+  /*
+   * Seulement après la restauration complète de la session,
+   * on considère réellement que l'utilisateur n'est pas connecté.
+   */
+  if (!user) {
+    console.warn(
+      '[AUTH] Aucun utilisateur connecté après restauration Firebase.'
+    );
+
+    window.location.replace('/login.html');
+
+    return null;
+  }
+
+  console.log(
+    '[AUTH] Utilisateur connecté:',
+    user.uid
+  );
+
   try {
-    // -------------------------------------------------------------------------
-    // IMPORTANT
-    //
-    // On attend que Firebase ait terminé de restaurer la session.
-    // C'est la correction principale du problème mobile.
-    // -------------------------------------------------------------------------
 
-    const user = await waitForAuthState();
-
-    if (!user) {
-      console.warn('[AUTH] Aucun utilisateur connecté après restauration.');
-
-      // Petite protection supplémentaire contre une redirection trop rapide
-      // sur mobile/PWA.
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      window.location.replace('/login.html');
-      return null;
-    }
-
-    currentAuthUser = user;
-
-    // -------------------------------------------------------------------------
-    // Vérification du profil Firestore
-    // -------------------------------------------------------------------------
-
+    /*
+     * Vérification du profil Firestore.
+     */
     const userSnap = await getDoc(
-      doc(db, 'users', user.uid)
+      doc(
+        db,
+        'users',
+        user.uid
+      )
     );
 
     if (!userSnap.exists()) {
+
       console.warn(
-        '[AUTH] Utilisateur Firebase connecté mais profil Firestore absent :',
+        '[AUTH] Profil Firestore introuvable pour:',
         user.uid
       );
 
-      // On ne déconnecte PAS l'utilisateur.
-      // On retourne simplement vers login comme dans le système original.
+      /*
+       * On garde le comportement de ton système actuel.
+       */
       window.location.replace('/login.html');
 
       return null;
     }
 
-    const userData = userSnap.data();
+    const userData =
+      userSnap.data();
 
-    // -------------------------------------------------------------------------
-    // Vérification abonnement
-    // -------------------------------------------------------------------------
+    /*
+     * Vérification abonnement.
+     */
+    if (
+      isSubscriptionBlocked(userData)
+    ) {
 
-    if (isSubscriptionBlocked(userData)) {
       renderPaywall(user);
+
       return null;
     }
 
-    // -------------------------------------------------------------------------
-    // Tout est OK
-    // -------------------------------------------------------------------------
-
+    /*
+     * Tout est OK.
+     */
     return {
       user,
       userData
     };
 
   } catch (err) {
+
     console.error(
-      '[AUTH] Erreur de vérification d’accès :',
+      "Erreur de vérification d'accès :",
       err
     );
 
@@ -183,37 +242,45 @@ export async function requireAppAccess() {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Déconnexion
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   DÉCONNEXION
+   ========================================================================== */
 
 export async function logout() {
+
   try {
-    const { signOut } = await import(
-      'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'
-    );
 
     await signOut(auth);
 
-    // Nettoyage éventuel de notre état local.
-    currentAuthUser = null;
-    authStateResolved = false;
-
+    /*
+     * replace() évite d'ajouter une page supplémentaire
+     * dans l'historique du navigateur.
+     */
     window.location.replace('/login.html');
 
   } catch (err) {
-    console.error('[AUTH] Erreur lors de la déconnexion :', err);
 
-    // Même en cas de problème secondaire, on revient à la page login.
+    console.error(
+      '[AUTH] Erreur de déconnexion:',
+      err
+    );
+
+    /*
+     * Même si signOut rencontre un problème,
+     * on revient à la page de connexion.
+     */
     window.location.replace('/login.html');
   }
 }
 
-// -----------------------------------------------------------------------------
-// Rendu du paywall — remplace tout le contenu de la page
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   PAYWALL
+   ========================================================================== */
 
 function renderPaywall(user) {
+
   document.body.innerHTML = `
     <main class="paywall">
       <div class="paywall__card">
@@ -224,7 +291,9 @@ function renderPaywall(user) {
           class="paywall__logo"
         >
 
-        <p class="eyebrow">Abonnement</p>
+        <p class="eyebrow">
+          Abonnement
+        </p>
 
         <h1 class="paywall__title">
           Votre période d'essai est terminée
@@ -315,7 +384,8 @@ function renderPaywall(user) {
             for="paywallLicenseKey"
             class="paywall__license-label"
           >
-            Entre ta clé de licence (envoyée dans ton email Chariow)
+            Entre ta clé de licence
+            (envoyée dans ton email Chariow)
           </label>
 
           <div class="paywall__license-row">
@@ -358,12 +428,18 @@ function renderPaywall(user) {
     </main>
   `;
 
-  // ---------------------------------------------------------------------------
-  // Charge le CSS du paywall dynamiquement s'il n'est pas déjà présent
-  // ---------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
+     CSS
+     ------------------------------------------------------------------------ */
 
-  if (!document.querySelector('link[href="/css/app.css"]')) {
-    const link = document.createElement('link');
+  if (
+    !document.querySelector(
+      'link[href="/css/app.css"]'
+    )
+  ) {
+
+    const link =
+      document.createElement('link');
 
     link.rel = 'stylesheet';
     link.href = '/css/app.css';
@@ -371,21 +447,45 @@ function renderPaywall(user) {
     document.head.appendChild(link);
   }
 
-  const zone = document.getElementById('paywallZone');
-  const checkoutBtn = document.getElementById('checkoutBtn');
-  const logoutBtn = document.getElementById('paywallLogout');
 
-  const verifyLicenseBtn = document.getElementById(
-    'paywallVerifyLicenseBtn'
-  );
+  /* ------------------------------------------------------------------------
+     Éléments
+     ------------------------------------------------------------------------ */
 
-  const licenseInput = document.getElementById(
-    'paywallLicenseKey'
-  );
+  const zone =
+    document.getElementById(
+      'paywallZone'
+    );
 
-  const licenseError = document.getElementById(
-    'paywallLicenseError'
-  );
+  const checkoutBtn =
+    document.getElementById(
+      'checkoutBtn'
+    );
+
+  const logoutBtn =
+    document.getElementById(
+      'paywallLogout'
+    );
+
+  const verifyLicenseBtn =
+    document.getElementById(
+      'paywallVerifyLicenseBtn'
+    );
+
+  const licenseInput =
+    document.getElementById(
+      'paywallLicenseKey'
+    );
+
+  const licenseError =
+    document.getElementById(
+      'paywallLicenseError'
+    );
+
+
+  /* ------------------------------------------------------------------------
+     Licence
+     ------------------------------------------------------------------------ */
 
   verifyLicenseBtn.addEventListener(
     'click',
@@ -397,40 +497,71 @@ function renderPaywall(user) {
     )
   );
 
-  checkoutBtn.addEventListener('click', () => {
-    const phoneNumber = cleanPhoneDigits(
-      document.getElementById('paywallPhone').value
-    );
 
-    const countryCode =
-      document.getElementById('paywallCountry').value;
+  /* ------------------------------------------------------------------------
+     Checkout
+     ------------------------------------------------------------------------ */
 
-    const phoneErrorEl =
-      document.getElementById('paywallPhoneError');
+  checkoutBtn.addEventListener(
+    'click',
+    () => {
 
-    if (phoneNumber.length < 8) {
-      phoneErrorEl.hidden = false;
-      return;
-    }
+      const phoneNumber =
+        cleanPhoneDigits(
+          document.getElementById(
+            'paywallPhone'
+          ).value
+        );
 
-    phoneErrorEl.hidden = true;
+      const countryCode =
+        document.getElementById(
+          'paywallCountry'
+        ).value;
 
-    startCheckout(
-      user,
-      zone,
-      {
-        number: phoneNumber,
-        countryCode
+      const phoneErrorEl =
+        document.getElementById(
+          'paywallPhoneError'
+        );
+
+      if (
+        phoneNumber.length < 8
+      ) {
+
+        phoneErrorEl.hidden =
+          false;
+
+        return;
       }
-    );
-  });
 
-  logoutBtn.addEventListener('click', logout);
+      phoneErrorEl.hidden =
+        true;
+
+      startCheckout(
+        user,
+        zone,
+        {
+          number: phoneNumber,
+          countryCode
+        }
+      );
+    }
+  );
+
+
+  /* ------------------------------------------------------------------------
+     Logout
+     ------------------------------------------------------------------------ */
+
+  logoutBtn.addEventListener(
+    'click',
+    logout
+  );
 }
 
-// -----------------------------------------------------------------------------
-// Checkout
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   CHECKOUT
+   ========================================================================== */
 
 async function startCheckout(
   user,
@@ -438,8 +569,10 @@ async function startCheckout(
   phone,
   isRetryAttempt = false
 ) {
+
   zone.innerHTML = `
     <div class="paywall-state">
+
       <span
         class="spinner"
         aria-hidden="true"
@@ -447,63 +580,98 @@ async function startCheckout(
 
       <p>
         Préparation du paiement…
-        (cela peut prendre jusqu'à 1 minute la première fois)
+        (cela peut prendre jusqu'à 1 minute
+        la première fois)
       </p>
+
     </div>
   `;
 
-  const controller = new AbortController();
 
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    CHECKOUT_TIMEOUT_MS
-  );
+  const controller =
+    new AbortController();
 
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/checkout`,
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json'
-        },
-
-        body: JSON.stringify({
-          firebaseUid: user.uid,
-          email: user.email || '',
-
-          firstName: user.displayName
-            ? user.displayName.split(' ')[0]
-            : 'Client',
-
-          lastName: user.displayName
-            ? user.displayName
-                .split(' ')
-                .slice(1)
-                .join(' ') || 'Inconnu'
-            : 'Inconnu',
-
-          phone: {
-            number: phone.number,
-            countryCode: phone.countryCode
-          }
-        }),
-
-        signal: controller.signal
-      }
+  const timeoutId =
+    setTimeout(
+      () => controller.abort(),
+      CHECKOUT_TIMEOUT_MS
     );
 
-    // Render peut répondre 502/503 pendant son démarrage.
+
+  try {
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/api/checkout`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body: JSON.stringify({
+
+            firebaseUid:
+              user.uid,
+
+            email:
+              user.email || '',
+
+            firstName:
+              user.displayName
+                ? user.displayName
+                    .split(' ')[0]
+                : 'Client',
+
+            lastName:
+              user.displayName
+                ? user.displayName
+                    .split(' ')
+                    .slice(1)
+                    .join(' ') ||
+                    'Inconnu'
+                : 'Inconnu',
+
+            phone: {
+              number:
+                phone.number,
+
+              countryCode:
+                phone.countryCode
+            }
+
+          }),
+
+          signal:
+            controller.signal
+        }
+      );
+
+
+    /* ----------------------------------------------------------------------
+       Render cold start
+       ---------------------------------------------------------------------- */
+
     if (
-      (response.status === 502 ||
-        response.status === 503) &&
+      (
+        response.status === 502 ||
+        response.status === 503
+      ) &&
       !isRetryAttempt
     ) {
-      clearTimeout(timeoutId);
+
+      clearTimeout(
+        timeoutId
+      );
 
       await new Promise(
-        (resolve) => setTimeout(resolve, 4000)
+        (resolve) =>
+          setTimeout(
+            resolve,
+            4000
+          )
       );
 
       return startCheckout(
@@ -514,9 +682,17 @@ async function startCheckout(
       );
     }
 
+
+    /* ----------------------------------------------------------------------
+       Erreur API
+       ---------------------------------------------------------------------- */
+
     if (!response.ok) {
+
       const errBody =
-        await response.json().catch(() => ({}));
+        await response
+          .json()
+          .catch(() => ({}));
 
       throw new Error(
         errBody.message ||
@@ -525,26 +701,52 @@ async function startCheckout(
       );
     }
 
-    const data = await response.json();
 
-    if (data && data.reactivated) {
-      window.location.replace('/dashboard.html');
+    const data =
+      await response.json();
+
+
+    /* ----------------------------------------------------------------------
+       Réactivation directe
+       ---------------------------------------------------------------------- */
+
+    if (
+      data &&
+      data.reactivated
+    ) {
+
+      window.location.href =
+        '/dashboard.html';
+
       return;
     }
 
-    if (!data || !data.checkoutUrl) {
+
+    /* ----------------------------------------------------------------------
+       Checkout Chariow
+       ---------------------------------------------------------------------- */
+
+    if (
+      !data ||
+      !data.checkoutUrl
+    ) {
+
       throw new Error(
         'Aucune URL de paiement reçue.'
       );
     }
 
-    window.location.href = data.checkoutUrl;
+
+    window.location.href =
+      data.checkoutUrl;
 
   } catch (err) {
+
     console.error(
       'Erreur checkout :',
       err
     );
+
 
     const message =
       err.name === 'AbortError'
@@ -554,13 +756,16 @@ async function startCheckout(
             "Impossible de préparer le paiement. Réessayez."
           );
 
+
     zone.innerHTML = `
       <div
         class="paywall-state paywall-state--error"
         role="alert"
       >
 
-        <p>${message}</p>
+        <p>
+          ${message}
+        </p>
 
         <button
           type="button"
@@ -573,25 +778,33 @@ async function startCheckout(
       </div>
     `;
 
+
     document
-      .getElementById('checkoutRetry')
+      .getElementById(
+        'checkoutRetry'
+      )
       .addEventListener(
         'click',
-        () => startCheckout(
-          user,
-          zone,
-          phone
-        )
+        () =>
+          startCheckout(
+            user,
+            zone,
+            phone
+          )
       );
 
   } finally {
-    clearTimeout(timeoutId);
+
+    clearTimeout(
+      timeoutId
+    );
   }
 }
 
-// -----------------------------------------------------------------------------
-// Vérification manuelle de clé de licence
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   VÉRIFICATION LICENCE
+   ========================================================================== */
 
 async function verifyLicense(
   user,
@@ -599,12 +812,15 @@ async function verifyLicense(
   errorEl,
   buttonEl
 ) {
+
   errorEl.hidden = true;
 
   const licenseKey =
     inputEl.value.trim();
 
+
   if (!licenseKey) {
+
     errorEl.textContent =
       "Entre la clé de licence reçue par email après ton paiement.";
 
@@ -613,45 +829,62 @@ async function verifyLicense(
     return;
   }
 
+
   buttonEl.disabled = true;
-  buttonEl.textContent = 'Vérification…';
+  buttonEl.textContent =
+    'Vérification…';
+
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/verify-license`,
-      {
-        method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json'
-        },
+    const response =
+      await fetch(
+        `${API_BASE_URL}/api/verify-license`,
+        {
+          method: 'POST',
 
-        body: JSON.stringify({
-          firebaseUid: user.uid,
-          licenseKey
-        })
-      }
-    );
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body: JSON.stringify({
+            firebaseUid:
+              user.uid,
+
+            licenseKey
+          })
+        }
+      );
+
 
     const data =
       await response.json();
+
 
     if (
       data &&
       data.valid &&
       data.reactivated
     ) {
+
       window.location.reload();
+
       return;
     }
 
+
     errorEl.textContent =
-      (data && data.error) ||
+      (
+        data &&
+        data.error
+      ) ||
       "Clé de licence invalide.";
 
     errorEl.hidden = false;
 
   } catch (err) {
+
     console.error(
       'Erreur de vérification de licence :',
       err
@@ -663,18 +896,24 @@ async function verifyLicense(
     errorEl.hidden = false;
 
   } finally {
+
     buttonEl.disabled = false;
-    buttonEl.textContent = 'Vérifier';
+
+    buttonEl.textContent =
+      'Vérifier';
   }
 }
 
-// -----------------------------------------------------------------------------
-// Erreur fatale
-// -----------------------------------------------------------------------------
+
+/* ==========================================================================
+   ERREUR FATALE
+   ========================================================================== */
 
 function renderFatalError() {
+
   document.body.innerHTML = `
     <main class="paywall">
+
       <div class="paywall__card">
 
         <img
@@ -701,6 +940,7 @@ function renderFatalError() {
         </button>
 
       </div>
+
     </main>
   `;
 }
