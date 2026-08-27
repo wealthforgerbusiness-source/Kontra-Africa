@@ -1,8 +1,7 @@
-const API_BASE = 'https://kontra-africa.onrender.com';
+// js/sign.js
+// Page publique de signature Kontra-Africa
 
-// ============================================================
-// TOKEN
-// ============================================================
+const API_BASE = 'https://kontra-africa.onrender.com';
 
 const params = new URLSearchParams(
   window.location.search
@@ -10,26 +9,15 @@ const params = new URLSearchParams(
 
 const token = params.get('token');
 
-// ============================================================
-// ELEMENTS DOM
-// ============================================================
-
 const els = {
-
   loading:
-    document.getElementById(
-      'state-loading'
-    ),
+    document.getElementById('state-loading'),
 
   error:
-    document.getElementById(
-      'state-error'
-    ),
+    document.getElementById('state-error'),
 
   errorMessage:
-    document.getElementById(
-      'error-message'
-    ),
+    document.getElementById('error-message'),
 
   alreadySigned:
     document.getElementById(
@@ -100,11 +88,10 @@ const els = {
 let signaturePad = null;
 
 // ============================================================
-// AFFICHAGE DES ETATS
+// AFFICHAGE DES ÉTATS
 // ============================================================
 
 function showOnly(element) {
-
   [
     els.loading,
     els.error,
@@ -112,12 +99,108 @@ function showOnly(element) {
     els.contractView,
     els.success,
   ].forEach((el) => {
-
     if (el) {
       el.hidden = el !== element;
     }
-
   });
+}
+
+// ============================================================
+// ERREUR DE CHARGEMENT
+// ============================================================
+
+function showLoadError(message) {
+  if (els.errorMessage) {
+    els.errorMessage.textContent =
+      message;
+  }
+
+  showOnly(els.error);
+}
+
+// ============================================================
+// REQUÊTE API
+// ============================================================
+
+async function fetchJson(
+  url,
+  options = {},
+  timeoutMs = 25000
+) {
+  const controller =
+    new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    timeoutMs
+  );
+
+  try {
+    const response =
+      await fetch(url, {
+        ...options,
+
+        signal:
+          controller.signal,
+
+        headers: {
+          Accept:
+            'application/json',
+
+          ...(options.headers || {}),
+        },
+      });
+
+    const contentType =
+      response.headers.get(
+        'content-type'
+      ) || '';
+
+    let body = {};
+
+    if (
+      contentType.includes(
+        'application/json'
+      )
+    ) {
+      body =
+        await response
+          .json()
+          .catch(() => ({}));
+    } else {
+      const text =
+        await response
+          .text()
+          .catch(() => '');
+
+      body = text
+        ? { message: text }
+        : {};
+    }
+
+    return {
+      response,
+      body,
+    };
+
+  } catch (error) {
+
+    if (
+      error.name ===
+      'AbortError'
+    ) {
+      throw new Error(
+        'Le serveur met trop de temps à répondre. Le serveur Kontra-Africa est peut-être en cours de démarrage.'
+      );
+    }
+
+    throw new Error(
+      'Impossible de joindre le serveur Kontra-Africa. Vérifie ta connexion.'
+    );
+
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // ============================================================
@@ -126,66 +209,74 @@ function showOnly(element) {
 
 async function init() {
 
-  // ----------------------------------------------------------
-  // VERIFICATION TOKEN
-  // ----------------------------------------------------------
-
   if (!token) {
 
-    els.errorMessage.textContent =
-      'Lien invalide : aucun code de signature fourni.';
-
-    showOnly(els.error);
+    showLoadError(
+      'Lien de signature invalide : aucun code de signature fourni.'
+    );
 
     return;
   }
 
+  showOnly(els.loading);
+
   try {
 
-    showOnly(els.loading);
+    const url =
+      `${API_BASE}/api/contracts/public/` +
+      encodeURIComponent(token);
 
-    const res = await fetch(
-      `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}`
-    );
+    const {
+      response,
+      body,
+    } =
+      await fetchJson(url);
 
-    if (!res.ok) {
+    if (!response.ok) {
 
-      const body =
-        await res.json()
-          .catch(() => ({}));
-
-      els.errorMessage.textContent =
+      showLoadError(
         body.message ||
-        'Ce lien de signature est invalide ou a expiré.';
-
-      showOnly(els.error);
+        `Impossible de charger le contrat (HTTP ${response.status}).`
+      );
 
       return;
     }
 
-    const contract =
-      await res.json();
+    const contract = body;
 
-    // --------------------------------------------------------
-    // CONTRAT DEJA SIGNE
-    // --------------------------------------------------------
+    // ========================================================
+    // CONTRAT DÉJÀ SIGNÉ
+    // ========================================================
 
     if (
-      contract.status === 'signed'
+      contract.status ===
+      'signed'
     ) {
 
-      els.alreadySignedDate.textContent =
-        contract.signerSignedAt
-          ? new Date(
-              contract.signerSignedAt
-            ).toLocaleDateString('fr-FR')
-          : '';
+      if (
+        els.alreadySignedDate
+      ) {
 
-      els.linkDownloadPdf.href =
-        `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/pdf`;
+        els.alreadySignedDate.textContent =
+          contract.signerSignedAt
+            ? new Date(
+                contract.signerSignedAt
+              ).toLocaleDateString(
+                'fr-FR'
+              )
+            : '';
+      }
 
-      els.linkDownloadPdf.hidden =
-        false;
+      if (
+        els.linkDownloadPdf
+      ) {
+
+        els.linkDownloadPdf.href =
+          buildPdfUrl(token);
+
+        els.linkDownloadPdf.hidden =
+          false;
+      }
 
       showOnly(
         els.alreadySigned
@@ -194,64 +285,75 @@ async function init() {
       return;
     }
 
-    // --------------------------------------------------------
-    // CONTRAT REFUSE
-    // --------------------------------------------------------
+    // ========================================================
+    // CONTRAT REFUSÉ
+    // ========================================================
 
     if (
-      contract.status === 'rejected'
+      contract.status ===
+      'rejected'
     ) {
 
-      els.errorMessage.textContent =
-        'Ce contrat a été refusé.';
-
-      showOnly(els.error);
+      showLoadError(
+        'Ce contrat a été refusé.'
+      );
 
       return;
     }
 
-    // --------------------------------------------------------
-    // CONTRAT EN ATTENTE
-    // --------------------------------------------------------
+    // ========================================================
+    // CONTRAT NON DISPONIBLE
+    // ========================================================
 
     if (
-      contract.status !== 'pending'
+      contract.status !==
+      'pending'
     ) {
 
-      els.errorMessage.textContent =
-        'Ce contrat n’est plus disponible.';
-
-      showOnly(els.error);
+      showLoadError(
+        'Ce contrat n’est plus disponible.'
+      );
 
       return;
     }
 
-    // --------------------------------------------------------
-    // AFFICHAGE
-    // --------------------------------------------------------
+    // ========================================================
+    // AFFICHER LE CONTRAT
+    // ========================================================
 
-    els.title.textContent =
-      contract.title || '';
+    if (els.title) {
+      els.title.textContent =
+        contract.title || '';
+    }
 
-    els.creatorName.textContent =
-      contract.creatorName || '';
+    if (els.creatorName) {
+      els.creatorName.textContent =
+        contract.creatorName || '';
+    }
 
-    els.content.textContent =
-      contract.content || '';
+    if (els.content) {
+      els.content.textContent =
+        contract.content || '';
+    }
 
-    // --------------------------------------------------------
-    // SI LE CREATEUR AVAIT DEJA FOURNI UN NOM DE SIGNATAIRE
-    // ON PEUT LE PRE-REMPLIR MAIS LE SIGNATAIRE DOIT
-    // TOUJOURS LE CONFIRMER / MODIFIER AVANT SIGNATURE.
-    // --------------------------------------------------------
+    // ========================================================
+    // IMPORTANT :
+    // NE PAS PRÉREMPLIR LE NOM DU CLIENT
+    // ========================================================
 
-    if (
-      contract.signerName &&
-      els.typedName
-    ) {
+    if (els.typedName) {
 
-      els.typedName.value =
-        contract.signerName;
+      els.typedName.value = '';
+
+      els.typedName.removeAttribute(
+        'value'
+      );
+
+      els.typedName.placeholder =
+        'Saisissez votre nom complet';
+
+      els.typedName.autocomplete =
+        'name';
     }
 
     showOnly(
@@ -260,22 +362,22 @@ async function init() {
 
     initSignaturePad();
 
-  } catch (err) {
+  } catch (error) {
 
     console.error(
       'Erreur de chargement du contrat :',
-      err
+      error
     );
 
-    els.errorMessage.textContent =
-      "Impossible de charger le contrat. Vérifie ta connexion.";
-
-    showOnly(els.error);
+    showLoadError(
+      error.message ||
+      'Impossible de charger le contrat.'
+    );
   }
 }
 
 // ============================================================
-// SIGNATURE DESSINEE
+// SIGNATURE SUR CANVAS
 // ============================================================
 
 function initSignaturePad() {
@@ -286,7 +388,6 @@ function initSignaturePad() {
     );
 
   if (!canvas) {
-
     console.error(
       'Canvas de signature introuvable.'
     );
@@ -295,7 +396,24 @@ function initSignaturePad() {
   }
 
   const ctx =
-    canvas.getContext('2d');
+    canvas.getContext(
+      '2d'
+    );
+
+  if (!ctx) {
+    console.error(
+      'Impossible d’initialiser le canvas.'
+    );
+
+    return;
+  }
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
@@ -305,11 +423,7 @@ function initSignaturePad() {
   let drawing = false;
   let hasStroke = false;
 
-  // ----------------------------------------------------------
-  // POSITION
-  // ----------------------------------------------------------
-
-  function getPos(e) {
+  function getPoint(event) {
 
     const rect =
       canvas.getBoundingClientRect();
@@ -323,81 +437,64 @@ function initSignaturePad() {
       rect.height;
 
     const point =
-      e.touches
-        ? e.touches[0]
-        : e;
+      event.touches &&
+      event.touches.length
+        ? event.touches[0]
+        : event;
 
     return {
-
       x:
-        (point.clientX - rect.left) *
+        (point.clientX -
+          rect.left) *
         scaleX,
 
       y:
-        (point.clientY - rect.top) *
+        (point.clientY -
+          rect.top) *
         scaleY,
     };
   }
 
-  // ----------------------------------------------------------
-  // DEBUT
-  // ----------------------------------------------------------
-
-  function start(e) {
+  function start(event) {
 
     drawing = true;
     hasStroke = true;
 
-    const {
-      x,
-      y
-    } = getPos(e);
+    const point =
+      getPoint(event);
 
     ctx.beginPath();
 
     ctx.moveTo(
-      x,
-      y
+      point.x,
+      point.y
     );
 
-    e.preventDefault();
+    event.preventDefault();
   }
 
-  // ----------------------------------------------------------
-  // DESSIN
-  // ----------------------------------------------------------
+  function move(event) {
 
-  function move(e) {
+    if (!drawing) {
+      return;
+    }
 
-    if (!drawing) return;
-
-    const {
-      x,
-      y
-    } = getPos(e);
+    const point =
+      getPoint(event);
 
     ctx.lineTo(
-      x,
-      y
+      point.x,
+      point.y
     );
 
     ctx.stroke();
 
-    e.preventDefault();
+    event.preventDefault();
   }
-
-  // ----------------------------------------------------------
-  // FIN
-  // ----------------------------------------------------------
 
   function end() {
-
     drawing = false;
   }
-
-  // ----------------------------------------------------------
-  // SOURIS
-  // ----------------------------------------------------------
 
   canvas.onmousedown =
     start;
@@ -405,12 +502,11 @@ function initSignaturePad() {
   canvas.onmousemove =
     move;
 
-  window.onmouseup =
+  canvas.onmouseleave =
     end;
 
-  // ----------------------------------------------------------
-  // MOBILE
-  // ----------------------------------------------------------
+  window.onmouseup =
+    end;
 
   canvas.ontouchstart =
     start;
@@ -421,253 +517,70 @@ function initSignaturePad() {
   canvas.ontouchend =
     end;
 
-  // ----------------------------------------------------------
-  // EFFACER
-  // ----------------------------------------------------------
+  canvas.ontouchcancel =
+    end;
 
-  const clearBtn =
+  const clearButton =
     document.getElementById(
       'btn-clear-signature'
     );
 
-  if (clearBtn) {
+  if (clearButton) {
 
-    clearBtn.onclick = () => {
+    clearButton.onclick =
+      () => {
 
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+        ctx.clearRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
 
-      hasStroke = false;
-    };
+        hasStroke = false;
+      };
   }
 
   signaturePad = {
 
-    isEmpty: () =>
-      !hasStroke,
+    isEmpty:
+      () => !hasStroke,
 
-    toDataURL: () =>
-      canvas.toDataURL(
-        'image/png'
-      ),
+    toDataURL:
+      () =>
+        canvas.toDataURL(
+          'image/png'
+        ),
   };
 }
 
 // ============================================================
-// SIGNATURE DU CONTRAT
+// URL DU PDF
 // ============================================================
 
-els.btnSign.addEventListener(
-  'click',
-  async () => {
+function buildPdfUrl(
+  currentToken
+) {
 
-    els.signError.hidden =
-      true;
-
-    // --------------------------------------------------------
-    // CONDITIONS
-    // --------------------------------------------------------
-
-    if (
-      !els.checkboxTerms.checked
-    ) {
-
-      return showSignError(
-        "Merci de cocher la case d'acceptation des termes."
-      );
-    }
-
-    // --------------------------------------------------------
-    // NOM DU SIGNATAIRE
-    // --------------------------------------------------------
-
-    const typedName =
-      els.typedName.value.trim();
-
-    if (!typedName) {
-
-      return showSignError(
-        "Tu dois saisir ton nom complet avant de signer."
-      );
-    }
-
-    if (
-      typedName.length < 2
-    ) {
-
-      return showSignError(
-        "Ton nom doit contenir au moins 2 caractères."
-      );
-    }
-
-    // --------------------------------------------------------
-    // SIGNATURE
-    // --------------------------------------------------------
-
-    if (
-      !signaturePad ||
-      signaturePad.isEmpty()
-    ) {
-
-      return showSignError(
-        "Ajoute ta signature pour continuer."
-      );
-    }
-
-    // --------------------------------------------------------
-    // BOUTON
-    // --------------------------------------------------------
-
-    els.btnSign.disabled =
-      true;
-
-    els.btnSign.textContent =
-      'Signature en cours…';
-
-    try {
-
-      // ------------------------------------------------------
-      // DONNEES SIGNATURE
-      // ------------------------------------------------------
-
-      const signatureDataUrl =
-        signaturePad.toDataURL();
-
-      // ------------------------------------------------------
-      // ENVOI BACKEND
-      // ------------------------------------------------------
-
-      const res =
-        await fetch(
-          `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/sign`,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json',
-            },
-
-            body: JSON.stringify({
-
-              // Acceptation
-              termsAccepted:
-                true,
-
-              // Signature dessinée
-              signatureDataUrl:
-                signatureDataUrl,
-
-              // NOM SAISI PAR LE SIGNATAIRE
-              typedName:
-                typedName,
-            }),
-          }
-        );
-
-      // ------------------------------------------------------
-      // ERREUR
-      // ------------------------------------------------------
-
-      if (!res.ok) {
-
-        const body =
-          await res.json()
-            .catch(() => ({}));
-
-        throw new Error(
-          body.message ||
-          'La signature a échoué.'
-        );
-      }
-
-      const result =
-        await res.json();
-
-      console.log(
-        '✅ Contrat signé :',
-        result
-      );
-
-      // ------------------------------------------------------
-      // SUCCES
-      // ------------------------------------------------------
-
-      if (
-        result.status === 'signed'
-      ) {
-
-        const pdfUrl =
-          `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/pdf`;
-
-        // Mettre à jour le lien PDF
-        if (
-          els.linkDownloadPdfSuccess
-        ) {
-
-          els.linkDownloadPdfSuccess.href =
-            pdfUrl;
-
-          els.linkDownloadPdfSuccess.hidden =
-            false;
-        }
-
-        showOnly(
-          els.success
-        );
-
-        // ----------------------------------------------------
-        // TELECHARGEMENT AUTOMATIQUE
-        // ----------------------------------------------------
-        //
-        // On garde le comportement actuel.
-        // Le PDF sera généré côté serveur.
-        //
-
-        window.location.href =
-          pdfUrl;
-
-      } else {
-
-        throw new Error(
-          'La signature n’a pas été confirmée par le serveur.'
-        );
-      }
-
-    } catch (err) {
-
-      console.error(
-        'Erreur de signature :',
-        err
-      );
-
-      showSignError(
-        err.message ||
-        'La signature a échoué. Réessaie.'
-      );
-
-    } finally {
-
-      els.btnSign.disabled =
-        false;
-
-      els.btnSign.textContent =
-        'Signer le contrat';
-    }
-  }
-);
+  return (
+    `${API_BASE}/api/contracts/public/` +
+    `${encodeURIComponent(
+      currentToken
+    )}/pdf`
+  );
+}
 
 // ============================================================
-// MESSAGE ERREUR
+// ERREUR DE SIGNATURE
 // ============================================================
 
 function showSignError(
   message
 ) {
+
+  if (!els.signError) {
+    return;
+  }
 
   els.signError.textContent =
     message;
@@ -677,7 +590,245 @@ function showSignError(
 }
 
 // ============================================================
-// DEMARRAGE
+// SIGNER LE CONTRAT
+// ============================================================
+
+async function signContract() {
+
+  if (els.signError) {
+    els.signError.hidden =
+      true;
+  }
+
+  // ----------------------------------------------------------
+  // CONDITIONS
+  // ----------------------------------------------------------
+
+  if (
+    !els.checkboxTerms ||
+    !els.checkboxTerms.checked
+  ) {
+
+    showSignError(
+      'Merci de cocher la case d’acceptation des termes.'
+    );
+
+    return;
+  }
+
+  // ----------------------------------------------------------
+  // NOM DU CLIENT
+  // ----------------------------------------------------------
+
+  const typedName =
+    els.typedName
+      ? els.typedName.value.trim()
+      : '';
+
+  if (!typedName) {
+
+    showSignError(
+      'Vous devez saisir votre nom complet avant de signer.'
+    );
+
+    if (els.typedName) {
+      els.typedName.focus();
+    }
+
+    return;
+  }
+
+  if (
+    typedName.length < 2
+  ) {
+
+    showSignError(
+      'Votre nom doit contenir au moins 2 caractères.'
+    );
+
+    return;
+  }
+
+  if (
+    typedName.length > 150
+  ) {
+
+    showSignError(
+      'Votre nom est trop long.'
+    );
+
+    return;
+  }
+
+  // ----------------------------------------------------------
+  // SIGNATURE
+  // ----------------------------------------------------------
+
+  if (
+    !signaturePad ||
+    signaturePad.isEmpty()
+  ) {
+
+    showSignError(
+      'Ajoutez votre signature pour continuer.'
+    );
+
+    return;
+  }
+
+  if (!token) {
+
+    showSignError(
+      'Lien de signature invalide.'
+    );
+
+    return;
+  }
+
+  // ----------------------------------------------------------
+  // BOUTON
+  // ----------------------------------------------------------
+
+  if (els.btnSign) {
+
+    els.btnSign.disabled =
+      true;
+
+    els.btnSign.textContent =
+      'Signature en cours…';
+  }
+
+  try {
+
+    const signatureDataUrl =
+      signaturePad.toDataURL();
+
+    const url =
+      `${API_BASE}/api/contracts/public/` +
+      `${encodeURIComponent(
+        token
+      )}/sign`;
+
+    const {
+      response,
+      body,
+    } =
+      await fetchJson(
+        url,
+        {
+          method:
+            'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+
+          body:
+            JSON.stringify({
+              termsAccepted:
+                true,
+
+              signatureDataUrl,
+
+              typedName,
+            }),
+        },
+        30000
+      );
+
+    if (!response.ok) {
+
+      throw new Error(
+        body.message ||
+        `La signature a échoué (HTTP ${response.status}).`
+      );
+    }
+
+    if (
+      body.status !==
+      'signed'
+    ) {
+
+      throw new Error(
+        'La signature n’a pas été confirmée par le serveur.'
+      );
+    }
+
+    // --------------------------------------------------------
+    // SUCCÈS
+    // --------------------------------------------------------
+
+    const pdfUrl =
+      buildPdfUrl(token);
+
+    if (
+      els.linkDownloadPdfSuccess
+    ) {
+
+      els.linkDownloadPdfSuccess.href =
+        pdfUrl;
+
+      els.linkDownloadPdfSuccess.hidden =
+        false;
+    }
+
+    showOnly(
+      els.success
+    );
+
+    // Ouvre le PDF signé dans un nouvel onglet.
+    window.open(
+      pdfUrl,
+      '_blank',
+      'noopener'
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Erreur de signature :',
+      error
+    );
+
+    showSignError(
+      error.message ||
+      'La signature a échoué. Réessayez.'
+    );
+
+  } finally {
+
+    if (els.btnSign) {
+
+      els.btnSign.disabled =
+        false;
+
+      els.btnSign.textContent =
+        'Signer le contrat';
+    }
+  }
+}
+
+// ============================================================
+// BOUTON SIGNER
+// ============================================================
+
+if (els.btnSign) {
+
+  els.btnSign.addEventListener(
+    'click',
+    signContract
+  );
+
+} else {
+
+  console.error(
+    'Bouton de signature introuvable.'
+  );
+}
+
+// ============================================================
+// DÉMARRAGE
 // ============================================================
 
 init();
