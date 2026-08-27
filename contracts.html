@@ -12,132 +12,493 @@
   <link rel="stylesheet" href="/css/app.css" />
   <link rel="stylesheet" href="/css/contracts.css" />
 </head>
+
 <body>
+
   <!-- auth-guard.js injecte la sidebar desktop / bottom nav mobile dans ces conteneurs -->
   <div id="app-shell" class="app-shell">
-    <nav id="app-sidebar" class="app-sidebar" aria-label="Navigation principale"></nav>
 
-    <main class="app-main" id="main-content">
-      <div id="offline-banner" class="offline-banner" hidden>
+    <nav
+      id="app-sidebar"
+      class="app-sidebar"
+      aria-label="Navigation principale"
+    ></nav>
+
+    <main
+      class="app-main"
+      id="main-content"
+    >
+
+      <div
+        id="offline-banner"
+        class="offline-banner"
+        hidden
+      >
         Hors ligne — les modifications seront synchronisées au retour de la connexion
       </div>
 
+
       <header class="page-header">
+
         <div>
-          <h1 class="page-title">Contrats</h1>
-          <p class="page-subtitle">Créez, envoyez et suivez vos contrats</p>
+
+          <h1 class="page-title">
+            Contrats
+          </h1>
+
+          <p class="page-subtitle">
+            Créez, envoyez et suivez vos contrats
+          </p>
+
         </div>
-        <button type="button" id="btn-new-contract" class="btn btn-primary">
+
+        <button
+          type="button"
+          id="btn-new-contract"
+          class="btn btn-primary"
+        >
           Nouveau contrat
         </button>
+
       </header>
 
+
       <!-- Filtres de statut -->
-      <div class="status-filters" role="tablist" aria-label="Filtrer par statut">
-        <button class="status-filter is-active" data-status="all" role="tab" aria-selected="true">Tous</button>
-        <button class="status-filter" data-status="draft" role="tab" aria-selected="false">Brouillons</button>
-        <button class="status-filter" data-status="pending" role="tab" aria-selected="false">En attente</button>
-        <button class="status-filter" data-status="signed" role="tab" aria-selected="false">Signés</button>
-        <button class="status-filter" data-status="rejected" role="tab" aria-selected="false">Refusés</button>
+
+      <div
+        class="status-filters"
+        role="tablist"
+        aria-label="Filtrer par statut"
+      >
+
+        <button
+          class="status-filter is-active"
+          data-status="all"
+          role="tab"
+          aria-selected="true"
+        >
+          Tous
+        </button>
+
+        <button
+          class="status-filter"
+          data-status="draft"
+          role="tab"
+          aria-selected="false"
+        >
+          Brouillons
+        </button>
+
+        <button
+          class="status-filter"
+          data-status="pending"
+          role="tab"
+          aria-selected="false"
+        >
+          En attente
+        </button>
+
+        <button
+          class="status-filter"
+          data-status="signed"
+          role="tab"
+          aria-selected="false"
+        >
+          Signés
+        </button>
+
+        <button
+          class="status-filter"
+          data-status="rejected"
+          role="tab"
+          aria-selected="false"
+        >
+          Refusés
+        </button>
+
       </div>
+
 
       <!-- Liste des contrats -->
-      <section id="contracts-list" class="contracts-list" aria-live="polite">
-        <div id="contracts-loading" class="state-message">Chargement des contrats…</div>
+
+      <section
+        id="contracts-list"
+        class="contracts-list"
+        aria-live="polite"
+      >
+
+        <div
+          id="contracts-loading"
+          class="state-message"
+        >
+          Chargement des contrats…
+        </div>
+
       </section>
 
-      <div id="contracts-empty" class="state-message empty-state" hidden>
-        <p>Aucun contrat pour le moment.</p>
-        <button type="button" class="btn btn-secondary" data-action="open-new-contract">
+
+      <div
+        id="contracts-empty"
+        class="state-message empty-state"
+        hidden
+      >
+
+        <p>
+          Aucun contrat pour le moment.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="open-new-contract"
+        >
           Créer votre premier contrat
         </button>
+
       </div>
+
     </main>
+
   </div>
 
-  <!-- Modale : nouveau contrat -->
-  <dialog id="modal-new-contract" class="modal">
-    <form id="form-new-contract" class="modal-content" novalidate>
+
+  <!-- =======================================================
+       MODALE : NOUVEAU CONTRAT
+       ======================================================= -->
+
+  <dialog
+    id="modal-new-contract"
+    class="modal"
+  >
+
+    <form
+      id="form-new-contract"
+      class="modal-content"
+      novalidate
+    >
+
       <div class="modal-header">
-        <h2>Nouveau contrat</h2>
-        <button type="button" class="modal-close" data-action="close-modal" aria-label="Fermer">×</button>
+
+        <h2>
+          Nouveau contrat
+        </h2>
+
+        <button
+          type="button"
+          class="modal-close"
+          data-action="close-modal"
+          aria-label="Fermer"
+        >
+          ×
+        </button>
+
       </div>
 
+
       <div class="modal-body">
-        <div class="form-field">
-          <label for="input-title">Titre du contrat</label>
-          <input type="text" id="input-title" name="title" required maxlength="120"
-                 placeholder="Ex : Accord de prestation — Site vitrine" />
-        </div>
+
+
+        <!-- =================================================
+             NOM DU CRÉATEUR
+             ================================================= -->
 
         <div class="form-field">
-          <label for="input-content">Contenu du contrat</label>
-          <textarea id="input-content" name="content" rows="10" required maxlength="8000"
-                    placeholder="Décrivez les termes de l'accord…"></textarea>
+
+          <label for="input-creator-typed-name">
+            Votre nom complet
+          </label>
+
+          <p class="field-hint">
+            Saisissez votre vrai nom. Il apparaîtra sur le contrat.
+          </p>
+
+          <input
+            type="text"
+            id="input-creator-typed-name"
+            name="creatorTypedName"
+            required
+            minlength="2"
+            maxlength="150"
+            autocomplete="name"
+            placeholder="Ex. Jean Dupont"
+          />
+
         </div>
+
+
+        <!-- =================================================
+             TITRE
+             ================================================= -->
+
+        <div class="form-field">
+
+          <label for="input-title">
+            Titre du contrat
+          </label>
+
+          <input
+            type="text"
+            id="input-title"
+            name="title"
+            required
+            maxlength="120"
+            placeholder="Ex : Accord de prestation — Site vitrine"
+          />
+
+        </div>
+
+
+        <!-- =================================================
+             CONTENU
+             ================================================= -->
+
+        <div class="form-field">
+
+          <label for="input-content">
+            Contenu du contrat
+          </label>
+
+          <textarea
+            id="input-content"
+            name="content"
+            rows="10"
+            required
+            maxlength="8000"
+            placeholder="Décrivez les termes de l'accord…"
+          ></textarea>
+
+        </div>
+
+
+        <!-- =================================================
+             SIGNATAIRE + WHATSAPP
+             ================================================= -->
 
         <div class="form-row">
+
           <div class="form-field">
-            <label for="input-signer-name">Nom du signataire</label>
-            <input type="text" id="input-signer-name" name="signerName" required maxlength="80" />
+
+            <label for="input-signer-name">
+              Nom du destinataire
+            </label>
+
+            <input
+              type="text"
+              id="input-signer-name"
+              name="signerName"
+              required
+              maxlength="150"
+              autocomplete="name"
+              placeholder="Ex. Paul Kabeya"
+            />
+
+            <p class="field-hint">
+              Nom utilisé pour personnaliser l'envoi WhatsApp. Le signataire saisira ensuite son propre nom lors de la signature.
+            </p>
+
           </div>
+
+
           <div class="form-field">
-            <label for="input-signer-phone">Téléphone WhatsApp</label>
-            <input type="tel" id="input-signer-phone" name="signerPhone" required
-                   placeholder="+225 07 00 00 00 00" />
+
+            <label for="input-signer-phone">
+              Téléphone WhatsApp
+            </label>
+
+            <input
+              type="tel"
+              id="input-signer-phone"
+              name="signerPhone"
+              required
+              placeholder="+243 81 000 00 00"
+              autocomplete="tel"
+            />
+
           </div>
+
         </div>
+
+
+        <!-- =================================================
+             SIGNATURE DU CRÉATEUR
+             ================================================= -->
 
         <div class="form-field">
-          <label>Votre signature</label>
-          <p class="field-hint">Dessinez votre signature ci-dessous avec le doigt ou la souris</p>
+
+          <label>
+            Votre signature
+          </label>
+
+          <p class="field-hint">
+            Dessinez votre signature ci-dessous avec le doigt ou la souris
+          </p>
+
+
           <div class="signature-pad-wrap">
-            <canvas id="signature-canvas" class="signature-canvas" width="600" height="180"></canvas>
-            <button type="button" id="btn-clear-signature" class="btn btn-text">Effacer</button>
+
+            <canvas
+              id="signature-canvas"
+              class="signature-canvas"
+              width="600"
+              height="180"
+              aria-label="Zone de signature du créateur"
+            ></canvas>
+
+            <button
+              type="button"
+              id="btn-clear-signature"
+              class="btn btn-text"
+            >
+              Effacer
+            </button>
+
           </div>
-          <div class="form-field">
-            <label for="input-creator-typed-name">Ou tapez votre nom en signature</label>
-            <input type="text" id="input-creator-typed-name" name="creatorTypedName" maxlength="80" />
-          </div>
+
         </div>
 
-        <p id="form-error" class="form-error" role="alert" hidden></p>
+
+        <!-- =================================================
+             ERREUR
+             ================================================= -->
+
+        <p
+          id="form-error"
+          class="form-error"
+          role="alert"
+          hidden
+        ></p>
+
       </div>
+
+
+      <!-- =================================================
+           FOOTER MODALE
+           ================================================= -->
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-action="close-modal">Annuler</button>
-        <button type="submit" class="btn btn-primary" id="btn-submit-contract">
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="close-modal"
+        >
+          Annuler
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="btn-submit-contract"
+        >
           Signer et créer le lien
         </button>
+
       </div>
+
     </form>
+
   </dialog>
 
-  <!-- Modale : contrat créé, partage WhatsApp -->
-  <dialog id="modal-share" class="modal">
+
+  <!-- =======================================================
+       MODALE : CONTRAT CRÉÉ / PARTAGE WHATSAPP
+       ======================================================= -->
+
+  <dialog
+    id="modal-share"
+    class="modal"
+  >
+
     <div class="modal-content">
+
       <div class="modal-header">
-        <h2>Contrat prêt à envoyer</h2>
-        <button type="button" class="modal-close" data-action="close-share-modal" aria-label="Fermer">×</button>
+
+        <h2>
+          Contrat prêt à envoyer
+        </h2>
+
+        <button
+          type="button"
+          class="modal-close"
+          data-action="close-share-modal"
+          aria-label="Fermer"
+        >
+          ×
+        </button>
+
       </div>
+
+
       <div class="modal-body">
-        <p>Le contrat a été créé et signé de votre côté. Envoyez le lien de signature au signataire.</p>
-        <a id="link-whatsapp-share" class="btn btn-whatsapp" target="_blank" rel="noopener">
+
+        <p>
+          Le contrat a été créé et signé de votre côté.
+          Envoyez le lien de signature au signataire.
+        </p>
+
+
+        <a
+          id="link-whatsapp-share"
+          class="btn btn-whatsapp"
+          target="_blank"
+          rel="noopener"
+        >
           Envoyer via WhatsApp
         </a>
+
+
         <div class="form-field">
-          <label for="input-share-link">Ou copiez le lien</label>
+
+          <label for="input-share-link">
+            Ou copiez le lien
+          </label>
+
           <div class="copy-row">
-            <input type="text" id="input-share-link" readonly />
-            <button type="button" id="btn-copy-link" class="btn btn-secondary">Copier</button>
+
+            <input
+              type="text"
+              id="input-share-link"
+              readonly
+            />
+
+            <button
+              type="button"
+              id="btn-copy-link"
+              class="btn btn-secondary"
+            >
+              Copier
+            </button>
+
           </div>
+
         </div>
+
       </div>
+
     </div>
+
   </dialog>
 
-  <script type="module" src="/js/firebase-config.js"></script>
-  <script type="module" src="/js/auth-guard.js"></script>
-  <script type="module" src="/js/contracts.js"></script>
+
+  <!-- =======================================================
+       SCRIPTS
+       ======================================================= -->
+
+  <script
+    type="module"
+    src="/js/firebase-config.js"
+  ></script>
+
+  <script
+    type="module"
+    src="/js/auth-guard.js"
+  ></script>
+
+  <script
+    type="module"
+    src="/js/contracts.js"
+  ></script>
+
 </body>
 </html>
+```
