@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light only">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Panneau Admin — Kontra-Africa</title>
+  <meta name="theme-color" content="#5B3FE0">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+
+  <!-- Écran de chargement pendant la vérification d'accès -->
+  <div class="app-loading" id="adminLoadingScreen">
+    <span class="spinner" aria-hidden="true"></span>
+  </div>
+
+  <div class="admin-shell" id="adminShell" hidden>
+
+    <header class="admin-header">
+      <div class="admin-header__brand">
+        <img src="/logo.webp" alt="Kontra-Africa" class="admin-header__logo">
+        <span class="admin-header__title">Panneau Admin</span>
+      </div>
+      <div class="admin-header__actions">
+        <button type="button" id="btnRefresh" class="btn btn-secondary admin-header__btn">
+          ↻ <span class="admin-header__btn-label">Actualiser</span>
+        </button>
+        <button type="button" id="btnLogout" class="btn btn-ghost admin-header__btn">
+          Déconnexion
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-main container">
+
+      <!-- Bandeau d'erreur générale -->
+      <div class="admin-banner admin-banner--error" id="adminErrorBanner" hidden></div>
+
+      <!-- ==================== Statistiques utilisateurs ==================== -->
+      <section class="admin-section">
+        <h2 class="admin-section__title">Utilisateurs</h2>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <p class="stat-card__label">Total inscrits</p>
+            <p class="stat-card__value" id="statTotalUsers">—</p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label">Abonnés payants</p>
+            <p class="stat-card__value stat-card__value--success" id="statActiveUsers">—</p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label">En période d'essai</p>
+            <p class="stat-card__value" id="statTrialUsers">—</p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label">Expirés / Annulés</p>
+            <p class="stat-card__value stat-card__value--muted" id="statInactiveUsers">—</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== Gains réels ==================== -->
+      <section class="admin-section">
+        <h2 class="admin-section__title">Gains réels</h2>
+        <div class="revenue-card">
+          <div class="revenue-card__main">
+            <p class="revenue-card__label">Ce que vous touchez réellement (après commission Chariow)</p>
+            <p class="revenue-card__value" id="revenueNetValue">—</p>
+            <button type="button" id="btnToggleCurrency" class="btn btn-secondary revenue-card__toggle">
+              ⇄ <span id="btnToggleCurrencyLabel">Voir en Franc Congolais</span>
+            </button>
+          </div>
+          <div class="revenue-card__breakdown">
+            <div class="revenue-card__row">
+              <span>Abonnés payants</span>
+              <span id="revenueActiveCount">—</span>
+            </div>
+            <div class="revenue-card__row">
+              <span>Revenu brut ($5 / mois / abonné)</span>
+              <span id="revenueGrossValue">—</span>
+            </div>
+            <div class="revenue-card__row">
+              <span>Commission Chariow (15%)</span>
+              <span id="revenueChariowCut">—</span>
+            </div>
+            <div class="revenue-card__row revenue-card__row--total">
+              <span>Gain net réel</span>
+              <span id="revenueNetValueSmall">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== Taux de change ==================== -->
+      <section class="admin-section">
+        <h2 class="admin-section__title">Taux de change</h2>
+        <form id="formExchangeRate" class="exchange-form">
+          <div class="exchange-form__group">
+            <label for="inputExchangeRate" class="admin-form__label">1 dollar ($) équivaut à combien de Francs Congolais (FC) ?</label>
+            <div class="exchange-form__row">
+              <span class="exchange-form__prefix">1 $ =</span>
+              <input type="number" id="inputExchangeRate" class="admin-form__input" min="0" step="1" required>
+              <span class="exchange-form__suffix">FC</span>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary exchange-form__save">Enregistrer le taux</button>
+          <p class="exchange-form__msg" id="exchangeRateMsg" hidden></p>
+        </form>
+      </section>
+
+      <!-- ==================== Liste des utilisateurs ==================== -->
+      <section class="admin-section">
+        <div class="admin-section__header">
+          <h2 class="admin-section__title">Liste des utilisateurs</h2>
+          <input type="search" id="userSearchInput" class="admin-form__input admin-section__search" placeholder="Rechercher par email…">
+        </div>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Statut</th>
+                <th>Inscrit le</th>
+                <th>Fin d'abonnement / essai</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Rempli dynamiquement -->
+            </tbody>
+          </table>
+        </div>
+        <p class="admin-table__empty" id="usersTableEmpty" hidden>Aucun utilisateur trouvé.</p>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
