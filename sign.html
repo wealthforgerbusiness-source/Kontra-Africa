@@ -2,45 +2,134 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
   <meta name="color-scheme" content="light only">
   <meta name="supported-color-schemes" content="light">
+
   <title>Signer le contrat — Kontra-Africa</title>
-  <link rel="icon" href="/public/icons/icon-192.png" />
-  <link rel="stylesheet" href="/css/tokens.css" />
-  <link rel="stylesheet" href="/css/sign.css" />
+
+  <link
+    rel="icon"
+    href="/public/icons/icon-192.png"
+  />
+
+  <link
+    rel="stylesheet"
+    href="/css/tokens.css"
+  />
+
+  <link
+    rel="stylesheet"
+    href="/css/sign.css"
+  />
 </head>
 
 <body>
 
   <main class="sign-page">
 
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
     <header class="sign-header">
+
       <img
         src="/public/logo.webp"
         alt="Kontra-Africa"
         class="sign-logo"
       />
+
     </header>
 
 
-    <div id="state-loading" class="state-card">
-      <p>Chargement du contrat…</p>
-    </div>
+    <!-- =====================================================
+         CHARGEMENT
+    ====================================================== -->
 
-
-    <div id="state-error" class="state-card" hidden>
-      <p id="error-message">
-        Ce lien de signature est invalide ou a expiré.
+    <div
+      id="state-loading"
+      class="state-card"
+    >
+      <p>
+        Chargement du contrat…
       </p>
     </div>
 
 
-    <div id="state-already-signed" class="state-card" hidden>
+    <!-- =====================================================
+         ERREUR
+    ====================================================== -->
+
+    <div
+      id="state-error"
+      class="state-card"
+      hidden
+    >
+
+      <p id="error-message">
+        Ce lien de signature est invalide ou a expiré.
+      </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         CONTRAT DÉJÀ SIGNÉ
+    ====================================================== -->
+
+    <div
+      id="state-already-signed"
+      class="state-card"
+      hidden
+    >
+
       <p>
         Ce contrat a déjà été signé le
         <span id="already-signed-date"></span>.
       </p>
+
+
+      <!-- =================================================
+           COMPTE À REBOURS
+      ================================================== -->
+
+      <div
+        id="already-signed-countdown-container"
+        class="contract-expiration-box"
+        hidden
+      >
+
+        <p class="expiration-label">
+          PDF disponible pendant
+        </p>
+
+        <strong
+          id="already-signed-countdown"
+          class="contract-countdown"
+        >
+          24h 00min 00s
+        </strong>
+
+        <p
+          id="already-signed-expiration-message"
+          class="expiration-message"
+          hidden
+        >
+          Le délai de 24 heures est expiré.
+          Le PDF n'est plus disponible.
+        </p>
+
+      </div>
+
+
+      <!-- =================================================
+           PDF
+      ================================================== -->
 
       <a
         id="link-download-pdf"
@@ -51,10 +140,21 @@
       >
         Télécharger le PDF
       </a>
+
     </div>
 
 
-    <article id="contract-view" class="contract-view" hidden>
+    <!-- =====================================================
+         CONTRAT À SIGNER
+    ====================================================== -->
+
+    <article
+      id="contract-view"
+      class="contract-view"
+      hidden
+    >
+
+      <!-- TITRE -->
 
       <h1
         id="contract-title"
@@ -62,11 +162,20 @@
       ></h1>
 
 
+      <!-- CRÉATEUR -->
+
       <p class="contract-view-meta">
+
         Proposé par
-        <span id="contract-creator-name"></span>
+
+        <span
+          id="contract-creator-name"
+        ></span>
+
       </p>
 
+
+      <!-- CONTENU DU CONTRAT -->
 
       <div
         id="contract-content"
@@ -74,9 +183,14 @@
       ></div>
 
 
+      <!-- FORMULAIRE DE SIGNATURE -->
+
       <div class="sign-form">
 
-        <!-- ACCEPTATION DU CONTRAT -->
+
+        <!-- =================================================
+             ACCEPTATION
+        ================================================== -->
 
         <label class="terms-checkbox">
 
@@ -92,16 +206,21 @@
         </label>
 
 
-        <!-- NOM DU SIGNATAIRE -->
+        <!-- =================================================
+             NOM DU SIGNATAIRE
+        ================================================== -->
 
         <div class="form-field">
 
-          <label for="input-typed-name">
+          <label
+            for="input-typed-name"
+          >
             Votre nom complet
           </label>
 
           <p class="field-hint">
-            Saisissez votre nom. Il apparaîtra sur le contrat signé.
+            Saisissez votre nom.
+            Il apparaîtra sur le contrat signé.
           </p>
 
           <input
@@ -118,7 +237,9 @@
         </div>
 
 
-        <!-- SIGNATURE DESSINÉE -->
+        <!-- =================================================
+             SIGNATURE
+        ================================================== -->
 
         <div class="form-field">
 
@@ -130,6 +251,7 @@
             Dessinez votre signature avec le doigt ou la souris
           </p>
 
+
           <div class="signature-pad-wrap">
 
             <canvas
@@ -139,6 +261,7 @@
               height="180"
               aria-label="Zone de signature"
             ></canvas>
+
 
             <button
               type="button"
@@ -153,7 +276,9 @@
         </div>
 
 
-        <!-- MESSAGE D'ERREUR -->
+        <!-- =================================================
+             MESSAGE D'ERREUR
+        ================================================== -->
 
         <p
           id="sign-error"
@@ -163,7 +288,9 @@
         ></p>
 
 
-        <!-- BOUTON SIGNER -->
+        <!-- =================================================
+             BOUTON SIGNER
+        ================================================== -->
 
         <button
           type="button"
@@ -173,30 +300,85 @@
           Signer le contrat
         </button>
 
+
       </div>
 
     </article>
 
 
-    <div id="state-success" class="state-card" hidden>
+    <!-- =====================================================
+         SIGNATURE RÉUSSIE
+    ====================================================== -->
+
+    <div
+      id="state-success"
+      class="state-card"
+      hidden
+    >
 
       <p>
         Contrat signé avec succès.
       </p>
+
+
+      <!-- =================================================
+           DÉLAI 24H
+      ================================================== -->
+
+      <div
+        id="success-countdown-container"
+        class="contract-expiration-box"
+        hidden
+      >
+
+        <p class="expiration-label">
+          Votre PDF est disponible pendant
+        </p>
+
+
+        <strong
+          id="success-countdown"
+          class="contract-countdown"
+        >
+          24h 00min 00s
+        </strong>
+
+
+        <p
+          id="success-expiration-message"
+          class="expiration-message"
+          hidden
+        >
+          Le délai de 24 heures est expiré.
+          Le PDF n'est plus disponible.
+        </p>
+
+      </div>
+
+
+      <!-- =================================================
+           TÉLÉCHARGEMENT PDF
+      ================================================== -->
 
       <a
         id="link-download-pdf-success"
         class="btn btn-primary"
         target="_blank"
         rel="noopener"
+        hidden
       >
         Télécharger votre PDF
       </a>
 
     </div>
 
+
   </main>
 
+
+  <!-- =======================================================
+       JAVASCRIPT
+  ======================================================== -->
 
   <script
     type="module"
