@@ -8,41 +8,37 @@
   <title>Connexion — Kontra-Africa</title>
   <meta name="description" content="Connectez-vous à Kontra-Africa avec votre compte Google.">
   <meta name="theme-color" content="#5B3FE0">
-
   <link rel="icon" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="manifest" href="/manifest.json">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/login.css">
 </head>
 <body>
-
   <main class="login-page">
     <div class="login-card">
-
       <a href="/" class="login-card__logo-link" aria-label="Retour à l'accueil">
         <img src="/logo.webp" alt="Kontra-Africa" class="login-card__logo">
       </a>
-
       <div class="login-card__intro">
         <h1 class="login-card__title">Bienvenue sur Kontra-Africa</h1>
         <p class="login-card__subtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
       </div>
-
-      <!-- Case à cocher obligatoire : conditions d'utilisation -->
+      <!-- Case à cocher obligatoire : CGU + Politique de confidentialité -->
       <label class="login-card__terms" for="termsCheckbox">
         <input type="checkbox" id="termsCheckbox" class="login-card__terms-checkbox">
-        <span>J'accepte les <a href="/terms.html" target="_blank" rel="noopener">conditions d'utilisation</a></span>
+        <span>
+          En créant un compte, j'accepte les
+          <a href="/terms.html" target="_blank" rel="noopener">Conditions Générales d'Utilisation</a>
+          et je confirme avoir lu la
+          <a href="/privacy.html" target="_blank" rel="noopener">Politique de confidentialité</a>.
+        </span>
       </label>
-
       <!-- Zone d'état : bouton par défaut, chargement, ou erreur -->
       <div class="login-card__zone">
-
         <button type="button" id="googleBtn" class="google-btn" disabled>
           <svg class="google-btn__icon" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.4 5.3 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.8-.4-3.5z"/>
@@ -52,24 +48,25 @@
           </svg>
           <span>Continuer avec Google</span>
         </button>
-
         <div class="login-state login-state--loading" id="loadingState" hidden>
           <span class="spinner" aria-hidden="true"></span>
           <p id="loadingLabel">Connexion en cours…</p>
         </div>
-
         <div class="login-state login-state--error" id="errorState" role="alert" hidden>
           <p id="errorMessage">Une erreur est survenue.</p>
           <button type="button" id="retryBtn" class="btn btn-secondary">Réessayer</button>
         </div>
-
+        <!-- Solution de secours affichée uniquement si la connexion reste
+             bloquée en mode PWA installée (bug connu de certains navigateurs
+             mobiles avec le stockage de session en mode standalone). -->
+        <div class="login-state login-state--fallback" id="openBrowserFallback" hidden>
+          <p>La connexion prend plus de temps que prévu dans l'application installée.</p>
+          <button type="button" id="openBrowserBtn" class="btn btn-secondary">Ouvrir dans le navigateur</button>
+        </div>
       </div>
-
       <p class="login-card__trial">Essai gratuit de 3 jours, sans carte bancaire requise</p>
-
     </div>
   </main>
-
   <script type="module" src="/js/login.js"></script>
 </body>
 </html>
