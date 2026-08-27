@@ -1,11 +1,16 @@
 {
   "name": "Kontra-Africa",
   "short_name": "Kontra",
+  "description": "Kontra-Africa — Gestion des contrats et des finances",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#FFF8F0",
   "theme_color": "#5B3FE0",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "dir": "ltr",
+
   "icons": [
     {
       "src": "/icons/icon-192.png",
