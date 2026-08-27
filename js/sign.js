@@ -1,9 +1,3 @@
-```js
-// js/sign.js
-// Page publique de signature
-// Le signataire n'a pas besoin de compte.
-// Toutes les données passent par le backend.
-
 const API_BASE = 'https://kontra-africa.onrender.com';
 
 // ============================================================
@@ -687,4 +681,3 @@ function showSignError(
 // ============================================================
 
 init();
-```
