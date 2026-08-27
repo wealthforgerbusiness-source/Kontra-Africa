@@ -1,7 +1,3 @@
-```js
-// js/contracts.js
-// Module Contrats — vue créateur (protégée par auth-guard.js)
-
 import { db } from './firebase-config.js';
 import { requireAppAccess } from './auth-guard.js';
 
