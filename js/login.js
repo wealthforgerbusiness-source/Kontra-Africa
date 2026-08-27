@@ -8,7 +8,17 @@ import {
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 
-const INIT_USER_TIMEOUT_MS = 60000;
+// ============================================================
+// CONFIGURATION
+// ============================================================
+
+const INIT_USER_TIMEOUT_MS = 120000; // 2 minutes
+const INIT_USER_MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 5000;
+
+// ============================================================
+// ELEMENTS
+// ============================================================
 
 const googleBtn = document.getElementById('googleBtn');
 const termsCheckbox = document.getElementById('termsCheckbox');
@@ -21,13 +31,11 @@ const errorMessage = document.getElementById('errorMessage');
 
 const retryBtn = document.getElementById('retryBtn');
 
-
 // ============================================================
 // UI
 // ============================================================
 
 function showButton() {
-
   googleBtn.hidden = false;
   googleBtn.disabled = !termsCheckbox.checked;
 
@@ -35,9 +43,7 @@ function showButton() {
   errorState.hidden = true;
 }
 
-
 function showLoading(label) {
-
   googleBtn.hidden = true;
 
   loadingState.hidden = false;
@@ -46,9 +52,7 @@ function showLoading(label) {
   loadingLabel.textContent = label;
 }
 
-
 function showError(message) {
-
   googleBtn.hidden = false;
   googleBtn.disabled = false;
 
@@ -59,13 +63,19 @@ function showError(message) {
   errorMessage.textContent = message;
 }
 
+// ============================================================
+// UTILITAIRE
+// ============================================================
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // ============================================================
 // ERREURS FIREBASE
 // ============================================================
 
 function translateAuthError(error) {
-
   console.error('Firebase Auth error:', error);
 
   const code = error?.code;
@@ -101,15 +111,13 @@ function translateAuthError(error) {
   }
 }
 
-
 // ============================================================
-// BACKEND
+// INITIALISATION UTILISATEUR COTE BACKEND
 // ============================================================
 
 async function initUserOnBackend(firebaseUser) {
 
   const payload = {
-
     uid: firebaseUser.uid,
 
     email: firebaseUser.email || '',
@@ -121,86 +129,151 @@ async function initUserOnBackend(firebaseUser) {
       firebaseUser.photoURL || ''
   };
 
+  let lastError = null;
 
-  showLoading(
-    "Préparation de votre espace… cela peut prendre jusqu'à 1 minute."
-  );
+  // ----------------------------------------------------------
+  // PLUSIEURS TENTATIVES AUTOMATIQUES
+  // ----------------------------------------------------------
 
+  for (
+    let attempt = 1;
+    attempt <= INIT_USER_MAX_ATTEMPTS;
+    attempt++
+  ) {
 
-  const controller =
-    new AbortController();
-
-
-  const timeoutId =
-    setTimeout(
-      () => controller.abort(),
-      INIT_USER_TIMEOUT_MS
+    showLoading(
+      attempt === 1
+        ? "Préparation de votre espace…"
+        : `Le serveur démarre… nouvelle tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
     );
 
+    console.log(
+      `🚀 init-user : tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
+    );
 
-  try {
+    const controller = new AbortController();
 
-    const response =
-      await fetch(
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, INIT_USER_TIMEOUT_MS);
+
+    try {
+
+      const response = await fetch(
         `${API_BASE_URL}/api/init-user`,
         {
-
           method: 'POST',
 
           headers: {
-            'Content-Type':
-              'application/json'
+            'Content-Type': 'application/json'
           },
 
-          body: JSON.stringify(
-            payload
-          ),
+          body: JSON.stringify(payload),
 
-          signal:
-            controller.signal
+          signal: controller.signal
         }
       );
 
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
+      // ------------------------------------------------------
+      // SUCCÈS
+      // ------------------------------------------------------
 
-      throw new Error(
+      if (response.ok) {
+
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        console.log(
+          '✅ Compte initialisé côté serveur',
+          data
+        );
+
+        return data;
+      }
+
+      // ------------------------------------------------------
+      // ERREUR SERVEUR
+      // ------------------------------------------------------
+
+      const error = new Error(
         `init-user a répondu avec le statut ${response.status}`
       );
-    }
 
-
-    return await response
-      .json()
-      .catch(
-        () => ({})
+      console.error(
+        `❌ Tentative ${attempt} échouée :`,
+        error
       );
 
+      lastError = error;
 
-  } catch (err) {
+      // Les erreurs 4xx définitives ne nécessitent
+      // généralement pas de nouvelle tentative.
+      if (
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 408 &&
+        response.status !== 429
+      ) {
+        throw error;
+      }
 
-    if (
-      err.name === 'AbortError'
-    ) {
+    } catch (err) {
 
-      throw new Error(
-        'TIMEOUT_INIT_USER'
-      );
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError') {
+
+        console.warn(
+          `⏱️ Timeout init-user à la tentative ${attempt}`
+        );
+
+        lastError = new Error(
+          'TIMEOUT_INIT_USER'
+        );
+
+      } else {
+
+        console.error(
+          `❌ Erreur init-user tentative ${attempt}:`,
+          err
+        );
+
+        lastError = err;
+      }
     }
 
-    throw err;
+    // --------------------------------------------------------
+    // ATTENTE AVANT NOUVEL ESSAI
+    // --------------------------------------------------------
 
-  } finally {
+    if (attempt < INIT_USER_MAX_ATTEMPTS) {
 
-    clearTimeout(
-      timeoutId
-    );
+      showLoading(
+        "Le serveur démarre… veuillez patienter."
+      );
+
+      console.log(
+        `⏳ Nouvelle tentative dans ${RETRY_DELAY_MS / 1000} secondes`
+      );
+
+      await sleep(RETRY_DELAY_MS);
+    }
   }
+
+  // ----------------------------------------------------------
+  // TOUTES LES TENTATIVES ONT ÉCHOUÉ
+  // ----------------------------------------------------------
+
+  throw lastError || new Error(
+    'INIT_USER_FAILED'
+  );
 }
 
-
 // ============================================================
-// CONNEXION TERMINÉE
+// CONNEXION TERMINEE
 // ============================================================
 
 async function completeSignIn(firebaseUser) {
@@ -212,36 +285,36 @@ async function completeSignIn(firebaseUser) {
       firebaseUser.email
     );
 
+    // --------------------------------------------------------
+    // PREPARATION DU COMPTE
+    // --------------------------------------------------------
 
-    await initUserOnBackend(
-      firebaseUser
-    );
-
+    await initUserOnBackend(firebaseUser);
 
     console.log(
-      '✅ Utilisateur initialisé côté serveur'
+      '✅ Utilisateur prêt côté serveur'
     );
 
+    // --------------------------------------------------------
+    // DASHBOARD
+    // --------------------------------------------------------
 
     window.location.href =
       '/dashboard.html';
 
-
   } catch (err) {
 
     console.error(
-      '❌ Erreur init-user :',
+      '❌ Impossible de préparer le compte :',
       err
     );
 
-
     if (
-      err.message ===
-      'TIMEOUT_INIT_USER'
+      err.message === 'TIMEOUT_INIT_USER'
     ) {
 
       showError(
-        "Le serveur met trop de temps à démarrer. Réessayez dans quelques secondes."
+        "Le serveur met trop de temps à démarrer. Vérifiez votre connexion puis réessayez."
       );
 
     } else {
@@ -253,25 +326,19 @@ async function completeSignIn(firebaseUser) {
   }
 }
 
-
 // ============================================================
 // CONNEXION GOOGLE
 // ============================================================
 
 async function startGoogleSignIn() {
 
-  if (
-    !termsCheckbox.checked
-  ) {
-
+  if (!termsCheckbox.checked) {
     return;
   }
-
 
   showLoading(
     "Connexion à Google…"
   );
-
 
   try {
 
@@ -284,24 +351,17 @@ async function startGoogleSignIn() {
       browserLocalPersistence
     );
 
-
     console.log(
       '🔐 Persistence Firebase configurée'
     );
 
-
     // --------------------------------------------------------
     // GOOGLE POPUP
-    //
-    // IMPORTANT :
-    // Aucun signInWithRedirect()
-    // Aucun getRedirectResult()
     // --------------------------------------------------------
 
     console.log(
       '🌐 Connexion Google avec Popup'
     );
-
 
     const result =
       await signInWithPopup(
@@ -309,6 +369,9 @@ async function startGoogleSignIn() {
         googleProvider
       );
 
+    // --------------------------------------------------------
+    // VERIFICATION UTILISATEUR
+    // --------------------------------------------------------
 
     if (
       !result ||
@@ -320,21 +383,18 @@ async function startGoogleSignIn() {
       );
     }
 
-
     console.log(
       '✅ Google connecté :',
       result.user.email
     );
 
-
     // --------------------------------------------------------
-    // INITIALISER LE COMPTE
+    // INITIALISATION DU COMPTE
     // --------------------------------------------------------
 
     await completeSignIn(
       result.user
     );
-
 
   } catch (err) {
 
@@ -343,16 +403,14 @@ async function startGoogleSignIn() {
       err
     );
 
-
     showError(
       translateAuthError(err)
     );
   }
 }
 
-
 // ============================================================
-// CHECKBOX
+// CHECKBOX CONDITIONS
 // ============================================================
 
 termsCheckbox.addEventListener(
@@ -364,7 +422,6 @@ termsCheckbox.addEventListener(
   }
 );
 
-
 // ============================================================
 // BOUTON GOOGLE
 // ============================================================
@@ -373,7 +430,6 @@ googleBtn.addEventListener(
   'click',
   startGoogleSignIn
 );
-
 
 // ============================================================
 // BOUTON RETRY
@@ -390,7 +446,6 @@ if (retryBtn) {
     }
   );
 }
-
 
 // ============================================================
 // INITIALISATION
