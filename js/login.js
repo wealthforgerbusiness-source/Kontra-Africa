@@ -8,246 +8,597 @@ import {
   browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
+
+/* ==========================================================================
+   CONFIGURATION
+   ========================================================================== */
+
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
 
 const REDIRECT_KEY = 'kontra_auth_pending';
 
-// Render peut mettre du temps à démarrer
 const INIT_USER_TIMEOUT_MS = 60000;
 
-const googleBtn = document.getElementById('googleBtn');
-const termsCheckbox = document.getElementById('termsCheckbox');
-const loadingState = document.getElementById('loadingState');
-const loadingLabel = document.getElementById('loadingLabel');
-const errorState = document.getElementById('errorState');
-const errorMessage = document.getElementById('errorMessage');
-const retryBtn = document.getElementById('retryBtn');
-const openBrowserFallback = document.getElementById('openBrowserFallback');
-const openBrowserBtn = document.getElementById('openBrowserBtn');
+const AUTH_RESTORE_TIMEOUT_MS = 15000;
+
+
+/* ==========================================================================
+   ÉLÉMENTS HTML
+   ========================================================================== */
+
+const googleBtn =
+  document.getElementById('googleBtn');
+
+const termsCheckbox =
+  document.getElementById('termsCheckbox');
+
+const loadingState =
+  document.getElementById('loadingState');
+
+const loadingLabel =
+  document.getElementById('loadingLabel');
+
+const errorState =
+  document.getElementById('errorState');
+
+const errorMessage =
+  document.getElementById('errorMessage');
+
+const retryBtn =
+  document.getElementById('retryBtn');
+
+const openBrowserFallback =
+  document.getElementById('openBrowserFallback');
+
+const openBrowserBtn =
+  document.getElementById('openBrowserBtn');
+
 
 /* ==========================================================================
    DÉTECTION MOBILE
    ========================================================================== */
 
 const isMobile =
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  /Android|iPhone|iPad|iPod/i.test(
+    navigator.userAgent
+  );
+
 
 /* ==========================================================================
-   DÉTECTION PWA INSTALLÉE
+   DÉTECTION PWA
    ========================================================================== */
 
 const isStandalone =
-  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia(
+    '(display-mode: standalone)'
+  ).matches ||
   window.navigator.standalone === true;
+
+
+/* ==========================================================================
+   VÉRIFICATION DES ÉLÉMENTS
+   ========================================================================== */
+
+if (
+  !googleBtn ||
+  !termsCheckbox ||
+  !loadingState ||
+  !loadingLabel ||
+  !errorState ||
+  !errorMessage ||
+  !retryBtn ||
+  !openBrowserFallback ||
+  !openBrowserBtn
+) {
+  console.error(
+    '[AUTH] Un ou plusieurs éléments HTML de connexion sont introuvables.'
+  );
+}
+
+
+/* ==========================================================================
+   SYNCHRONISATION DE LA CHECKBOX AVEC LE BOUTON GOOGLE
+   ========================================================================== */
+
+/*
+ * IMPORTANT :
+ *
+ * login.html démarre avec :
+ *
+ * <button ... disabled>
+ *
+ * Sur certains téléphones, le navigateur peut restaurer visuellement
+ * la checkbox comme cochée sans déclencher immédiatement "change".
+ *
+ * On ne dépend donc plus uniquement de l'événement change.
+ */
+
+function syncGoogleButton() {
+
+  if (
+    !googleBtn ||
+    !termsCheckbox
+  ) {
+    return;
+  }
+
+  const accepted =
+    termsCheckbox.checked === true;
+
+  googleBtn.disabled =
+    !accepted;
+
+  console.log(
+    '[AUTH] Checkbox:',
+    accepted,
+    '| Google button disabled:',
+    googleBtn.disabled
+  );
+}
+
+
+/*
+ * Événement classique.
+ */
+termsCheckbox.addEventListener(
+  'change',
+  syncGoogleButton
+);
+
+
+/*
+ * Événement supplémentaire sur mobile.
+ */
+termsCheckbox.addEventListener(
+  'input',
+  syncGoogleButton
+);
+
+
+/*
+ * Le navigateur peut restaurer les formulaires après le chargement.
+ */
+window.addEventListener(
+  'pageshow',
+  syncGoogleButton
+);
+
+
+/*
+ * Lorsque la page reprend le focus.
+ */
+window.addEventListener(
+  'focus',
+  syncGoogleButton
+);
+
+
+/*
+ * Première synchronisation.
+ */
+syncGoogleButton();
+
+
+/*
+ * Vérifications supplémentaires contre la restauration automatique
+ * du navigateur / PWA.
+ */
+setTimeout(
+  syncGoogleButton,
+  50
+);
+
+setTimeout(
+  syncGoogleButton,
+  100
+);
+
+setTimeout(
+  syncGoogleButton,
+  300
+);
+
+setTimeout(
+  syncGoogleButton,
+  500
+);
+
+setTimeout(
+  syncGoogleButton,
+  1000
+);
+
+setTimeout(
+  syncGoogleButton,
+  2000
+);
+
 
 /* ==========================================================================
    ÉTATS VISUELS
    ========================================================================== */
 
 function showButton() {
+
   googleBtn.hidden = false;
-  googleBtn.disabled = !termsCheckbox.checked;
 
   loadingState.hidden = true;
+
   errorState.hidden = true;
+
   openBrowserFallback.hidden = true;
+
+  /*
+   * Très important :
+   * on resynchronise ici après les opérations Firebase.
+   */
+  syncGoogleButton();
 }
 
+
 function showLoading(label) {
+
   googleBtn.hidden = true;
+
   errorState.hidden = true;
+
   openBrowserFallback.hidden = true;
 
   loadingState.hidden = false;
+
   loadingLabel.textContent = label;
 }
 
+
 function showError(message) {
+
   googleBtn.hidden = true;
+
   loadingState.hidden = true;
+
   openBrowserFallback.hidden = true;
 
   errorState.hidden = false;
+
   errorMessage.textContent = message;
 }
 
+
 function showFallback() {
+
   googleBtn.hidden = true;
+
   loadingState.hidden = true;
+
   errorState.hidden = true;
 
   openBrowserFallback.hidden = false;
 }
 
-/* ==========================================================================
-   CASE À COCHER
-   ========================================================================== */
 
-function syncGoogleButton() {
-  if (!googleBtn || !termsCheckbox) return;
-
-  googleBtn.disabled = !termsCheckbox.checked;
-
-  console.log(
-    '[AUTH] CGU:',
-    termsCheckbox.checked,
-    '| Google button disabled:',
-    googleBtn.disabled
-  );
-}
-
-termsCheckbox.addEventListener(
-  'change',
-  syncGoogleButton
-);
-
-termsCheckbox.addEventListener(
-  'input',
-  syncGoogleButton
-);
-
-window.addEventListener(
-  'pageshow',
-  syncGoogleButton
-);
-
-window.addEventListener(
-  'focus',
-  syncGoogleButton
-);
-
-// Initialisation
-syncGoogleButton();
-
-// Sécurité contre la restauration automatique du navigateur/PWA
-setTimeout(syncGoogleButton, 100);
-setTimeout(syncGoogleButton, 500);
-setTimeout(syncGoogleButton, 1000);
 /* ==========================================================================
    TRADUCTION DES ERREURS FIREBASE
    ========================================================================== */
 
 function translateAuthError(error) {
-  const code = error && error.code;
+
+  const code =
+    error && error.code;
 
   switch (code) {
+
     case 'auth/popup-closed-by-user':
+
     case 'auth/cancelled-popup-request':
-      return "La fenêtre de connexion a été fermée avant la fin. Réessayez.";
+
+      return (
+        "La fenêtre de connexion a été fermée avant la fin. Réessayez."
+      );
+
 
     case 'auth/network-request-failed':
-      return "Problème de connexion internet. Vérifiez votre réseau et réessayez.";
+
+      return (
+        "Problème de connexion internet. Vérifiez votre réseau et réessayez."
+      );
+
 
     case 'auth/popup-blocked':
-      return "La fenêtre de connexion a été bloquée par le navigateur. Réessayez.";
+
+      return (
+        "La fenêtre de connexion a été bloquée par le navigateur. Réessayez."
+      );
+
 
     case 'auth/unauthorized-domain':
-      return "Ce domaine n'est pas autorisé par Firebase Authentication.";
+
+      return (
+        "Ce domaine n'est pas autorisé par Firebase Authentication."
+      );
+
 
     case 'auth/operation-not-allowed':
-      return "La connexion Google n'est pas activée dans Firebase.";
 
-    case 'auth/account-exists-with-different-credential':
-      return "Un compte existe déjà avec cette adresse email.";
+      return (
+        "La connexion Google n'est pas activée dans Firebase."
+      );
+
 
     default:
-      console.error('[AUTH] Erreur Firebase complète:', error);
 
-      return "La connexion avec Google a échoué. Réessayez.";
+      console.error(
+        '[AUTH] Erreur Firebase:',
+        error
+      );
+
+      return (
+        "La connexion avec Google a échoué. Réessayez."
+      );
   }
 }
 
+
 /* ==========================================================================
-   INITIALISATION DU PROFIL UTILISATEUR SUR LE BACKEND
+   INITIALISATION UTILISATEUR SUR LE BACKEND
    ========================================================================== */
 
-async function initUserOnBackend(firebaseUser) {
+async function initUserOnBackend(
+  firebaseUser
+) {
+
   const payload = {
-    uid: firebaseUser.uid,
-    email: firebaseUser.email,
-    displayName: firebaseUser.displayName,
-    photoURL: firebaseUser.photoURL
+
+    uid:
+      firebaseUser.uid,
+
+    email:
+      firebaseUser.email,
+
+    displayName:
+      firebaseUser.displayName,
+
+    photoURL:
+      firebaseUser.photoURL
   };
+
 
   showLoading(
     "Préparation de votre espace… (cela peut prendre jusqu'à 1 minute la première fois)"
   );
 
-  const controller = new AbortController();
 
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, INIT_USER_TIMEOUT_MS);
+  const controller =
+    new AbortController();
 
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/init-user`,
-      {
-        method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json'
-        },
-
-        body: JSON.stringify(payload),
-
-        signal: controller.signal
-      }
+  const timeoutId =
+    setTimeout(
+      () => controller.abort(),
+      INIT_USER_TIMEOUT_MS
     );
 
+
+  try {
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/api/init-user`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify(payload),
+
+          signal:
+            controller.signal
+        }
+      );
+
+
     if (!response.ok) {
+
       throw new Error(
         `init-user a répondu avec le statut ${response.status}`
       );
     }
 
-    return await response.json().catch(() => ({}));
+
+    return await response
+      .json()
+      .catch(
+        () => ({})
+      );
 
   } catch (err) {
 
-    if (err.name === 'AbortError') {
-      throw new Error('TIMEOUT_INIT_USER');
+    if (
+      err.name === 'AbortError'
+    ) {
+
+      throw new Error(
+        'TIMEOUT_INIT_USER'
+      );
     }
 
     throw err;
 
   } finally {
-    clearTimeout(timeoutId);
+
+    clearTimeout(
+      timeoutId
+    );
   }
 }
 
+
 /* ==========================================================================
-   FLUX COMPLET APRÈS AUTHENTIFICATION
+   ATTEND LA RESTAURATION FIREBASE
    ========================================================================== */
 
-async function completeSignIn(firebaseUser) {
+/*
+ * Correction importante pour mobile/PWA.
+ *
+ * getRedirectResult() peut parfois retourner null alors que Firebase
+ * est encore en train de restaurer auth.currentUser.
+ *
+ * On attend donc explicitement que Firebase ait terminé.
+ */
+
+async function waitForFirebaseAuth() {
+
+  /*
+   * Firebase moderne possède authStateReady().
+   */
+
+  if (
+    typeof auth.authStateReady ===
+    'function'
+  ) {
+
+    try {
+
+      await auth.authStateReady();
+
+      console.log(
+        '[AUTH] Firebase a terminé la restauration de la session.'
+      );
+
+      return (
+        auth.currentUser ||
+        null
+      );
+
+    } catch (error) {
+
+      console.warn(
+        '[AUTH] authStateReady() a rencontré une erreur:',
+        error
+      );
+    }
+  }
+
+
+  /*
+   * Fallback avec onAuthStateChanged.
+   */
+
+  return new Promise(
+    (resolve) => {
+
+      let finished = false;
+
+      let unsubscribe = null;
+
+
+      const timeoutId =
+        setTimeout(
+          () => {
+
+            if (finished) {
+              return;
+            }
+
+            finished = true;
+
+            if (unsubscribe) {
+              unsubscribe();
+            }
+
+            resolve(
+              auth.currentUser ||
+              null
+            );
+
+          },
+          AUTH_RESTORE_TIMEOUT_MS
+        );
+
+
+      unsubscribe =
+        auth.onAuthStateChanged(
+          (user) => {
+
+            if (finished) {
+              return;
+            }
+
+            finished = true;
+
+            clearTimeout(
+              timeoutId
+            );
+
+            if (unsubscribe) {
+              unsubscribe();
+            }
+
+            resolve(
+              user ||
+              null
+            );
+          }
+        );
+    }
+  );
+}
+
+
+/* ==========================================================================
+   FINALISATION DE LA CONNEXION
+   ========================================================================== */
+
+async function completeSignIn(
+  firebaseUser
+) {
 
   if (!firebaseUser) {
-    throw new Error('NO_FIREBASE_USER');
+
+    throw new Error(
+      'NO_FIREBASE_USER'
+    );
   }
+
 
   try {
 
     console.log(
-      '[AUTH] Utilisateur Firebase détecté:',
+      '[AUTH] Utilisateur Firebase:',
       firebaseUser.uid
     );
 
-    await initUserOnBackend(firebaseUser);
 
-    /*
-     * IMPORTANT :
-     *
-     * On ne supprime kontra_auth_pending qu'après que Firebase
-     * et le backend aient correctement terminé.
-     */
-    localStorage.removeItem(REDIRECT_KEY);
-
-    console.log(
-      '[AUTH] Connexion terminée. Redirection vers dashboard.'
+    await initUserOnBackend(
+      firebaseUser
     );
 
-    window.location.replace('/dashboard.html');
+
+    /*
+     * On supprime le marqueur uniquement lorsque tout est terminé.
+     */
+
+    localStorage.removeItem(
+      REDIRECT_KEY
+    );
+
+
+    console.log(
+      '[AUTH] Connexion réussie.'
+    );
+
+
+    /*
+     * replace() évite de revenir sur la page login avec le bouton
+     * retour du navigateur.
+     */
+
+    window.location.replace(
+      '/dashboard.html'
+    );
 
   } catch (err) {
 
@@ -256,9 +607,16 @@ async function completeSignIn(firebaseUser) {
       err
     );
 
-    localStorage.removeItem(REDIRECT_KEY);
 
-    if (err.message === 'TIMEOUT_INIT_USER') {
+    localStorage.removeItem(
+      REDIRECT_KEY
+    );
+
+
+    if (
+      err.message ===
+      'TIMEOUT_INIT_USER'
+    ) {
 
       showError(
         "La préparation de votre espace prend plus de temps que prévu (le serveur démarre). Réessayez dans un instant."
@@ -273,161 +631,89 @@ async function completeSignIn(firebaseUser) {
   }
 }
 
-/* ==========================================================================
-   ATTEND QUE FIREBASE AIT TERMINÉ DE RESTAURER LA SESSION
-   ========================================================================== */
-
-/*
- * C'est la correction principale pour mobile/PWA.
- *
- * Sur certains téléphones :
- *
- * getRedirectResult() peut retourner null
- * ALORS QUE
- * auth.currentUser existe déjà.
- *
- * On attend donc que Firebase ait terminé sa restauration avant
- * de décider que l'utilisateur n'est pas connecté.
- */
-
-async function waitForFirebaseAuth() {
-
-  try {
-
-    /*
-     * authStateReady() est disponible dans les versions modernes
-     * de Firebase Auth et attend que l'état initial soit connu.
-     */
-    if (
-      typeof auth.authStateReady === 'function'
-    ) {
-      await auth.authStateReady();
-
-      console.log(
-        '[AUTH] Firebase a terminé la restauration de la session.'
-      );
-
-      return auth.currentUser || null;
-    }
-
-  } catch (error) {
-
-    console.warn(
-      '[AUTH] authStateReady() indisponible ou en erreur:',
-      error
-    );
-  }
-
-  /*
-   * Fallback compatible :
-   * si authStateReady() n'est pas disponible, on écoute
-   * temporairement l'état Firebase.
-   */
-
-  return new Promise((resolve) => {
-
-    let resolved = false;
-
-    const timeoutId = setTimeout(() => {
-
-      if (resolved) {
-        return;
-      }
-
-      resolved = true;
-
-      resolve(auth.currentUser || null);
-
-    }, 10000);
-
-    const unsubscribe =
-      auth.onAuthStateChanged
-        ? auth.onAuthStateChanged((user) => {
-
-            if (resolved) {
-              return;
-            }
-
-            resolved = true;
-
-            clearTimeout(timeoutId);
-
-            unsubscribe();
-
-            resolve(user || null);
-
-          })
-        : null;
-
-    /*
-     * Si la méthode n'existe pas, on utilise directement currentUser.
-     */
-    if (!unsubscribe) {
-
-      clearTimeout(timeoutId);
-
-      resolved = true;
-
-      resolve(auth.currentUser || null);
-    }
-  });
-}
 
 /* ==========================================================================
-   LANCEMENT CONNEXION GOOGLE
+   CONNEXION GOOGLE
    ========================================================================== */
 
 async function startGoogleSignIn() {
 
-  if (!termsCheckbox.checked) {
+  /*
+   * Vérification de sécurité.
+   */
+
+  if (
+    !termsCheckbox.checked
+  ) {
+
+    syncGoogleButton();
+
     return;
   }
 
-  showLoading('Connexion à Google…');
+
+  showLoading(
+    'Connexion à Google…'
+  );
+
 
   try {
 
     /*
-     * On conserve la persistance locale existante.
+     * On conserve la persistance locale.
      */
+
     await setPersistence(
       auth,
       browserLocalPersistence
     );
 
+
+    /*
+     * MOBILE
+     *
+     * On conserve ton système Redirect.
+     */
+
     if (isMobile) {
 
-      /*
-       * On mémorise le fait qu'une redirection est en cours.
-       */
       localStorage.setItem(
         REDIRECT_KEY,
         '1'
       );
 
+
       console.log(
-        '[AUTH] Mobile détecté : lancement Google Redirect.'
+        '[AUTH] Mobile détecté : utilisation de signInWithRedirect().'
       );
+
 
       await signInWithRedirect(
         auth,
         googleProvider
       );
 
+
       /*
-       * La page va être rechargée après Google.
+       * La page est rechargée après Google.
        */
+
       return;
     }
 
+
     /*
-     * Ordinateur :
-     * on conserve exactement le système popup existant.
+     * ORDINATEUR
+     *
+     * On conserve ton système Popup.
      */
-    const result = await signInWithPopup(
-      auth,
-      googleProvider
-    );
+
+    const result =
+      await signInWithPopup(
+        auth,
+        googleProvider
+      );
+
 
     if (
       result &&
@@ -438,44 +724,51 @@ async function startGoogleSignIn() {
         result.user
       );
 
-    } else {
-
-      /*
-       * Sécurité supplémentaire.
-       */
-      const currentUser =
-        await waitForFirebaseAuth();
-
-      if (currentUser) {
-
-        await completeSignIn(
-          currentUser
-        );
-
-      } else {
-
-        throw new Error(
-          'NO_FIREBASE_USER'
-        );
-      }
+      return;
     }
+
+
+    /*
+     * Sécurité supplémentaire.
+     */
+
+    const currentUser =
+      await waitForFirebaseAuth();
+
+
+    if (currentUser) {
+
+      await completeSignIn(
+        currentUser
+      );
+
+      return;
+    }
+
+
+    throw new Error(
+      'NO_FIREBASE_USER'
+    );
 
   } catch (err) {
 
     console.error(
-      '[AUTH] Erreur signInWithGoogle:',
+      '[AUTH] Erreur connexion Google:',
       err
     );
+
 
     localStorage.removeItem(
       REDIRECT_KEY
     );
+
 
     showError(
       translateAuthError(err)
     );
   }
 }
+
 
 /* ==========================================================================
    TRAITEMENT DU RETOUR GOOGLE REDIRECT
@@ -488,30 +781,38 @@ async function checkRedirectResult() {
       REDIRECT_KEY
     );
 
+
   try {
 
     showLoading(
       'Vérification de votre connexion…'
     );
 
+
     /*
-     * On remet la persistance locale avant de récupérer le résultat.
+     * Persistance locale.
      */
+
     await setPersistence(
       auth,
       browserLocalPersistence
     );
 
+
     /*
      * Première tentative :
-     * récupérer directement le résultat du redirect.
+     * récupérer le résultat du redirect.
      */
+
     let result = null;
+
 
     try {
 
       result =
-        await getRedirectResult(auth);
+        await getRedirectResult(
+          auth
+        );
 
     } catch (redirectError) {
 
@@ -521,16 +822,17 @@ async function checkRedirectResult() {
       );
 
       /*
-       * On ne considère PAS immédiatement que l'utilisateur
-       * est déconnecté.
+       * IMPORTANT :
        *
-       * Firebase peut déjà avoir restauré currentUser.
+       * On ne redirige PAS immédiatement vers login.
+       * On vérifie d'abord auth.currentUser.
        */
     }
 
-    /* -----------------------------------------------------------------------
-       CAS 1 — getRedirectResult() retourne bien l'utilisateur
-       ----------------------------------------------------------------------- */
+
+    /* ----------------------------------------------------------------------
+       CAS 1 : résultat Google récupéré
+       ---------------------------------------------------------------------- */
 
     if (
       result &&
@@ -538,54 +840,64 @@ async function checkRedirectResult() {
     ) {
 
       console.log(
-        '[AUTH] Redirect Google récupéré avec succès.'
+        '[AUTH] Résultat Google récupéré.'
       );
+
 
       await completeSignIn(
         result.user
       );
 
+
       return;
     }
 
-    /* -----------------------------------------------------------------------
-       CAS 2 — getRedirectResult() est null MAIS currentUser existe
-       ----------------------------------------------------------------------- */
+
+    /* ----------------------------------------------------------------------
+       CAS 2 : getRedirectResult() null MAIS session Firebase disponible
+       ---------------------------------------------------------------------- */
 
     const restoredUser =
       await waitForFirebaseAuth();
 
+
     if (restoredUser) {
 
       console.log(
-        '[AUTH] Session Firebase restaurée malgré un résultat redirect nul.'
+        '[AUTH] Session Firebase restaurée avec succès.'
       );
+
 
       await completeSignIn(
         restoredUser
       );
 
+
       return;
     }
 
-    /* -----------------------------------------------------------------------
-       CAS 3 — aucun utilisateur
-       ----------------------------------------------------------------------- */
+
+    /* ----------------------------------------------------------------------
+       CAS 3 : aucune session
+       ---------------------------------------------------------------------- */
 
     if (wasPending) {
 
       console.warn(
-        '[AUTH] Une redirection était attendue mais aucune session Firebase n'a été restaurée.'
+        '[AUTH] Une connexion redirect était attendue, mais aucune session n’a été restaurée.'
       );
+
 
       localStorage.removeItem(
         REDIRECT_KEY
       );
 
+
       /*
-       * Seulement maintenant, après avoir réellement attendu Firebase,
-       * on affiche le fallback PWA.
+       * Si nous sommes dans la PWA installée,
+       * on affiche le fallback navigateur.
        */
+
       if (isStandalone) {
 
         showFallback();
@@ -593,6 +905,11 @@ async function checkRedirectResult() {
         return;
       }
     }
+
+
+    /*
+     * Retour normal sur login.
+     */
 
     showButton();
 
@@ -603,28 +920,34 @@ async function checkRedirectResult() {
       err
     );
 
+
     localStorage.removeItem(
       REDIRECT_KEY
     );
 
+
     /*
-     * Si Firebase a quand même restauré l'utilisateur,
-     * on tente une dernière récupération.
+     * Dernière tentative :
+     * vérifier directement auth.currentUser.
      */
+
     try {
 
       const currentUser =
         await waitForFirebaseAuth();
 
+
       if (currentUser) {
 
         console.log(
-          '[AUTH] Récupération de secours de la session Firebase.'
+          '[AUTH] Session récupérée lors de la dernière tentative.'
         );
+
 
         await completeSignIn(
           currentUser
         );
+
 
         return;
       }
@@ -632,10 +955,11 @@ async function checkRedirectResult() {
     } catch (fallbackError) {
 
       console.error(
-        '[AUTH] Échec récupération session:',
+        '[AUTH] Impossible de restaurer Firebase:',
         fallbackError
       );
     }
+
 
     if (isStandalone) {
 
@@ -644,11 +968,13 @@ async function checkRedirectResult() {
       return;
     }
 
+
     showError(
       translateAuthError(err)
     );
   }
 }
+
 
 /* ==========================================================================
    OUVRIR LA CONNEXION DANS LE NAVIGATEUR
@@ -658,17 +984,21 @@ openBrowserBtn.addEventListener(
   'click',
   () => {
 
+    /*
+     * Ouvre login.html dans un nouvel onglet/fenêtre du navigateur.
+     */
+
     window.open(
       window.location.href.split('#')[0],
       '_blank',
       'noopener'
     );
-
   }
 );
 
+
 /* ==========================================================================
-   ÉVÉNEMENTS
+   BOUTON GOOGLE
    ========================================================================== */
 
 googleBtn.addEventListener(
@@ -676,13 +1006,55 @@ googleBtn.addEventListener(
   startGoogleSignIn
 );
 
+
+/* ==========================================================================
+   BOUTON RÉESSAYER
+   ========================================================================== */
+
 retryBtn.addEventListener(
   'click',
-  showButton
+  () => {
+
+    showButton();
+
+    syncGoogleButton();
+  }
 );
+
 
 /* ==========================================================================
    INITIALISATION
    ========================================================================== */
+
+console.log(
+  '[AUTH] Initialisation login.js'
+);
+
+console.log(
+  '[AUTH] Mobile:',
+  isMobile
+);
+
+console.log(
+  '[AUTH] PWA standalone:',
+  isStandalone
+);
+
+console.log(
+  '[AUTH] Checkbox initialement cochée:',
+  termsCheckbox.checked
+);
+
+
+/*
+ * Synchronisation immédiate.
+ */
+
+syncGoogleButton();
+
+
+/*
+ * Puis traitement Firebase.
+ */
 
 checkRedirectResult();
