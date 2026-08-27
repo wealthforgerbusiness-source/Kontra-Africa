@@ -2,6 +2,7 @@
   "name": "Kontra-Africa",
   "short_name": "Kontra",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#FFF8F0",
   "theme_color": "#5B3FE0",
