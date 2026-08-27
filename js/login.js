@@ -83,10 +83,46 @@ function showFallback() {
    CASE À COCHER
    ========================================================================== */
 
-termsCheckbox.addEventListener('change', () => {
-  googleBtn.disabled = !termsCheckbox.checked;
-});
+function syncGoogleButton() {
+  if (!googleBtn || !termsCheckbox) return;
 
+  googleBtn.disabled = !termsCheckbox.checked;
+
+  console.log(
+    '[AUTH] CGU:',
+    termsCheckbox.checked,
+    '| Google button disabled:',
+    googleBtn.disabled
+  );
+}
+
+termsCheckbox.addEventListener(
+  'change',
+  syncGoogleButton
+);
+
+termsCheckbox.addEventListener(
+  'input',
+  syncGoogleButton
+);
+
+window.addEventListener(
+  'pageshow',
+  syncGoogleButton
+);
+
+window.addEventListener(
+  'focus',
+  syncGoogleButton
+);
+
+// Initialisation
+syncGoogleButton();
+
+// Sécurité contre la restauration automatique du navigateur/PWA
+setTimeout(syncGoogleButton, 100);
+setTimeout(syncGoogleButton, 500);
+setTimeout(syncGoogleButton, 1000);
 /* ==========================================================================
    TRADUCTION DES ERREURS FIREBASE
    ========================================================================== */
