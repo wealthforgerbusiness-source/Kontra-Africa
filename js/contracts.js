@@ -1,3 +1,6 @@
+// js/contracts.js
+// Module Contrats — vue créateur
+
 import { db } from './firebase-config.js';
 import { requireAppAccess } from './auth-guard.js';
 
@@ -18,19 +21,11 @@ renderAppNav('contrats');
 
 const API_BASE = 'https://kontra-africa.onrender.com';
 
-// ============================================================
-// ÉTAT
-// ============================================================
-
 let currentUser = null;
 let currentFilter = 'all';
 let unsubscribeContracts = null;
 let allContracts = [];
 let signaturePad = null;
-
-// ============================================================
-// ÉLÉMENTS DOM
-// ============================================================
 
 const listEl = document.getElementById('contracts-list');
 const loadingEl = document.getElementById('contracts-loading');
@@ -43,13 +38,9 @@ const formError = document.getElementById('form-error');
 const btnSubmit = document.getElementById('btn-submit-contract');
 
 const modalShare = document.getElementById('modal-share');
-const linkWhatsapp = document.getElementById('link-whatsapp-share');
 const inputShareLink = document.getElementById('input-share-link');
 const btnCopyLink = document.getElementById('btn-copy-link');
-
-// ============================================================
-// AUTH + GARDE D'ACCÈS
-// ============================================================
+const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
 
 async function init() {
   const session = await requireAppAccess();
@@ -57,15 +48,10 @@ async function init() {
   if (!session) return;
 
   currentUser = session.user;
-
-  listenToContracts(session.user.uid);
+  listenToContracts(currentUser.uid);
 }
 
 init();
-
-// ============================================================
-// HORS LIGNE
-// ============================================================
 
 function updateOnlineStatus() {
   if (offlineBanner) {
@@ -78,10 +64,6 @@ window.addEventListener('offline', updateOnlineStatus);
 
 updateOnlineStatus();
 
-// ============================================================
-// LISTE DES CONTRATS EN TEMPS RÉEL
-// ============================================================
-
 function listenToContracts(uid) {
   const q = query(
     collection(db, 'contracts'),
@@ -92,37 +74,34 @@ function listenToContracts(uid) {
   unsubscribeContracts = onSnapshot(
     q,
     (snapshot) => {
-      allContracts = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
+      allContracts = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
       }));
 
       renderList();
     },
     (error) => {
-      console.error(
-        'Erreur de lecture des contrats :',
-        error
-      );
+      console.error('Erreur de lecture des contrats :', error);
 
-      loadingEl.textContent =
-        "Impossible de charger les contrats. Vérifie ta connexion.";
+      if (loadingEl) {
+        loadingEl.textContent =
+          'Impossible de charger les contrats. Vérifie ta connexion.';
+      }
     }
   );
 }
 
-// ============================================================
-// AFFICHAGE DE LA LISTE
-// ============================================================
-
 function renderList() {
-  loadingEl.hidden = true;
+  if (loadingEl) {
+    loadingEl.hidden = true;
+  }
 
   const filtered =
     currentFilter === 'all'
       ? allContracts
       : allContracts.filter(
-          (c) => c.status === currentFilter
+          (contract) => contract.status === currentFilter
         );
 
   if (filtered.length === 0) {
@@ -133,45 +112,46 @@ function renderList() {
 
   emptyEl.hidden = true;
 
-  listEl.innerHTML =
-    filtered.map(renderCard).join('');
+  listEl.innerHTML = filtered
+    .map(renderCard)
+    .join('');
 
   listEl
-    .querySelectorAll(
-      '[data-action="copy-share-link"]'
-    )
-    .forEach((btn) => {
-      btn.addEventListener('click', async () => {
-
-        const url = buildShareUrl(
-          btn.dataset.token
-        );
+    .querySelectorAll('[data-action="copy-share-link"]')
+    .forEach((button) => {
+      button.addEventListener('click', async () => {
+        const url = buildShareUrl(button.dataset.token);
 
         try {
           await navigator.clipboard.writeText(url);
 
-          btn.textContent = 'Copié !';
+          button.textContent = 'Copié !';
 
           setTimeout(() => {
-            btn.textContent = 'Copier le lien';
+            button.textContent = 'Copier le lien';
           }, 1500);
-
         } catch (error) {
           console.error(
-            'Erreur copie lien :',
+            'Erreur lors de la copie :',
             error
           );
         }
       });
     });
+
+  listEl
+    .querySelectorAll('[data-action="whatsapp-share"]')
+    .forEach((button) => {
+      button.addEventListener('click', () => {
+        openWhatsAppShare({
+          shareToken: button.dataset.token,
+          title: button.dataset.title || 'Contrat',
+        });
+      });
+    });
 }
 
-// ============================================================
-// CARTE CONTRAT
-// ============================================================
-
 function renderCard(contract) {
-
   const statusLabels = {
     draft: 'Brouillon',
     pending: 'En attente de signature',
@@ -189,19 +169,23 @@ function renderCard(contract) {
   let actions = '';
 
   if (contract.status === 'pending') {
-
     actions = `
-      <a
+      <button
+        type="button"
         class="btn btn-sm btn-whatsapp"
-        style="margin:0;"
-        target="_blank"
-        rel="noopener"
-        href="${buildWhatsAppUrl(contract)}"
+        data-action="whatsapp-share"
+        data-token="${escapeHtml(
+          contract.shareToken || ''
+        )}"
+        data-title="${escapeHtml(
+          contract.title || 'Contrat'
+        )}"
       >
         Renvoyer sur WhatsApp
-      </a>
+      </button>
 
       <button
+        type="button"
         class="btn btn-sm btn-secondary"
         data-action="copy-share-link"
         data-token="${escapeHtml(
@@ -211,13 +195,13 @@ function renderCard(contract) {
         Copier le lien
       </button>
     `;
+  }
 
-  } else if (contract.status === 'signed') {
-
+  if (contract.status === 'signed') {
     actions = `
       <a
         class="btn btn-sm btn-secondary"
-        href="${API_BASE}/api/contracts/public/${escapeHtml(
+        href="${API_BASE}/api/contracts/public/${encodeURIComponent(
           contract.shareToken || ''
         )}/pdf"
         target="_blank"
@@ -236,17 +220,17 @@ function renderCard(contract) {
         <div>
 
           <h3 class="contract-title">
-            ${escapeHtml(contract.title)}
+            ${escapeHtml(contract.title || '')}
           </h3>
 
           <p class="contract-signer">
             Signataire :
-            ${escapeHtml(contract.signerName)}
+            ${escapeHtml(contract.signerName || '')}
           </p>
 
           <p class="contract-creator">
             Créé par :
-            ${escapeHtml(contract.creatorName)}
+            ${escapeHtml(contract.creatorName || '')}
           </p>
 
         </div>
@@ -278,63 +262,44 @@ function renderCard(contract) {
   `;
 }
 
-// ============================================================
-// PROTECTION HTML
-// ============================================================
-
-function escapeHtml(str = '') {
-
-  return String(str).replace(
+function escapeHtml(value = '') {
+  return String(value).replace(
     /[&<>"']/g,
-    (c) => ({
+    (character) => ({
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#39;',
-    }[c])
+    }[character])
   );
 }
 
-// ============================================================
-// FILTRES
-// ============================================================
-
 document
   .querySelectorAll('.status-filter')
-  .forEach((btn) => {
-
-    btn.addEventListener('click', () => {
-
+  .forEach((button) => {
+    button.addEventListener('click', () => {
       document
         .querySelectorAll('.status-filter')
-        .forEach((b) => {
-
-          b.classList.remove('is-active');
-
-          b.setAttribute(
+        .forEach((item) => {
+          item.classList.remove('is-active');
+          item.setAttribute(
             'aria-selected',
             'false'
           );
         });
 
-      btn.classList.add('is-active');
-
-      btn.setAttribute(
+      button.classList.add('is-active');
+      button.setAttribute(
         'aria-selected',
         'true'
       );
 
-      currentFilter =
-        btn.dataset.status;
+      currentFilter = button.dataset.status;
 
       renderList();
     });
   });
-
-// ============================================================
-// NOUVEAU CONTRAT
-// ============================================================
 
 document
   .getElementById('btn-new-contract')
@@ -345,10 +310,9 @@ document
 
 document
   .getElementById('contracts-empty')
-  .addEventListener('click', (e) => {
-
+  .addEventListener('click', (event) => {
     if (
-      e.target.dataset.action ===
+      event.target.dataset.action ===
       'open-new-contract'
     ) {
       openNewContractModal();
@@ -356,7 +320,6 @@ document
   });
 
 function openNewContractModal() {
-
   formNew.reset();
 
   formError.hidden = true;
@@ -366,17 +329,12 @@ function openNewContractModal() {
   initSignaturePad();
 }
 
-// ============================================================
-// FERMETURE MODALES
-// ============================================================
-
 document
   .querySelectorAll(
     '[data-action="close-modal"]'
   )
-  .forEach((btn) => {
-
-    btn.addEventListener('click', () => {
+  .forEach((button) => {
+    button.addEventListener('click', () => {
       modalNew.close();
     });
   });
@@ -385,26 +343,23 @@ document
   .querySelectorAll(
     '[data-action="close-share-modal"]'
   )
-  .forEach((btn) => {
-
-    btn.addEventListener('click', () => {
+  .forEach((button) => {
+    button.addEventListener('click', () => {
       modalShare.close();
     });
   });
 
-// ============================================================
-// SIGNATURE CRÉATEUR
-// ============================================================
-
 function initSignaturePad() {
-
   const canvas =
     document.getElementById(
       'signature-canvas'
     );
 
-  const ctx =
-    canvas.getContext('2d');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) return;
 
   ctx.clearRect(
     0,
@@ -415,13 +370,13 @@ function initSignaturePad() {
 
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.strokeStyle = '#2A2140';
 
   let drawing = false;
   let hasStroke = false;
 
-  function getPos(e) {
-
+  function getPosition(event) {
     const rect =
       canvas.getBoundingClientRect();
 
@@ -432,9 +387,10 @@ function initSignaturePad() {
       canvas.height / rect.height;
 
     const point =
-      e.touches
-        ? e.touches[0]
-        : e;
+      event.touches &&
+      event.touches.length
+        ? event.touches[0]
+        : event;
 
     return {
       x:
@@ -447,58 +403,74 @@ function initSignaturePad() {
     };
   }
 
-  function start(e) {
-
+  function startDrawing(event) {
     drawing = true;
     hasStroke = true;
 
-    const {
-      x,
-      y
-    } = getPos(e);
+    const point =
+      getPosition(event);
 
     ctx.beginPath();
 
-    ctx.moveTo(x, y);
+    ctx.moveTo(
+      point.x,
+      point.y
+    );
 
-    e.preventDefault();
+    event.preventDefault();
   }
 
-  function move(e) {
-
+  function draw(event) {
     if (!drawing) return;
 
-    const {
-      x,
-      y
-    } = getPos(e);
+    const point =
+      getPosition(event);
 
-    ctx.lineTo(x, y);
+    ctx.lineTo(
+      point.x,
+      point.y
+    );
 
     ctx.stroke();
 
-    e.preventDefault();
+    event.preventDefault();
   }
 
-  function end() {
+  function stopDrawing() {
     drawing = false;
   }
 
-  canvas.onmousedown = start;
-  canvas.onmousemove = move;
+  canvas.onmousedown =
+    startDrawing;
 
-  window.onmouseup = end;
+  canvas.onmousemove =
+    draw;
 
-  canvas.ontouchstart = start;
-  canvas.ontouchmove = move;
-  canvas.ontouchend = end;
+  canvas.onmouseleave =
+    stopDrawing;
 
-  document
-    .getElementById(
+  window.onmouseup =
+    stopDrawing;
+
+  canvas.ontouchstart =
+    startDrawing;
+
+  canvas.ontouchmove =
+    draw;
+
+  canvas.ontouchend =
+    stopDrawing;
+
+  canvas.ontouchcancel =
+    stopDrawing;
+
+  const clearButton =
+    document.getElementById(
       'btn-clear-signature'
-    )
-    .onclick = () => {
+    );
 
+  if (clearButton) {
+    clearButton.onclick = () => {
       ctx.clearRect(
         0,
         0,
@@ -508,13 +480,10 @@ function initSignaturePad() {
 
       hasStroke = false;
     };
+  }
 
   signaturePad = {
-
-    canvas,
-
-    isEmpty: () =>
-      !hasStroke,
+    isEmpty: () => !hasStroke,
 
     toDataURL: () =>
       canvas.toDataURL(
@@ -523,15 +492,10 @@ function initSignaturePad() {
   };
 }
 
-// ============================================================
-// CRÉATION DU CONTRAT
-// ============================================================
-
 formNew.addEventListener(
   'submit',
-  async (e) => {
-
-    e.preventDefault();
+  async (event) => {
+    event.preventDefault();
 
     formError.hidden = true;
 
@@ -544,94 +508,57 @@ formNew.addEventListener(
     const signerName =
       formNew.signerName.value.trim();
 
-    const signerPhone =
-      formNew.signerPhone.value.trim();
-
-    // IMPORTANT :
-    // Le créateur doit maintenant saisir
-    // manuellement son nom.
     const creatorName =
       formNew.creatorTypedName.value.trim();
-
-    // --------------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------------
 
     if (
       !title ||
       !content ||
       !signerName ||
-      !signerPhone ||
       !creatorName
     ) {
-
       return showFormError(
-        'Merci de remplir tous les champs obligatoires, y compris ton nom.'
+        'Merci de remplir tous les champs obligatoires.'
       );
     }
 
-    if (
-      creatorName.length < 2
-    ) {
-
+    if (creatorName.length < 2) {
       return showFormError(
         'Ton nom doit contenir au moins 2 caractères.'
       );
     }
 
-    if (
-      signerName.length < 2
-    ) {
-
+    if (signerName.length < 2) {
       return showFormError(
         'Le nom du signataire doit contenir au moins 2 caractères.'
       );
     }
 
     if (
+      !signaturePad ||
       signaturePad.isEmpty()
     ) {
-
       return showFormError(
         'Ajoute ta signature pour continuer.'
       );
     }
 
     if (!currentUser) {
-
       return showFormError(
-        'Session expirée, reconnecte-toi.'
+        'Session expirée. Reconnecte-toi.'
       );
     }
 
-    // --------------------------------------------------------
-    // BOUTON
-    // --------------------------------------------------------
-
     btnSubmit.disabled = true;
-
     btnSubmit.textContent =
       'Création…';
 
     try {
-
-      // ------------------------------------------------------
-      // TOKEN UNIQUE
-      // ------------------------------------------------------
-
       const shareToken =
         generateShareToken();
 
-      // ------------------------------------------------------
-      // SIGNATURE CREATEUR
-      // ------------------------------------------------------
-
       const creatorSignatureDataUrl =
         signaturePad.toDataURL();
-
-      // ------------------------------------------------------
-      // CREATION FIRESTORE
-      // ------------------------------------------------------
 
       const docRef =
         await addDoc(
@@ -640,48 +567,36 @@ formNew.addEventListener(
             'contracts'
           ),
           {
-
-            // Identité technique Firebase
             creatorId:
               currentUser.uid,
 
-            // IMPORTANT :
-            // Nom fourni manuellement par
-            // le créateur.
-            creatorName:
-              creatorName,
+            creatorName,
 
-            // Informations contrat
             title,
+
             content,
 
-            // Signataire
             signerName,
 
-            signerPhone:
-              normalizePhone(
-                signerPhone
-              ),
+            /*
+             * IMPORTANT :
+             * Aucun numéro WhatsApp du client
+             * n'est demandé ou enregistré.
+             */
 
-            // Lien sécurisé
             shareToken,
 
-            // Etat
             status:
               'pending',
 
-            // Conditions
             termsAcceptedBySigner:
               false,
 
-            // Signature créateur
             creatorSignedAt:
               serverTimestamp(),
 
-            creatorSignatureDataUrl:
-              creatorSignatureDataUrl,
+            creatorSignatureDataUrl,
 
-            // Le signataire signera plus tard
             signerSignedAt:
               null,
 
@@ -691,79 +606,48 @@ formNew.addEventListener(
             signerTypedName:
               null,
 
-            // Création
             createdAt:
               serverTimestamp(),
           }
         );
 
-      // ------------------------------------------------------
-      // SYNCHRONISATION
-      // ------------------------------------------------------
+      await Promise.race([
+        waitForPendingWrites(db),
 
-      btnSubmit.textContent =
-        'Synchronisation…';
-
-      const synced =
-        await Promise.race([
-
-          waitForPendingWrites(
-            db
-          ).then(() => true),
-
-          new Promise(
-            (resolve) =>
-              setTimeout(
-                () => resolve(false),
-                10000
-              )
-          ),
-        ]);
+        new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              10000
+            )
+        ),
+      ]);
 
       modalNew.close();
 
-      if (!synced) {
-
-        showFormError(
-          "Le contrat est enregistré mais pas encore synchronisé. Vérifie ta connexion avant de l'envoyer."
-        );
-      }
-
-      // ------------------------------------------------------
-      // PARTAGE WHATSAPP
-      // ------------------------------------------------------
-
       openShareModal({
-
-        id:
-          docRef.id,
+        id: docRef.id,
 
         title,
 
         signerName,
-
-        signerPhone,
 
         creatorName,
 
         shareToken,
       });
 
-    } catch (err) {
-
+    } catch (error) {
       console.error(
-        'Erreur de création du contrat :',
-        err
+        'Erreur de création :',
+        error
       );
 
       showFormError(
-        "La création a échoué. Vérifie ta connexion et réessaie."
+        'La création du contrat a échoué. Vérifie ta connexion et réessaie.'
       );
-
     } finally {
-
-      btnSubmit.disabled =
-        false;
+      btnSubmit.disabled = false;
 
       btnSubmit.textContent =
         'Signer et créer le lien';
@@ -771,34 +655,21 @@ formNew.addEventListener(
   }
 );
 
-// ============================================================
-// ERREUR FORMULAIRE
-// ============================================================
-
 function showFormError(message) {
-
   formError.textContent =
     message;
 
-  formError.hidden =
-    false;
+  formError.hidden = false;
 }
 
-// ============================================================
-// TOKEN
-// ============================================================
-
 function generateShareToken() {
-
-  const array =
+  const bytes =
     new Uint8Array(24);
 
-  crypto.getRandomValues(
-    array
-  );
+  crypto.getRandomValues(bytes);
 
   return Array.from(
-    array,
+    bytes,
     (byte) =>
       byte
         .toString(16)
@@ -806,24 +677,7 @@ function generateShareToken() {
   ).join('');
 }
 
-// ============================================================
-// TELEPHONE
-// ============================================================
-
-function normalizePhone(phone) {
-
-  return phone.replace(
-    /[^\d+]/g,
-    ''
-  );
-}
-
-// ============================================================
-// LIEN DE SIGNATURE
-// ============================================================
-
 function buildShareUrl(token) {
-
   return (
     `${window.location.origin}` +
     `/sign.html?token=` +
@@ -831,63 +685,64 @@ function buildShareUrl(token) {
   );
 }
 
-// ============================================================
-// WHATSAPP
-// ============================================================
-
 function buildWhatsAppUrl(contract) {
-
-  const url =
+  const shareUrl =
     buildShareUrl(
       contract.shareToken
     );
 
   const message =
-    `Bonjour ${contract.signerName}, ` +
-    `voici le contrat "${contract.title}" ` +
-    `à signer sur Kontra-Africa : ${url}`;
+    `Bonjour, voici le contrat "${contract.title}" à signer sur Kontra-Africa : ${shareUrl}`;
 
-  const phone =
-    (contract.signerPhone || '')
-      .replace(/[^\d]/g, '');
+  /*
+   * Aucun numéro ici.
+   *
+   * WhatsApp s'ouvre avec le message préparé.
+   * Le créateur choisit ensuite lui-même
+   * le contact à qui envoyer le lien.
+   */
 
   return (
-    `https://wa.me/${phone}` +
-    `?text=${encodeURIComponent(message)}`
+    `https://wa.me/?text=` +
+    encodeURIComponent(message)
   );
 }
 
-// ============================================================
-// MODALE PARTAGE
-// ============================================================
-
-function openShareModal(contract) {
-
-  linkWhatsapp.href =
+function openWhatsAppShare(contract) {
+  const whatsappUrl =
     buildWhatsAppUrl(
       contract
     );
 
+  window.open(
+    whatsappUrl,
+    '_blank',
+    'noopener,noreferrer'
+  );
+}
+
+function openShareModal(contract) {
   inputShareLink.value =
     buildShareUrl(
       contract.shareToken
     );
 
+  if (btnShareWhatsapp) {
+    btnShareWhatsapp.onclick =
+      () => {
+        openWhatsAppShare(
+          contract
+        );
+      };
+  }
+
   modalShare.showModal();
 }
-
-// ============================================================
-// COPIER LE LIEN
-// ============================================================
 
 btnCopyLink.addEventListener(
   'click',
   async () => {
-
     try {
-
-      inputShareLink.select();
-
       await navigator.clipboard.writeText(
         inputShareLink.value
       );
@@ -896,16 +751,13 @@ btnCopyLink.addEventListener(
         'Copié !';
 
       setTimeout(() => {
-
         btnCopyLink.textContent =
           'Copier';
-
       }, 1500);
 
     } catch (error) {
-
       console.error(
-        'Erreur copie lien :',
+        'Erreur de copie :',
         error
       );
     }
