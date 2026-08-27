@@ -1,8 +1,7 @@
 import { auth, db } from '/js/firebase-config.js';
 
 import {
-  onAuthStateChanged,
-  signOut
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 import {
@@ -19,86 +18,20 @@ const API_BASE_URL = 'https://kontra-africa.onrender.com';
 
 const CHECKOUT_TIMEOUT_MS = 60000;
 
-// Temps maximum laissé à Firebase pour restaurer la session.
-// Important pour les téléphones et les PWA.
+// Temps pendant lequel on attend Firebase lorsque Google vient
+// juste de rediriger l'utilisateur.
 const AUTH_RESTORE_TIMEOUT_MS = 15000;
 
-
-/* ==========================================================================
-   AUTHENTIFICATION
-   ========================================================================== */
-
-/**
- * Attend que Firebase ait terminé de restaurer la session.
- *
- * Le problème de l'ancien code était ici :
- *
- * onAuthStateChanged()
- *      ↓
- * user === null
- *      ↓
- * /login.html immédiatement
- *
- * Sur mobile/PWA, Firebase peut avoir besoin d'un court délai
- * pour restaurer la session locale.
- *
- * On attend donc explicitement le premier état Firebase.
- */
-function waitForAuthUser() {
-  return new Promise((resolve) => {
-    let finished = false;
-    let unsubscribe = null;
-
-    const finish = (user) => {
-      if (finished) return;
-
-      finished = true;
-
-      if (unsubscribe) {
-        unsubscribe();
-      }
-
-      clearTimeout(timeoutId);
-
-      resolve(user || null);
-    };
-
-    const timeoutId = setTimeout(() => {
-      console.warn(
-        '[AUTH] Timeout pendant la restauration de la session Firebase.'
-      );
-
-      finish(auth.currentUser || null);
-    }, AUTH_RESTORE_TIMEOUT_MS);
-
-    unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        console.log(
-          '[AUTH] État Firebase restauré:',
-          user ? user.uid : 'aucun utilisateur'
-        );
-
-        finish(user);
-      },
-      (error) => {
-        console.error(
-          '[AUTH] Erreur onAuthStateChanged:',
-          error
-        );
-
-        finish(auth.currentUser || null);
-      }
-    );
-  });
-}
+// Clé utilisée par login.js avant le redirect Google.
+const REDIRECT_KEY = 'kontra_auth_pending';
 
 
-/* ==========================================================================
-   DÉTERMINE SI L'ABONNEMENT EST BLOQUÉ
-   ========================================================================== */
+// ============================================================
+// ABONNEMENT
+// ============================================================
 
 function isSubscriptionBlocked(userData) {
+
   const status = userData.subscriptionStatus;
 
   if (
@@ -109,6 +42,7 @@ function isSubscriptionBlocked(userData) {
   }
 
   if (status === 'trial') {
+
     const trialEnd = toDate(
       userData.trialEndDate
     );
@@ -125,12 +59,15 @@ function isSubscriptionBlocked(userData) {
 }
 
 
-/* ==========================================================================
-   CONVERTIT UNE DATE FIRESTORE EN DATE JS
-   ========================================================================== */
+// ============================================================
+// CONVERSION DATE
+// ============================================================
 
 function toDate(value) {
-  if (!value) return null;
+
+  if (!value) {
+    return null;
+  }
 
   if (
     typeof value.toDate === 'function'
@@ -146,143 +83,382 @@ function toDate(value) {
 }
 
 
-/* ==========================================================================
-   POINT D'ENTRÉE PRINCIPAL
-   ========================================================================== */
+// ============================================================
+// ATTENDRE QUE FIREBASE RESTAURE LA SESSION
+// ============================================================
 
-export async function requireAppAccess() {
+function waitForAuthUser() {
 
-  /*
-   * IMPORTANT :
-   *
-   * On attend maintenant Firebase avant toute redirection.
-   */
-  const user = await waitForAuthUser();
+  return new Promise((resolve) => {
 
-  /*
-   * Seulement après la restauration complète de la session,
-   * on considère réellement que l'utilisateur n'est pas connecté.
-   */
-  if (!user) {
-    console.warn(
-      '[AUTH] Aucun utilisateur connecté après restauration Firebase.'
-    );
+    let resolved = false;
+    let unsubscribe = null;
 
-    window.location.replace('/login.html');
+    const finish = (user) => {
 
-    return null;
-  }
+      if (resolved) {
+        return;
+      }
 
-  console.log(
-    '[AUTH] Utilisateur connecté:',
-    user.uid
-  );
+      resolved = true;
 
-  try {
+      if (unsubscribe) {
+        unsubscribe();
+      }
 
-    /*
-     * Vérification du profil Firestore.
-     */
-    const userSnap = await getDoc(
-      doc(
-        db,
-        'users',
-        user.uid
-      )
-    );
+      clearTimeout(timeoutId);
 
-    if (!userSnap.exists()) {
-
-      console.warn(
-        '[AUTH] Profil Firestore introuvable pour:',
-        user.uid
-      );
-
-      /*
-       * On garde le comportement de ton système actuel.
-       */
-      window.location.replace('/login.html');
-
-      return null;
-    }
-
-    const userData =
-      userSnap.data();
-
-    /*
-     * Vérification abonnement.
-     */
-    if (
-      isSubscriptionBlocked(userData)
-    ) {
-
-      renderPaywall(user);
-
-      return null;
-    }
-
-    /*
-     * Tout est OK.
-     */
-    return {
-      user,
-      userData
+      resolve(user);
     };
 
-  } catch (err) {
 
-    console.error(
-      "Erreur de vérification d'accès :",
-      err
+    unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+
+        console.log(
+          '🔐 Firebase Auth State:',
+          user
+            ? `connecté (${user.email})`
+            : 'aucun utilisateur'
+        );
+
+        // ----------------------------------------------------
+        // UTILISATEUR TROUVÉ
+        // ----------------------------------------------------
+
+        if (user) {
+          finish(user);
+          return;
+        }
+
+        // ----------------------------------------------------
+        // PAS D'UTILISATEUR
+        //
+        // Si Google vient juste de rediriger l'utilisateur,
+        // Firebase peut avoir besoin de quelques secondes pour
+        // restaurer la session.
+        // ----------------------------------------------------
+
+        const redirectPending =
+          localStorage.getItem(
+            REDIRECT_KEY
+          ) === '1';
+
+        if (!redirectPending) {
+
+          finish(null);
+        }
+
+        // Sinon on NE redirige PAS immédiatement.
+        // Le timeout ci-dessous laisse Firebase le temps
+        // de restaurer la session.
+      }
     );
 
-    renderFatalError();
 
-    return null;
-  }
+    const timeoutId = setTimeout(
+      () => {
+
+        console.warn(
+          '⏱️ Firebase n’a pas restauré la session dans le délai prévu.'
+        );
+
+        finish(null);
+
+      },
+      AUTH_RESTORE_TIMEOUT_MS
+    );
+
+  });
 }
 
 
-/* ==========================================================================
-   DÉCONNEXION
-   ========================================================================== */
+// ============================================================
+// VÉRIFICATION DE L'ACCÈS
+// ============================================================
+
+export function requireAppAccess() {
+
+  return new Promise(
+    async (resolve) => {
+
+      try {
+
+        console.log(
+          '🔐 Vérification de l’accès à Kontra-Africa...'
+        );
+
+        const user =
+          await waitForAuthUser();
+
+
+        // ----------------------------------------------------
+        // AUCUN UTILISATEUR
+        // ----------------------------------------------------
+
+        if (!user) {
+
+          console.warn(
+            '⚠️ Aucun utilisateur Firebase connecté.'
+          );
+
+          localStorage.removeItem(
+            REDIRECT_KEY
+          );
+
+          window.location.href =
+            '/login.html';
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // UTILISATEUR TROUVÉ
+        // ----------------------------------------------------
+
+        console.log(
+          '✅ Utilisateur Firebase trouvé:',
+          user.email
+        );
+
+
+        // Le redirect Google est maintenant terminé.
+        localStorage.removeItem(
+          REDIRECT_KEY
+        );
+
+
+        // ----------------------------------------------------
+        // RÉCUPÉRER LE DOCUMENT FIRESTORE
+        // ----------------------------------------------------
+
+        let userSnap = null;
+
+        // On laisse aussi quelques tentatives au cas où
+        // login.js vient juste de créer l'utilisateur.
+        for (
+          let attempt = 1;
+          attempt <= 3;
+          attempt++
+        ) {
+
+          try {
+
+            userSnap = await getDoc(
+              doc(
+                db,
+                'users',
+                user.uid
+              )
+            );
+
+            if (
+              userSnap.exists()
+            ) {
+              break;
+            }
+
+            console.warn(
+              `⚠️ Document utilisateur absent. Tentative ${attempt}/3`
+            );
+
+            if (attempt < 3) {
+
+              await new Promise(
+                (r) =>
+                  setTimeout(r, 1500)
+              );
+            }
+
+          } catch (firestoreError) {
+
+            console.error(
+              'Erreur Firestore:',
+              firestoreError
+            );
+
+            if (attempt === 3) {
+              throw firestoreError;
+            }
+
+            await new Promise(
+              (r) =>
+                setTimeout(r, 1500)
+            );
+          }
+        }
+
+
+        // ----------------------------------------------------
+        // DOCUMENT FIRESTORE INTROUVABLE
+        // ----------------------------------------------------
+
+        if (
+          !userSnap ||
+          !userSnap.exists()
+        ) {
+
+          console.error(
+            '❌ Utilisateur Firebase connecté mais document Firestore absent:',
+            user.uid
+          );
+
+          renderMissingUserError();
+
+          resolve(null);
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // DONNÉES UTILISATEUR
+        // ----------------------------------------------------
+
+        const userData =
+          userSnap.data();
+
+
+        console.log(
+          '✅ Données utilisateur récupérées:',
+          userData
+        );
+
+
+        // ----------------------------------------------------
+        // ABONNEMENT BLOQUÉ
+        // ----------------------------------------------------
+
+        if (
+          isSubscriptionBlocked(
+            userData
+          )
+        ) {
+
+          console.log(
+            '⚠️ Abonnement expiré ou bloqué.'
+          );
+
+          renderPaywall(user);
+
+          resolve(null);
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // ACCÈS AUTORISÉ
+        // ----------------------------------------------------
+
+        console.log(
+          '✅ Accès à l’application autorisé.'
+        );
+
+        resolve({
+          user,
+          userData
+        });
+
+      } catch (err) {
+
+        console.error(
+          '❌ Erreur de vérification d’accès:',
+          err
+        );
+
+        renderFatalError();
+
+        resolve(null);
+      }
+    }
+  );
+}
+
+
+// ============================================================
+// DÉCONNEXION
+// ============================================================
 
 export async function logout() {
 
-  try {
+  const {
+    signOut
+  } = await import(
+    'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'
+  );
 
-    await signOut(auth);
+  await signOut(auth);
 
-    /*
-     * replace() évite d'ajouter une page supplémentaire
-     * dans l'historique du navigateur.
-     */
-    window.location.replace('/login.html');
+  localStorage.removeItem(
+    REDIRECT_KEY
+  );
 
-  } catch (err) {
-
-    console.error(
-      '[AUTH] Erreur de déconnexion:',
-      err
-    );
-
-    /*
-     * Même si signOut rencontre un problème,
-     * on revient à la page de connexion.
-     */
-    window.location.replace('/login.html');
-  }
+  window.location.href =
+    '/login.html';
 }
 
 
-/* ==========================================================================
-   PAYWALL
-   ========================================================================== */
+// ============================================================
+// UTILISATEUR FIREBASE EXISTANT MAIS FIRESTORE ABSENT
+// ============================================================
+
+function renderMissingUserError() {
+
+  document.body.innerHTML = `
+
+    <main class="paywall">
+
+      <div class="paywall__card">
+
+        <img
+          src="/logo.webp"
+          alt="Kontra-Africa"
+          class="paywall__logo"
+        >
+
+        <p class="eyebrow">
+          Configuration du compte
+        </p>
+
+        <h1 class="paywall__title">
+          Votre compte est presque prêt
+        </h1>
+
+        <p class="paywall__text">
+          Votre connexion Google a réussi, mais
+          votre espace Kontra-Africa n'a pas encore
+          été complètement initialisé.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick="window.location.href='/login.html'"
+        >
+          Retourner à la connexion
+        </button>
+
+      </div>
+
+    </main>
+
+  `;
+}
+
+
+// ============================================================
+// PAYWALL
+// ============================================================
 
 function renderPaywall(user) {
 
   document.body.innerHTML = `
+
     <main class="paywall">
+
       <div class="paywall__card">
 
         <img
@@ -300,15 +476,25 @@ function renderPaywall(user) {
         </h1>
 
         <p class="paywall__text">
-          Abonnez-vous pour continuer à créer des contrats,
-          les faire signer et suivre vos finances sur Kontra-Africa.
+          Abonnez-vous pour continuer à créer des
+          contrats, les faire signer et suivre vos
+          finances sur Kontra-Africa.
         </p>
 
         <div class="paywall__price">
-          <span class="paywall__currency">$</span>
+
+          <span class="paywall__currency">
+            $
+          </span>
+
           5
-          <span class="paywall__period">/mois</span>
+
+          <span class="paywall__period">
+            /mois
+          </span>
+
         </div>
+
 
         <div class="paywall__phone">
 
@@ -349,10 +535,12 @@ function renderPaywall(user) {
             id="paywallPhoneError"
             hidden
           >
-            Entrez un numéro Mobile Money valide pour continuer.
+            Entrez un numéro Mobile Money valide
+            pour continuer.
           </p>
 
         </div>
+
 
         <div
           class="paywall__zone"
@@ -369,10 +557,12 @@ function renderPaywall(user) {
 
         </div>
 
+
         <p class="paywall__trust">
           🔒 Paiement sécurisé via Mobile Money —
           vous restez connecté à ce compte
         </p>
+
 
         <div class="paywall__license">
 
@@ -416,6 +606,7 @@ function renderPaywall(user) {
 
         </div>
 
+
         <button
           type="button"
           id="paywallLogout"
@@ -425,12 +616,15 @@ function renderPaywall(user) {
         </button>
 
       </div>
+
     </main>
+
   `;
 
-  /* ------------------------------------------------------------------------
-     CSS
-     ------------------------------------------------------------------------ */
+
+  // ==========================================================
+  // CSS
+  // ==========================================================
 
   if (
     !document.querySelector(
@@ -441,16 +635,19 @@ function renderPaywall(user) {
     const link =
       document.createElement('link');
 
-    link.rel = 'stylesheet';
-    link.href = '/css/app.css';
+    link.rel =
+      'stylesheet';
+
+    link.href =
+      '/css/app.css';
 
     document.head.appendChild(link);
   }
 
 
-  /* ------------------------------------------------------------------------
-     Éléments
-     ------------------------------------------------------------------------ */
+  // ==========================================================
+  // ELEMENTS
+  // ==========================================================
 
   const zone =
     document.getElementById(
@@ -483,24 +680,17 @@ function renderPaywall(user) {
     );
 
 
-  /* ------------------------------------------------------------------------
-     Licence
-     ------------------------------------------------------------------------ */
-
   verifyLicenseBtn.addEventListener(
     'click',
-    () => verifyLicense(
-      user,
-      licenseInput,
-      licenseError,
-      verifyLicenseBtn
-    )
+    () =>
+      verifyLicense(
+        user,
+        licenseInput,
+        licenseError,
+        verifyLicenseBtn
+      )
   );
 
-
-  /* ------------------------------------------------------------------------
-     Checkout
-     ------------------------------------------------------------------------ */
 
   checkoutBtn.addEventListener(
     'click',
@@ -523,6 +713,7 @@ function renderPaywall(user) {
           'paywallPhoneError'
         );
 
+
       if (
         phoneNumber.length < 8
       ) {
@@ -533,24 +724,25 @@ function renderPaywall(user) {
         return;
       }
 
+
       phoneErrorEl.hidden =
         true;
+
 
       startCheckout(
         user,
         zone,
         {
-          number: phoneNumber,
+          number:
+            phoneNumber,
+
           countryCode
         }
       );
+
     }
   );
 
-
-  /* ------------------------------------------------------------------------
-     Logout
-     ------------------------------------------------------------------------ */
 
   logoutBtn.addEventListener(
     'click',
@@ -559,9 +751,9 @@ function renderPaywall(user) {
 }
 
 
-/* ==========================================================================
-   CHECKOUT
-   ========================================================================== */
+// ============================================================
+// CHECKOUT
+// ============================================================
 
 async function startCheckout(
   user,
@@ -571,6 +763,7 @@ async function startCheckout(
 ) {
 
   zone.innerHTML = `
+
     <div class="paywall-state">
 
       <span
@@ -585,6 +778,7 @@ async function startCheckout(
       </p>
 
     </div>
+
   `;
 
 
@@ -593,7 +787,8 @@ async function startCheckout(
 
   const timeoutId =
     setTimeout(
-      () => controller.abort(),
+      () =>
+        controller.abort(),
       CHECKOUT_TIMEOUT_MS
     );
 
@@ -631,7 +826,7 @@ async function startCheckout(
                     .split(' ')
                     .slice(1)
                     .join(' ') ||
-                    'Inconnu'
+                  'Inconnu'
                 : 'Inconnu',
 
             phone: {
@@ -650,10 +845,7 @@ async function startCheckout(
       );
 
 
-    /* ----------------------------------------------------------------------
-       Render cold start
-       ---------------------------------------------------------------------- */
-
+    // Render 502 / 503
     if (
       (
         response.status === 502 ||
@@ -667,9 +859,9 @@ async function startCheckout(
       );
 
       await new Promise(
-        (resolve) =>
+        (r) =>
           setTimeout(
-            resolve,
+            r,
             4000
           )
       );
@@ -683,16 +875,14 @@ async function startCheckout(
     }
 
 
-    /* ----------------------------------------------------------------------
-       Erreur API
-       ---------------------------------------------------------------------- */
-
     if (!response.ok) {
 
       const errBody =
         await response
           .json()
-          .catch(() => ({}));
+          .catch(
+            () => ({})
+          );
 
       throw new Error(
         errBody.message ||
@@ -706,10 +896,6 @@ async function startCheckout(
       await response.json();
 
 
-    /* ----------------------------------------------------------------------
-       Réactivation directe
-       ---------------------------------------------------------------------- */
-
     if (
       data &&
       data.reactivated
@@ -721,10 +907,6 @@ async function startCheckout(
       return;
     }
 
-
-    /* ----------------------------------------------------------------------
-       Checkout Chariow
-       ---------------------------------------------------------------------- */
 
     if (
       !data ||
@@ -750,14 +932,17 @@ async function startCheckout(
 
     const message =
       err.name === 'AbortError'
+
         ? "Le serveur met plus de temps que prévu à démarrer. Réessayez dans un instant."
+
         : (
-            err.message ||
-            "Impossible de préparer le paiement. Réessayez."
-          );
+          err.message ||
+          "Impossible de préparer le paiement. Réessayez."
+        );
 
 
     zone.innerHTML = `
+
       <div
         class="paywall-state paywall-state--error"
         role="alert"
@@ -776,6 +961,7 @@ async function startCheckout(
         </button>
 
       </div>
+
     `;
 
 
@@ -802,9 +988,9 @@ async function startCheckout(
 }
 
 
-/* ==========================================================================
-   VÉRIFICATION LICENCE
-   ========================================================================== */
+// ============================================================
+// VÉRIFICATION LICENCE
+// ============================================================
 
 async function verifyLicense(
   user,
@@ -813,7 +999,8 @@ async function verifyLicense(
   buttonEl
 ) {
 
-  errorEl.hidden = true;
+  errorEl.hidden =
+    true;
 
   const licenseKey =
     inputEl.value.trim();
@@ -824,13 +1011,16 @@ async function verifyLicense(
     errorEl.textContent =
       "Entre la clé de licence reçue par email après ton paiement.";
 
-    errorEl.hidden = false;
+    errorEl.hidden =
+      false;
 
     return;
   }
 
 
-  buttonEl.disabled = true;
+  buttonEl.disabled =
+    true;
+
   buttonEl.textContent =
     'Vérification…';
 
@@ -881,7 +1071,8 @@ async function verifyLicense(
       ) ||
       "Clé de licence invalide.";
 
-    errorEl.hidden = false;
+    errorEl.hidden =
+      false;
 
   } catch (err) {
 
@@ -893,11 +1084,13 @@ async function verifyLicense(
     errorEl.textContent =
       "Impossible de vérifier la clé pour le moment. Réessaie dans un instant.";
 
-    errorEl.hidden = false;
+    errorEl.hidden =
+      false;
 
   } finally {
 
-    buttonEl.disabled = false;
+    buttonEl.disabled =
+      false;
 
     buttonEl.textContent =
       'Vérifier';
@@ -905,13 +1098,14 @@ async function verifyLicense(
 }
 
 
-/* ==========================================================================
-   ERREUR FATALE
-   ========================================================================== */
+// ============================================================
+// ERREUR FATALE
+// ============================================================
 
 function renderFatalError() {
 
   document.body.innerHTML = `
+
     <main class="paywall">
 
       <div class="paywall__card">
@@ -942,5 +1136,6 @@ function renderFatalError() {
       </div>
 
     </main>
+
   `;
 }
