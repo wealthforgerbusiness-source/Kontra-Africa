@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/login.css">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/admin.css">
 </head>
@@ -22,6 +23,48 @@
     <span class="spinner" aria-hidden="true"></span>
   </div>
 
+  <!-- Écran de connexion Google (affiché si personne n'est connecté) -->
+  <main class="login-page" id="adminLoginScreen" hidden>
+    <div class="login-card">
+      <img src="/logo.webp" alt="Kontra-Africa" class="login-card__logo">
+      <div class="login-card__intro">
+        <p class="eyebrow admin-eyebrow">Accès réservé</p>
+        <h1 class="login-card__title">Panneau Admin</h1>
+        <p class="login-card__subtitle">Connectez-vous avec le compte Google administrateur.</p>
+      </div>
+      <div class="login-card__zone">
+        <button type="button" id="adminGoogleBtn" class="google-btn">
+          <svg class="google-btn__icon" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.4 5.3 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.8-.4-3.5z"/>
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.4 5.3 29.5 3 24 3 16 3 9 7.4 6.3 14.7z"/>
+            <path fill="#4CAF50" d="M24 45c5.4 0 10.3-2.1 14-5.5l-6.5-5.4c-2 1.4-4.6 2.4-7.5 2.4-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9 40.6 16 45 24 45z"/>
+            <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.4 35.9 45 30.5 45 24c0-1.4-.1-2.8-.4-3.5z"/>
+          </svg>
+          <span>Continuer avec Google</span>
+        </button>
+      </div>
+      <p class="admin-login-error" id="adminLoginError" hidden></p>
+    </div>
+  </main>
+
+  <!-- Écran d'accès refusé (connecté, mais mauvais email) -->
+  <main class="login-page" id="adminDeniedScreen" hidden>
+    <div class="login-card">
+      <img src="/logo.webp" alt="Kontra-Africa" class="login-card__logo">
+      <div class="login-card__intro">
+        <h1 class="login-card__title">Accès refusé</h1>
+        <p class="login-card__subtitle">
+          Ce compte (<strong id="deniedEmail"></strong>) n'est pas autorisé à
+          accéder au panneau admin.
+        </p>
+      </div>
+      <button type="button" id="btnDeniedLogout" class="btn btn-secondary btn-lg">
+        Se déconnecter et essayer un autre compte
+      </button>
+    </div>
+  </main>
+
+  <!-- Tableau de bord admin (affiché uniquement si le bon compte est connecté) -->
   <div class="admin-shell" id="adminShell" hidden>
 
     <header class="admin-header">
@@ -53,11 +96,11 @@
             <p class="stat-card__value" id="statTotalUsers">—</p>
           </div>
           <div class="stat-card">
-            <p class="stat-card__label">Abonnés payants</p>
+            <p class="stat-card__label">Abonnés payants (actifs)</p>
             <p class="stat-card__value stat-card__value--success" id="statActiveUsers">—</p>
           </div>
           <div class="stat-card">
-            <p class="stat-card__label">En période d'essai</p>
+            <p class="stat-card__label">Essai gratuit (trial)</p>
             <p class="stat-card__value" id="statTrialUsers">—</p>
           </div>
           <div class="stat-card">
@@ -72,7 +115,7 @@
         <h2 class="admin-section__title">Gains réels</h2>
         <div class="revenue-card">
           <div class="revenue-card__main">
-            <p class="revenue-card__label">Ce que vous touchez réellement (après commission Chariow)</p>
+            <p class="revenue-card__label">Ce que vous touchez réellement (après commission Chariow 15%)</p>
             <p class="revenue-card__value" id="revenueNetValue">—</p>
             <button type="button" id="btnToggleCurrency" class="btn btn-secondary revenue-card__toggle">
               ⇄ <span id="btnToggleCurrencyLabel">Voir en Franc Congolais</span>
@@ -80,7 +123,7 @@
           </div>
           <div class="revenue-card__breakdown">
             <div class="revenue-card__row">
-              <span>Abonnés payants</span>
+              <span>Abonnés payants (status = active)</span>
               <span id="revenueActiveCount">—</span>
             </div>
             <div class="revenue-card__row">
@@ -92,7 +135,7 @@
               <span id="revenueChariowCut">—</span>
             </div>
             <div class="revenue-card__row revenue-card__row--total">
-              <span>Gain net réel</span>
+              <span>Gain net réel (4,25 $ / abonné)</span>
               <span id="revenueNetValueSmall">—</span>
             </div>
           </div>
