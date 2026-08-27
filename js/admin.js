@@ -56,7 +56,9 @@ const btnLogout = document.getElementById('btnLogout');
 // ---------- Garde d'accès ----------
 onAuthStateChanged(auth, async (user) => {
   if (!user || !user.email || user.email.toLowerCase() !== ADMIN_EMAIL) {
-    window.location.href = '/admin-login.html';
+    // Pas connecté, ou connecté avec un autre compte que l'admin :
+    // on renvoie vers la connexion Google habituelle de l'app.
+    window.location.href = '/login.html';
     return;
   }
 
@@ -268,5 +270,5 @@ btnRefresh.addEventListener('click', async () => {
 
 btnLogout.addEventListener('click', async () => {
   await signOut(auth);
-  window.location.href = '/admin-login.html';
+  window.location.href = '/login.html';
 });
