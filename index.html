@@ -21,8 +21,42 @@
 
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/landing.css">
+
+  <style>
+    /* --- Splash screen affiché uniquement quand l'app est ouverte en mode PWA installée --- */
+    #pwaSplash {
+      position: fixed;
+      inset: 0;
+      background: #5B3FE0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 99999;
+      transition: opacity .4s ease;
+    }
+    .pwa-splash__logo {
+      width: 84px;
+      height: 84px;
+      border-radius: 20px;
+    }
+    .pwa-splash__title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      letter-spacing: .3px;
+      font-size: 21px;
+      color: #FFF8F0;
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Splash PWA : reste caché (hidden) sur le site web classique, activé en JS uniquement en mode standalone -->
+  <div id="pwaSplash" hidden>
+    <img src="/logo.webp" alt="Kontra-Africa" class="pwa-splash__logo">
+    <span class="pwa-splash__title">Kontra-Africa</span>
+  </div>
 
   <a href="#main" class="skip-link">Aller au contenu</a>
 
@@ -92,7 +126,7 @@
             <span class="signature-wrap">
               en un échange WhatsApp
               <svg class="signature-stroke" viewBox="0 0 320 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M2 24C40 8 70 8 98 20C126 32 150 6 180 10C210 14 224 26 254 16C278 8 292 12 318 6" stroke="#FF8A3D" stroke-width="4" stroke-linecap="round"/>
+                <path d="M2 24C40 8 70 8 98 20C126 32 150 6 180 10C210 14 224 26 254 16C278 8 292 12 318 6" stroke="#FF7A1A" stroke-width="4" stroke-linecap="round"/>
               </svg>
             </span>
           </h1>
@@ -414,6 +448,25 @@
       <p class="site-footer__copy">© <span id="year"></span> Kontra-Africa. Tous droits réservés.</p>
     </div>
   </footer>
+
+  <script>
+    /* Splash PWA : affiché seulement quand l'app tourne en mode installé (standalone) */
+    (function () {
+      var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true; // iOS
+      if (!isStandalone) return; // reste invisible sur le site web classique
+
+      var splash = document.getElementById('pwaSplash');
+      splash.hidden = false;
+
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          splash.style.opacity = '0';
+          setTimeout(function () { splash.remove(); }, 400);
+        }, 500);
+      });
+    })();
+  </script>
 
   <script src="/js/landing.js"></script>
 </body>
