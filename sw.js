@@ -460,17 +460,19 @@ async function startCheckout(
   );
 
   try {
+    const idToken = await user.getIdToken();
+
     const response = await fetch(
       `${API_BASE_URL}/api/checkout`,
       {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
 
         body: JSON.stringify({
-          firebaseUid: user.uid,
           email: user.email || '',
 
           firstName: user.displayName
@@ -617,17 +619,19 @@ async function verifyLicense(
   buttonEl.textContent = 'Vérification…';
 
   try {
+    const idToken = await user.getIdToken();
+
     const response = await fetch(
       `${API_BASE_URL}/api/verify-license`,
       {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
 
         body: JSON.stringify({
-          firebaseUid: user.uid,
           licenseKey
         })
       }
