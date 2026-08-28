@@ -1,11 +1,10 @@
 // functions/src/contracts.js
 
-const functions = require('firebase-functions');
+const express = require('express');
+const router = express.Router();
 const admin = require('firebase-admin');
 
-const {
-  generateContractPdf,
-} = require('./pdf-generator');
+const { generateContractPdf } = require('./pdf-generator');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -13,13 +12,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-
-// ============================================================
-// CONSTANTES
-// ============================================================
-
-const PDF_ACCESS_DURATION_MS =
-  24 * 60 * 60 * 1000;
+const PDF_ACCESS_DURATION_MS = 24 * 60 * 60 * 1000;
 
 
 // ============================================================
@@ -27,87 +20,56 @@ const PDF_ACCESS_DURATION_MS =
 // ============================================================
 
 function setCors(res, methods) {
-
-  res.set(
-    'Access-Control-Allow-Origin',
-    '*'
-  );
-
-  res.set(
-    'Access-Control-Allow-Methods',
-    methods
-  );
-
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', methods);
   res.set(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization'
   );
-
 }
 
 
 // ============================================================
-// EXTRAIRE LE TOKEN
+// TOKENS
 // ============================================================
 
 function getShareToken(req) {
-
   return (
     req.params.token ||
     req.query.token ||
     ''
   ).trim();
-
 }
 
 
-// ============================================================
-// EXTRAIRE LE BEARER TOKEN
-// ============================================================
-
 function getBearerToken(req) {
-
   const authorization =
     req.headers.authorization || '';
 
-  if (
-    !authorization.startsWith(
-      'Bearer '
-    )
-  ) {
+  if (!authorization.startsWith('Bearer ')) {
     return null;
   }
 
-  return authorization
-    .substring(7)
-    .trim();
-
+  return authorization.substring(7).trim();
 }
 
 
 // ============================================================
-// AUTHENTIFICATION CRÉATEUR
+// AUTHENTIFICATION
 // ============================================================
 
 async function getAuthenticatedUser(req) {
-
-  const idToken =
-    getBearerToken(req);
+  const idToken = getBearerToken(req);
 
   if (!idToken) {
     return null;
   }
 
   try {
-
     return await admin
       .auth()
-      .verifyIdToken(
-        idToken
-      );
-
+      .verifyIdToken(idToken);
   } catch (error) {
-
     console.error(
       'Token Firebase invalide :',
       error
@@ -115,68 +77,47 @@ async function getAuthenticatedUser(req) {
 
     return null;
   }
-
 }
 
 
 // ============================================================
-// TROUVER UN CONTRAT PAR TOKEN
+// FIRESTORE
 // ============================================================
 
-async function findContractByShareToken(
-  token
-) {
-
+async function findContractByShareToken(token) {
   if (!token) {
     return null;
   }
 
-  const snapshot =
-    await db
-      .collection('contracts')
-      .where(
-        'shareToken',
-        '==',
-        token
-      )
-      .limit(1)
-      .get();
+  const snapshot = await db
+    .collection('contracts')
+    .where('shareToken', '==', token)
+    .limit(1)
+    .get();
 
-  if (
-    snapshot.empty
-  ) {
+  if (snapshot.empty) {
     return null;
   }
 
   return snapshot.docs[0];
-
 }
 
 
-// ============================================================
-// TROUVER UN CONTRAT PAR ID
-// ============================================================
-
-async function findContractById(
-  contractId
-) {
-
+async function findContractById(contractId) {
   if (!contractId) {
     return null;
   }
 
-  const doc =
-    await db
-      .collection('contracts')
-      .doc(contractId)
-      .get();
+  const contractDoc = await db
+    .collection('contracts')
+    .doc(contractId)
+    .get();
 
-  if (!doc.exists) {
+  if (!contractDoc.exists) {
     return null;
   }
 
-  return doc;
-
+  return contractDoc;
 }
 
 
@@ -184,13 +125,8 @@ async function findContractById(
 // EXPIRATION
 // ============================================================
 
-function getPdfExpirationMillis(
-  contract
-) {
-
-  if (
-    !contract.pdfExpiresAt
-  ) {
+function getPdfExpirationMillis(contract) {
+  if (!contract.pdfExpiresAt) {
     return null;
   }
 
@@ -198,9 +134,7 @@ function getPdfExpirationMillis(
     typeof contract.pdfExpiresAt.toMillis ===
     'function'
   ) {
-    return contract
-      .pdfExpiresAt
-      .toMillis();
+    return contract.pdfExpiresAt.toMillis();
   }
 
   if (
@@ -210,41 +144,26 @@ function getPdfExpirationMillis(
     return contract.pdfExpiresAt;
   }
 
-  const date =
-    new Date(
-      contract.pdfExpiresAt
-    );
+  const date = new Date(
+    contract.pdfExpiresAt
+  );
 
-  const millis =
-    date.getTime();
+  const millis = date.getTime();
 
   return Number.isNaN(millis)
     ? null
     : millis;
-
 }
 
 
 // ============================================================
-// NETTOYAGE DES DONNÉES APRÈS EXPIRATION
+// SUPPRESSION APRÈS 24 H
 // ============================================================
 
-async function expireContract(
-  contractRef
-) {
-
-  /*
-   * On supprime les informations volumineuses
-   * et les informations qui ont servi à générer
-   * le contrat.
-   *
-   * Le PDF n'est jamais stocké.
-   */
-
+async function expireContract(contractRef) {
   await contractRef.update({
 
-    status:
-      'expired',
+    status: 'expired',
 
     content:
       admin.firestore.FieldValue.delete(),
@@ -279,579 +198,341 @@ async function expireContract(
     pdfExpiresAt:
       admin.firestore.FieldValue.delete(),
 
-    /*
-     * Le token ne doit plus permettre
-     * de retrouver les données du contrat.
-     */
-
     shareToken:
       admin.firestore.FieldValue.delete(),
 
   });
-
 }
 
-
-// ============================================================
-// VÉRIFIER SI LES 24 H SONT EXPIRÉES
-// ============================================================
 
 async function ensurePdfAccessStillValid(
   contractDoc,
   contract
 ) {
-
   const expiresAt =
-    getPdfExpirationMillis(
-      contract
-    );
+    getPdfExpirationMillis(contract);
 
   if (!expiresAt) {
-
     return {
       valid: true,
       contract,
     };
-
   }
 
-  if (
-    Date.now() <
-    expiresAt
-  ) {
-
+  if (Date.now() < expiresAt) {
     return {
       valid: true,
       contract,
     };
-
   }
-
-
-  /*
-   * Les 24 h sont terminées.
-   */
 
   await expireContract(
     contractDoc.ref
   );
 
-
   return {
     valid: false,
     contract: null,
   };
-
 }
 
 
 // ============================================================
-// CHARGER UN CONTRAT PUBLIC
+// CHARGER CONTRAT PUBLIC
+// GET /api/contracts/public/:token
 // ============================================================
 
-exports.getPublicContract =
-  functions.https.onRequest(
-    async (req, res) => {
+router.get(
+  '/public/:token',
+  async (req, res) => {
 
-      try {
+    try {
 
-        setCors(
-          res,
-          'GET, OPTIONS'
+      setCors(
+        res,
+        'GET, OPTIONS'
+      );
+
+      if (req.method === 'OPTIONS') {
+        return res
+          .status(204)
+          .send('');
+      }
+
+      const token =
+        getShareToken(req);
+
+      if (!token) {
+        return res.status(400).json({
+          message:
+            'Lien de signature invalide.',
+        });
+      }
+
+      const contractDoc =
+        await findContractByShareToken(
+          token
         );
 
+      if (!contractDoc) {
+        return res.status(404).json({
+          message:
+            'Contrat introuvable ou lien invalide.',
+        });
+      }
+
+      const contract =
+        contractDoc.data();
+
+      if (
+        contract.status ===
+        'expired'
+      ) {
+        return res.status(410).json({
+          message:
+            'Ce contrat a expiré.',
+          status: 'expired',
+        });
+      }
+
+      const access =
+        await ensurePdfAccessStillValid(
+          contractDoc,
+          contract
+        );
+
+      if (!access.valid) {
+        return res.status(410).json({
+          message:
+            'La période de téléchargement de ce contrat est terminée.',
+          status: 'expired',
+        });
+      }
+
+      const currentContract =
+        access.contract;
+
+      return res.status(200).json({
+
+        id:
+          contractDoc.id,
+
+        title:
+          currentContract.title || '',
+
+        content:
+          currentContract.content || '',
+
+        creatorName:
+          currentContract.creatorName || '',
+
+        signerName:
+          currentContract.signerName || '',
+
+        status:
+          currentContract.status ||
+          'pending',
+
+        signerSignedAt:
+          currentContract.signerSignedAt ||
+          null,
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Erreur getPublicContract :',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          'Erreur serveur lors du chargement du contrat.',
+      });
+
+    }
+
+  }
+);
+
+
+// ============================================================
+// SIGNATURE CLIENT
+// POST /api/contracts/public/:token/sign
+// ============================================================
+
+router.post(
+  '/public/:token/sign',
+  async (req, res) => {
+
+    try {
+
+      setCors(
+        res,
+        'POST, OPTIONS'
+      );
+
+      const token =
+        getShareToken(req);
+
+      if (!token) {
+        return res.status(400).json({
+          message:
+            'Lien de signature invalide.',
+        });
+      }
+
+      const {
+        termsAccepted,
+        signatureDataUrl,
+        typedName,
+      } = req.body || {};
+
+      if (termsAccepted !== true) {
+        return res.status(400).json({
+          message:
+            'Vous devez accepter les termes du contrat.',
+        });
+      }
+
+      if (
+        typeof typedName !== 'string' ||
+        !typedName.trim()
+      ) {
+        return res.status(400).json({
+          message:
+            'Vous devez saisir votre nom complet.',
+        });
+      }
+
+      const signerTypedName =
+        typedName.trim();
+
+      if (signerTypedName.length < 2) {
+        return res.status(400).json({
+          message:
+            'Le nom doit contenir au moins 2 caractères.',
+        });
+      }
+
+      if (signerTypedName.length > 150) {
+        return res.status(400).json({
+          message:
+            'Le nom est trop long.',
+        });
+      }
+
+      if (
+        typeof signatureDataUrl !==
+          'string' ||
+        !signatureDataUrl.startsWith(
+          'data:image/png;base64,'
+        )
+      ) {
+        return res.status(400).json({
+          message:
+            'Signature invalide.',
+        });
+      }
+
+      const contractDoc =
+        await findContractByShareToken(
+          token
+        );
+
+      if (!contractDoc) {
+        return res.status(404).json({
+          message:
+            'Contrat introuvable.',
+        });
+      }
+
+      const contract =
+        contractDoc.data();
+
+      if (
+        contract.status !==
+        'pending'
+      ) {
 
         if (
-          req.method ===
-          'OPTIONS'
+          contract.status ===
+          'signed'
         ) {
-
-          return res
-            .status(204)
-            .send('');
-
-        }
-
-
-        if (
-          req.method !==
-          'GET'
-        ) {
-
-          return res.status(405).json({
+          return res.status(409).json({
             message:
-              'Méthode non autorisée.',
+              'Ce contrat a déjà été signé.',
+            status: 'signed',
           });
-
         }
-
-
-        const token =
-          getShareToken(req);
-
-
-        if (!token) {
-
-          return res.status(400).json({
-            message:
-              'Lien de signature invalide.',
-          });
-
-        }
-
-
-        const contractDoc =
-          await findContractByShareToken(
-            token
-          );
-
-
-        if (!contractDoc) {
-
-          return res.status(404).json({
-            message:
-              'Contrat introuvable ou lien invalide.',
-          });
-
-        }
-
-
-        const contract =
-          contractDoc.data();
-
-
-        /*
-         * Un contrat expiré ne doit plus
-         * exposer ses informations.
-         */
 
         if (
           contract.status ===
           'expired'
         ) {
-
           return res.status(410).json({
             message:
               'Ce contrat a expiré.',
-            status:
-              'expired',
+            status: 'expired',
           });
-
         }
 
-
-        /*
-         * Si les 24 h ont commencé et sont
-         * maintenant terminées, on nettoie.
-         */
-
-        const access =
-          await ensurePdfAccessStillValid(
-            contractDoc,
-            contract
-          );
-
-
-        if (!access.valid) {
-
-          return res.status(410).json({
-            message:
-              'La période de téléchargement de ce contrat est terminée.',
-            status:
-              'expired',
-          });
-
-        }
-
-
-        const currentContract =
-          access.contract;
-
-
-        return res.status(200).json({
-
-          id:
-            contractDoc.id,
-
-          title:
-            currentContract.title || '',
-
-          content:
-            currentContract.content || '',
-
-          creatorName:
-            currentContract.creatorName || '',
-
-          /*
-           * Ce champ identifie seulement
-           * le signataire attendu.
-           *
-           * sign.js NE doit PAS le mettre
-           * automatiquement dans le champ nom.
-           */
-
-          signerName:
-            currentContract.signerName || '',
-
-          status:
-            currentContract.status ||
-            'pending',
-
-          signerSignedAt:
-            currentContract.signerSignedAt ||
-            null,
-
-        });
-
-      } catch (error) {
-
-        console.error(
-          'Erreur getPublicContract :',
-          error
-        );
-
-
-        return res.status(500).json({
+        return res.status(409).json({
           message:
-            'Erreur serveur lors du chargement du contrat.',
+            'Ce contrat n’est plus disponible.',
         });
-
       }
 
-    }
-  );
+      const signerSignedAt =
+        admin.firestore.Timestamp.now();
 
+      await contractDoc.ref.update({
 
-// ============================================================
-// SIGNER UN CONTRAT PUBLIC
-// ============================================================
+        signerTypedName,
 
-exports.signPublicContract =
-  functions.https.onRequest(
-    async (req, res) => {
+        signerSignatureDataUrl:
+          signatureDataUrl,
+
+        termsAcceptedBySigner:
+          true,
+
+        signerSignedAt,
+
+        status: 'signed',
+
+        // Les 24 h ne commencent PAS ici.
+        pdfAccessStartedAt: null,
+
+        pdfExpiresAt: null,
+
+      });
+
+      const updatedSnapshot =
+        await contractDoc.ref.get();
+
+      const updatedContract =
+        updatedSnapshot.data();
 
       try {
 
-        setCors(
-          res,
-          'POST, OPTIONS'
+        await generateContractPdf(
+          updatedContract
         );
 
-
-        if (
-          req.method ===
-          'OPTIONS'
-        ) {
-
-          return res
-            .status(204)
-            .send('');
-
-        }
-
-
-        if (
-          req.method !==
-          'POST'
-        ) {
-
-          return res.status(405).json({
-            message:
-              'Méthode non autorisée.',
-          });
-
-        }
-
-
-        const token =
-          getShareToken(req);
-
-
-        if (!token) {
-
-          return res.status(400).json({
-            message:
-              'Lien de signature invalide.',
-          });
-
-        }
-
-
-        const {
-          termsAccepted,
-          signatureDataUrl,
-          typedName,
-        } =
-          req.body || {};
-
-
-        // ======================================================
-        // VALIDATION
-        // ======================================================
-
-        if (
-          termsAccepted !== true
-        ) {
-
-          return res.status(400).json({
-            message:
-              'Vous devez accepter les termes du contrat.',
-          });
-
-        }
-
-
-        if (
-          typeof typedName !==
-            'string' ||
-          !typedName.trim()
-        ) {
-
-          return res.status(400).json({
-            message:
-              'Vous devez saisir votre nom complet.',
-          });
-
-        }
-
-
-        const signerTypedName =
-          typedName.trim();
-
-
-        if (
-          signerTypedName.length <
-          2
-        ) {
-
-          return res.status(400).json({
-            message:
-              'Le nom doit contenir au moins 2 caractères.',
-          });
-
-        }
-
-
-        if (
-          signerTypedName.length >
-          150
-        ) {
-
-          return res.status(400).json({
-            message:
-              'Le nom est trop long.',
-          });
-
-        }
-
-
-        if (
-          typeof signatureDataUrl !==
-            'string' ||
-          !signatureDataUrl.startsWith(
-            'data:image/png;base64,'
-          )
-        ) {
-
-          return res.status(400).json({
-            message:
-              'Signature invalide.',
-          });
-
-        }
-
-
-        // ======================================================
-        // CONTRAT
-        // ======================================================
-
-        const contractDoc =
-          await findContractByShareToken(
-            token
-          );
-
-
-        if (!contractDoc) {
-
-          return res.status(404).json({
-            message:
-              'Contrat introuvable.',
-          });
-
-        }
-
-
-        const contract =
-          contractDoc.data();
-
-
-        // ======================================================
-        // STATUT
-        // ======================================================
-
-        if (
-          contract.status !==
-          'pending'
-        ) {
-
-          if (
-            contract.status ===
-            'signed'
-          ) {
-
-            return res.status(409).json({
-              message:
-                'Ce contrat a déjà été signé.',
-              status:
-                'signed',
-            });
-
-          }
-
-
-          if (
-            contract.status ===
-            'expired'
-          ) {
-
-            return res.status(410).json({
-              message:
-                'Ce contrat a expiré.',
-              status:
-                'expired',
-            });
-
-          }
-
-
-          return res.status(409).json({
-            message:
-              'Ce contrat n’est plus disponible.',
-          });
-
-        }
-
-
-        // ======================================================
-        // SIGNATURE
-        // ======================================================
-
-        const signerSignedAt =
-          admin.firestore.Timestamp.now();
-
-
-        await contractDoc.ref.update({
-
-          /*
-           * Nom réellement tapé par le client.
-           */
-
-          signerTypedName,
-
-          signerSignatureDataUrl:
-            signatureDataUrl,
-
-          termsAcceptedBySigner:
-            true,
-
-          signerSignedAt,
-
-          status:
-            'signed',
-
-          /*
-           * IMPORTANT :
-           *
-           * Aucun compteur ici.
-           *
-           * Les 24 h ne commencent PAS
-           * lorsque le client signe.
-           */
-
-          pdfAccessStartedAt:
-            null,
-
-          pdfExpiresAt:
-            null,
-
-        });
-
-
-        // ======================================================
-        // RÉCUPÉRER LE CONTRAT SIGNÉ
-        // ======================================================
-
-        const updatedSnapshot =
-          await contractDoc.ref.get();
-
-
-        const updatedContract =
-          updatedSnapshot.data();
-
-
-        // ======================================================
-        // VÉRIFIER QUE LE PDF PEUT ÊTRE GÉNÉRÉ
-        // ======================================================
-
-        try {
-
-          /*
-           * On vérifie uniquement que le PDF
-           * peut être généré.
-           *
-           * Il n'est PAS enregistré.
-           */
-
-          await generateContractPdf(
-            updatedContract
-          );
-
-        } catch (pdfError) {
-
-          console.error(
-            'Erreur génération PDF après signature :',
-            pdfError
-          );
-
-
-          /*
-           * La signature reste valide même
-           * si la génération du PDF échoue.
-           */
-
-          return res.status(200).json({
-
-            id:
-              contractDoc.id,
-
-            status:
-              'signed',
-
-            signerTypedName,
-
-            signerSignedAt:
-              signerSignedAt
-                .toDate()
-                .toISOString(),
-
-            pdfAvailable:
-              false,
-
-            message:
-              'Contrat signé, mais le PDF doit être régénéré.',
-
-          });
-
-        }
-
+      } catch (pdfError) {
+
+        console.error(
+          'Erreur génération PDF après signature :',
+          pdfError
+        );
 
         return res.status(200).json({
 
           id:
             contractDoc.id,
 
-          status:
-            'signed',
+          status: 'signed',
 
           signerTypedName,
 
@@ -860,730 +541,558 @@ exports.signPublicContract =
               .toDate()
               .toISOString(),
 
-          /*
-           * Le client peut maintenant appeler
-           * la route PDF publique.
-           *
-           * Le compteur est toujours à null.
-           */
-
-          pdfAvailable:
-            true,
-
-          pdfAccessStartedAt:
-            null,
-
-          pdfExpiresAt:
-            null,
+          pdfAvailable: false,
 
           message:
-            'Contrat signé avec succès.',
+            'Contrat signé, mais le PDF doit être régénéré.',
 
         });
-
-
-      } catch (error) {
-
-        console.error(
-          'Erreur signPublicContract :',
-          error
-        );
-
-
-        return res.status(500).json({
-          message:
-            'Erreur serveur lors de la signature du contrat.',
-        });
-
       }
 
+      return res.status(200).json({
+
+        id:
+          contractDoc.id,
+
+        status: 'signed',
+
+        signerTypedName,
+
+        signerSignedAt:
+          signerSignedAt
+            .toDate()
+            .toISOString(),
+
+        pdfAvailable: true,
+
+        pdfAccessStartedAt: null,
+
+        pdfExpiresAt: null,
+
+        message:
+          'Contrat signé avec succès.',
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        'Erreur signPublicContract :',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          'Erreur serveur lors de la signature du contrat.',
+      });
+
     }
-  );
+
+  }
+);
 
 
 // ============================================================
-// PDF PUBLIC — CLIENT
+// PDF CLIENT
+// GET /api/contracts/public/:token/pdf
 // ============================================================
 
-exports.getPublicContractPdf =
-  functions.https.onRequest(
-    async (req, res) => {
+router.get(
+  '/public/:token/pdf',
+  async (req, res) => {
 
-      try {
+    try {
 
-        setCors(
-          res,
-          'GET, OPTIONS'
-        );
+      setCors(
+        res,
+        'GET, OPTIONS'
+      );
 
+      const token =
+        getShareToken(req);
 
-        if (
-          req.method ===
-          'OPTIONS'
-        ) {
-
-          return res
-            .status(204)
-            .send('');
-
-        }
-
-
-        if (
-          req.method !==
-          'GET'
-        ) {
-
-          return res.status(405).json({
-            message:
-              'Méthode non autorisée.',
-          });
-
-        }
-
-
-        const token =
-          getShareToken(req);
-
-
-        if (!token) {
-
-          return res.status(400).json({
-            message:
-              'Lien de contrat invalide.',
-          });
-
-        }
-
-
-        const contractDoc =
-          await findContractByShareToken(
-            token
-          );
-
-
-        if (!contractDoc) {
-
-          return res.status(404).json({
-            message:
-              'Contrat introuvable.',
-          });
-
-        }
-
-
-        const contract =
-          contractDoc.data();
-
-
-        if (
-          contract.status ===
-          'expired'
-        ) {
-
-          return res.status(410).json({
-            message:
-              'La période de téléchargement est terminée.',
-            status:
-              'expired',
-          });
-
-        }
-
-
-        if (
-          contract.status !==
-          'signed'
-        ) {
-
-          return res.status(409).json({
-            message:
-              'Le contrat doit être signé avant de télécharger le PDF.',
-          });
-
-        }
-
-
-        /*
-         * Si le créateur a déjà commencé
-         * les 24 h, on vérifie l'expiration.
-         */
-
-        const access =
-          await ensurePdfAccessStillValid(
-            contractDoc,
-            contract
-          );
-
-
-        if (!access.valid) {
-
-          return res.status(410).json({
-            message:
-              'La période de téléchargement de ce contrat est terminée.',
-            status:
-              'expired',
-          });
-
-        }
-
-
-        const currentContract =
-          access.contract;
-
-
-        /*
-         * Le PDF est généré à la demande.
-         *
-         * Aucun fichier PDF n'est enregistré.
-         */
-
-        const pdfBuffer =
-          await generateContractPdf(
-            currentContract
-          );
-
-
-        res.set(
-          'Content-Type',
-          'application/pdf'
-        );
-
-
-        res.set(
-          'Content-Disposition',
-          `attachment; filename="kontra-africa-contrat-${contractDoc.id}.pdf"`
-        );
-
-
-        /*
-         * Empêche le stockage du PDF
-         * par les caches intermédiaires.
-         */
-
-        res.set(
-          'Cache-Control',
-          'no-store, no-cache, must-revalidate, private'
-        );
-
-
-        res.set(
-          'Pragma',
-          'no-cache'
-        );
-
-
-        res.set(
-          'Expires',
-          '0'
-        );
-
-
-        return res
-          .status(200)
-          .send(pdfBuffer);
-
-
-      } catch (error) {
-
-        console.error(
-          'Erreur génération PDF public :',
-          error
-        );
-
-
-        return res.status(500).json({
+      if (!token) {
+        return res.status(400).json({
           message:
-            'Impossible de générer le PDF.',
+            'Lien de contrat invalide.',
         });
-
       }
 
+      const contractDoc =
+        await findContractByShareToken(
+          token
+        );
+
+      if (!contractDoc) {
+        return res.status(404).json({
+          message:
+            'Contrat introuvable.',
+        });
+      }
+
+      const contract =
+        contractDoc.data();
+
+      if (
+        contract.status ===
+        'expired'
+      ) {
+        return res.status(410).json({
+          message:
+            'La période de téléchargement est terminée.',
+          status: 'expired',
+        });
+      }
+
+      if (
+        contract.status !==
+        'signed'
+      ) {
+        return res.status(409).json({
+          message:
+            'Le contrat doit être signé avant de télécharger le PDF.',
+        });
+      }
+
+      const access =
+        await ensurePdfAccessStillValid(
+          contractDoc,
+          contract
+        );
+
+      if (!access.valid) {
+        return res.status(410).json({
+          message:
+            'La période de téléchargement de ce contrat est terminée.',
+          status: 'expired',
+        });
+      }
+
+      const pdfBuffer =
+        await generateContractPdf(
+          access.contract
+        );
+
+      res.set(
+        'Content-Type',
+        'application/pdf'
+      );
+
+      res.set(
+        'Content-Disposition',
+        `attachment; filename="kontra-africa-contrat-${contractDoc.id}.pdf"`
+      );
+
+      res.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate, private'
+      );
+
+      res.set(
+        'Pragma',
+        'no-cache'
+      );
+
+      res.set(
+        'Expires',
+        '0'
+      );
+
+      return res
+        .status(200)
+        .send(pdfBuffer);
+
+    } catch (error) {
+
+      console.error(
+        'Erreur génération PDF public :',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          'Impossible de générer le PDF.',
+      });
+
     }
-  );
+
+  }
+);
 
 
 // ============================================================
 // PDF CRÉATEUR
+// POST /api/contracts/:contractId/creator-pdf
 // ============================================================
 
-exports.creatorPdf =
-  functions.https.onRequest(
-    async (req, res) => {
+router.post(
+  '/:contractId/creator-pdf',
+  async (req, res) => {
 
-      try {
+    try {
 
-        setCors(
-          res,
-          'POST, OPTIONS'
+      setCors(
+        res,
+        'POST, OPTIONS'
+      );
+
+      const user =
+        await getAuthenticatedUser(
+          req
         );
 
+      if (!user) {
+        return res.status(401).json({
+          message:
+            'Vous devez être connecté pour télécharger le PDF.',
+        });
+      }
 
-        if (
-          req.method ===
-          'OPTIONS'
-        ) {
+      const contractId =
+        req.params.contractId ||
+        req.query.contractId;
 
-          return res
-            .status(204)
-            .send('');
+      if (!contractId) {
+        return res.status(400).json({
+          message:
+            'Identifiant du contrat manquant.',
+        });
+      }
 
-        }
+      const contractDoc =
+        await findContractById(
+          contractId
+        );
 
+      if (!contractDoc) {
+        return res.status(404).json({
+          message:
+            'Contrat introuvable.',
+        });
+      }
 
-        if (
-          req.method !==
-          'POST'
-        ) {
+      let contract =
+        contractDoc.data();
 
-          return res.status(405).json({
-            message:
-              'Méthode non autorisée.',
-          });
+      if (
+        contract.creatorId !==
+        user.uid
+      ) {
+        return res.status(403).json({
+          message:
+            'Vous n’êtes pas autorisé à télécharger ce contrat.',
+        });
+      }
 
-        }
+      if (
+        contract.status ===
+        'expired'
+      ) {
+        return res.status(410).json({
+          message:
+            'La période de téléchargement est terminée.',
+          status: 'expired',
+        });
+      }
 
-
-        // ======================================================
-        // AUTHENTIFICATION
-        // ======================================================
-
-        const user =
-          await getAuthenticatedUser(
-            req
-          );
-
-
-        if (!user) {
-
-          return res.status(401).json({
-            message:
-              'Vous devez être connecté pour télécharger le PDF.',
-          });
-
-        }
-
-
-        // ======================================================
-        // ID CONTRAT
-        // ======================================================
-
-        const contractId =
-          req.params.contractId ||
-          req.query.contractId;
-
-
-        if (!contractId) {
-
-          return res.status(400).json({
-            message:
-              'Identifiant du contrat manquant.',
-          });
-
-        }
-
-
-        const contractDoc =
-          await findContractById(
-            contractId
-          );
+      if (
+        contract.status !==
+        'signed'
+      ) {
+        return res.status(409).json({
+          message:
+            'Le contrat doit être signé par le client avant le téléchargement.',
+        });
+      }
 
 
-        if (!contractDoc) {
+      // ========================================================
+      // LES 24 H COMMENCENT AU PREMIER CLIC DU CRÉATEUR
+      // ========================================================
 
-          return res.status(404).json({
-            message:
-              'Contrat introuvable.',
-          });
+      const now =
+        admin.firestore.Timestamp.now();
 
-        }
+      const result =
+        await db.runTransaction(
+          async (transaction) => {
 
+            const freshDoc =
+              await transaction.get(
+                contractDoc.ref
+              );
 
-        let contract =
-          contractDoc.data();
+            if (!freshDoc.exists) {
+              throw new Error(
+                'CONTRACT_NOT_FOUND'
+              );
+            }
 
+            const freshContract =
+              freshDoc.data();
 
-        // ======================================================
-        // VÉRIFIER LE PROPRIÉTAIRE
-        // ======================================================
+            if (
+              freshContract.creatorId !==
+              user.uid
+            ) {
+              throw new Error(
+                'NOT_OWNER'
+              );
+            }
 
-        if (
-          contract.creatorId !==
-          user.uid
-        ) {
+            if (
+              freshContract.status ===
+              'expired'
+            ) {
+              throw new Error(
+                'EXPIRED'
+              );
+            }
 
-          return res.status(403).json({
-            message:
-              'Vous n’êtes pas autorisé à télécharger ce contrat.',
-          });
-
-        }
-
-
-        // ======================================================
-        // STATUT
-        // ======================================================
-
-        if (
-          contract.status ===
-          'expired'
-        ) {
-
-          return res.status(410).json({
-            message:
-              'La période de téléchargement est terminée.',
-            status:
-              'expired',
-          });
-
-        }
-
-
-        if (
-          contract.status !==
-          'signed'
-        ) {
-
-          return res.status(409).json({
-            message:
-              'Le contrat doit être signé par le client avant le téléchargement.',
-          });
-
-        }
+            if (
+              freshContract.status !==
+              'signed'
+            ) {
+              throw new Error(
+                'NOT_SIGNED'
+              );
+            }
 
 
-        // ======================================================
-        // TRANSACTION
-        // ======================================================
+            // ==================================================
+            // 24 H DÉJÀ COMMENCÉES
+            // ==================================================
 
-        /*
-         * C'est ICI que les 24 h commencent.
-         *
-         * Pas à la création.
-         * Pas lorsque le client signe.
-         * Uniquement lorsque le créateur clique
-         * sur Télécharger le PDF.
-         */
+            if (
+              freshContract.pdfAccessStartedAt
+            ) {
 
-        const now =
-          admin.firestore.Timestamp.now();
-
-
-        const result =
-          await db.runTransaction(
-            async (transaction) => {
-
-              const freshDoc =
-                await transaction.get(
-                  contractDoc.ref
+              const expiresAt =
+                getPdfExpirationMillis(
+                  freshContract
                 );
-
-
-              if (!freshDoc.exists) {
-
-                throw new Error(
-                  'CONTRACT_NOT_FOUND'
-                );
-
-              }
-
-
-              const freshContract =
-                freshDoc.data();
-
 
               if (
-                freshContract.creatorId !==
-                user.uid
+                expiresAt &&
+                Date.now() >=
+                  expiresAt
               ) {
 
-                throw new Error(
-                  'NOT_OWNER'
+                transaction.update(
+                  contractDoc.ref,
+                  {
+
+                    status:
+                      'expired',
+
+                    content:
+                      admin.firestore.FieldValue.delete(),
+
+                    signerName:
+                      admin.firestore.FieldValue.delete(),
+
+                    creatorName:
+                      admin.firestore.FieldValue.delete(),
+
+                    creatorSignatureDataUrl:
+                      admin.firestore.FieldValue.delete(),
+
+                    signerTypedName:
+                      admin.firestore.FieldValue.delete(),
+
+                    signerSignatureDataUrl:
+                      admin.firestore.FieldValue.delete(),
+
+                    termsAcceptedBySigner:
+                      admin.firestore.FieldValue.delete(),
+
+                    signerSignedAt:
+                      admin.firestore.FieldValue.delete(),
+
+                    creatorSignedAt:
+                      admin.firestore.FieldValue.delete(),
+
+                    pdfAccessStartedAt:
+                      admin.firestore.FieldValue.delete(),
+
+                    pdfExpiresAt:
+                      admin.firestore.FieldValue.delete(),
+
+                    shareToken:
+                      admin.firestore.FieldValue.delete(),
+
+                  }
                 );
-
-              }
-
-
-              if (
-                freshContract.status ===
-                'expired'
-              ) {
 
                 throw new Error(
                   'EXPIRED'
                 );
-
               }
-
-
-              if (
-                freshContract.status !==
-                'signed'
-              ) {
-
-                throw new Error(
-                  'NOT_SIGNED'
-                );
-
-              }
-
-
-              // ------------------------------------------------
-              // DÉJÀ DÉMARRÉ
-              // ------------------------------------------------
-
-              if (
-                freshContract.pdfAccessStartedAt
-              ) {
-
-                const expiresAt =
-                  getPdfExpirationMillis(
-                    freshContract
-                  );
-
-
-                if (
-                  expiresAt &&
-                  Date.now() >=
-                    expiresAt
-                ) {
-
-                  transaction.update(
-                    contractDoc.ref,
-                    {
-
-                      status:
-                        'expired',
-
-                      content:
-                        admin.firestore.FieldValue.delete(),
-
-                      signerName:
-                        admin.firestore.FieldValue.delete(),
-
-                      creatorName:
-                        admin.firestore.FieldValue.delete(),
-
-                      creatorSignatureDataUrl:
-                        admin.firestore.FieldValue.delete(),
-
-                      signerTypedName:
-                        admin.firestore.FieldValue.delete(),
-
-                      signerSignatureDataUrl:
-                        admin.firestore.FieldValue.delete(),
-
-                      termsAcceptedBySigner:
-                        admin.firestore.FieldValue.delete(),
-
-                      signerSignedAt:
-                        admin.firestore.FieldValue.delete(),
-
-                      creatorSignedAt:
-                        admin.firestore.FieldValue.delete(),
-
-                      pdfAccessStartedAt:
-                        admin.firestore.FieldValue.delete(),
-
-                      pdfExpiresAt:
-                        admin.firestore.FieldValue.delete(),
-
-                      shareToken:
-                        admin.firestore.FieldValue.delete(),
-
-                    }
-                  );
-
-
-                  throw new Error(
-                    'EXPIRED'
-                  );
-
-                }
-
-
-                return {
-
-                  contract:
-                    freshContract,
-
-                  started:
-                    false,
-
-                };
-
-              }
-
-
-              // ------------------------------------------------
-              // PREMIER CLIC DU CRÉATEUR
-              // ------------------------------------------------
-
-              const expiresAt =
-                admin.firestore.Timestamp.fromMillis(
-                  now.toMillis() +
-                    PDF_ACCESS_DURATION_MS
-                );
-
-
-              transaction.update(
-                contractDoc.ref,
-                {
-
-                  pdfAccessStartedAt:
-                    now,
-
-                  pdfExpiresAt:
-                    expiresAt,
-
-                }
-              );
-
 
               return {
+                contract:
+                  freshContract,
 
-                contract: {
-
-                  ...freshContract,
-
-                  pdfAccessStartedAt:
-                    now,
-
-                  pdfExpiresAt:
-                    expiresAt,
-
-                },
-
-                started:
-                  true,
-
+                started: false,
               };
-
             }
-          );
 
 
-        contract =
-          result.contract;
+            // ==================================================
+            // PREMIER CLIC
+            // ==================================================
 
+            const expiresAt =
+              admin.firestore.Timestamp.fromMillis(
+                now.toMillis() +
+                PDF_ACCESS_DURATION_MS
+              );
 
-        // ======================================================
-        // GÉNÉRER LE PDF
-        // ======================================================
+            transaction.update(
+              contractDoc.ref,
+              {
 
-        const pdfBuffer =
-          await generateContractPdf(
-            contract
-          );
+                pdfAccessStartedAt:
+                  now,
 
+                pdfExpiresAt:
+                  expiresAt,
 
-        // ======================================================
-        // RÉPONSE PDF
-        // ======================================================
+              }
+            );
 
-        res.set(
-          'Content-Type',
-          'application/pdf'
+            return {
+
+              contract: {
+
+                ...freshContract,
+
+                pdfAccessStartedAt:
+                  now,
+
+                pdfExpiresAt:
+                  expiresAt,
+
+              },
+
+              started: true,
+
+            };
+
+          }
         );
 
 
-        res.set(
-          'Content-Disposition',
-          `attachment; filename="kontra-africa-contrat-${contractDoc.id}.pdf"`
+      contract =
+        result.contract;
+
+
+      // ========================================================
+      // PDF GÉNÉRÉ À LA DEMANDE
+      // ========================================================
+
+      const pdfBuffer =
+        await generateContractPdf(
+          contract
         );
 
 
-        res.set(
-          'Cache-Control',
-          'no-store, no-cache, must-revalidate, private'
-        );
+      res.set(
+        'Content-Type',
+        'application/pdf'
+      );
+
+      res.set(
+        'Content-Disposition',
+        `attachment; filename="kontra-africa-contrat-${contractDoc.id}.pdf"`
+      );
+
+      res.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate, private'
+      );
+
+      res.set(
+        'Pragma',
+        'no-cache'
+      );
+
+      res.set(
+        'Expires',
+        '0'
+      );
+
+      return res
+        .status(200)
+        .send(pdfBuffer);
+
+    } catch (error) {
+
+      console.error(
+        'Erreur creatorPdf :',
+        error
+      );
 
 
-        res.set(
-          'Pragma',
-          'no-cache'
-        );
-
-
-        res.set(
-          'Expires',
-          '0'
-        );
-
-
-        return res
-          .status(200)
-          .send(pdfBuffer);
-
-
-      } catch (error) {
-
-        console.error(
-          'Erreur creatorPdf :',
-          error
-        );
-
-
-        if (
-          error.message ===
-          'EXPIRED'
-        ) {
-
-          return res.status(410).json({
-            message:
-              'La période de téléchargement de 24 heures est terminée.',
-            status:
-              'expired',
-          });
-
-        }
-
-
-        if (
-          error.message ===
-          'NOT_OWNER'
-        ) {
-
-          return res.status(403).json({
-            message:
-              'Vous n’êtes pas autorisé à télécharger ce contrat.',
-          });
-
-        }
-
-
-        if (
-          error.message ===
-          'NOT_SIGNED'
-        ) {
-
-          return res.status(409).json({
-            message:
-              'Le client doit d’abord signer le contrat.',
-          });
-
-        }
-
-
-        if (
-          error.message ===
-          'CONTRACT_NOT_FOUND'
-        ) {
-
-          return res.status(404).json({
-            message:
-              'Contrat introuvable.',
-          });
-
-        }
-
-
-        return res.status(500).json({
+      if (
+        error.message ===
+        'EXPIRED'
+      ) {
+        return res.status(410).json({
           message:
-            'Impossible de générer le PDF.',
+            'La période de téléchargement de 24 heures est terminée.',
+          status:
+            'expired',
         });
-
       }
 
+
+      if (
+        error.message ===
+        'NOT_OWNER'
+      ) {
+        return res.status(403).json({
+          message:
+            'Vous n’êtes pas autorisé à télécharger ce contrat.',
+        });
+      }
+
+
+      if (
+        error.message ===
+        'NOT_SIGNED'
+      ) {
+        return res.status(409).json({
+          message:
+            'Le client doit d’abord signer le contrat.',
+        });
+      }
+
+
+      if (
+        error.message ===
+        'CONTRACT_NOT_FOUND'
+      ) {
+        return res.status(404).json({
+          message:
+            'Contrat introuvable.',
+        });
+      }
+
+
+      return res.status(500).json({
+        message:
+          'Impossible de générer le PDF.',
+      });
+
     }
-  );
+
+  }
+);
+
+
+// ============================================================
+// EXPORT EXPRESS
+// ============================================================
+
+module.exports = router;
