@@ -609,8 +609,7 @@ const range =
 for (
   let i = range.start;
 
-  i 
-  range.start + range.count;
+  i < range.start + range.count;
 
   i++
 ) {
