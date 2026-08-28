@@ -17,6 +17,12 @@ const CHARIOW_API_URL = "https://api.chariow.com/v1";
 const CHARIOW_PRODUCT_ID = "prd_tqwlmf8w";
 const TRIAL_DURATION_DAYS = 3;
 
+// Secret partagé avec Chariow pour authentifier les appels webhook
+// (voir functions/src/webhook.js : ?secret=... comparé en timing-safe).
+// À définir sur Render dans les variables d'environnement, avec la même
+// valeur que celle configurée côté Chariow pour l'URL du webhook.
+const CHARIOW_WEBHOOK_SECRET = process.env.CHARIOW_WEBHOOK_SECRET;
+
 // URL publique du frontend (hébergé sur Render), utilisée pour ramener
 // l'utilisateur dans l'app après un paiement Chariow (redirect_url).
 // Peut être surchargée via la variable d'environnement APP_BASE_URL sur Render.
@@ -43,6 +49,7 @@ module.exports = {
   CHARIOW_API_KEY,
   CHARIOW_API_URL,
   CHARIOW_PRODUCT_ID,
+  CHARIOW_WEBHOOK_SECRET,
   APP_BASE_URL,
   ALLOWED_ORIGINS,
   TRIAL_DURATION_DAYS,
