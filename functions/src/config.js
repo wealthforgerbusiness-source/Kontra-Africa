@@ -33,10 +33,16 @@ const APP_BASE_URL = process.env.APP_BASE_URL || "https://kontra-africa-app.onre
 // (liste séparée par des virgules) si tu ajoutes un domaine personnalisé plus tard.
 const ALLOWED_ORIGINS = [
   APP_BASE_URL,
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "http://localhost:5500",
-  "http://127.0.0.1:5500",
+  // Origines de développement local : autorisées uniquement hors production,
+  // pour ne pas laisser localhost/127.0.0.1 passer le CORS en prod.
+  ...(process.env.NODE_ENV !== "production"
+    ? [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+      ]
+    : []),
   ...((process.env.EXTRA_ALLOWED_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
