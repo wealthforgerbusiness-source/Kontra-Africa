@@ -397,6 +397,10 @@ function generateContractPdf(contract) {
               align:'center'
             }
           );
+
+        let currentY =
+          doc.y + 20;
+
         // ======================================================
 // INFORMATIONS CONTRAT
 // ======================================================
@@ -594,7 +598,7 @@ const range =
 for (
   let i = range.start;
 
-  i <
+  i 
   range.start + range.count;
 
   i++
@@ -677,6 +681,3 @@ doc.end();
 module.exports = {
   generateContractPdf
 };
-
-
-        let currentY = 160;
