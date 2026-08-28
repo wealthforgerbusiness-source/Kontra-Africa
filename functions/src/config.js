@@ -22,6 +22,21 @@ const TRIAL_DURATION_DAYS = 3;
 // Peut être surchargée via la variable d'environnement APP_BASE_URL sur Render.
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://kontra-africa-app.onrender.com";
 
+// Origines autorisées à appeler l'API (CORS).
+// Peut être étendu via la variable d'environnement EXTRA_ALLOWED_ORIGINS
+// (liste séparée par des virgules) si tu ajoutes un domaine personnalisé plus tard.
+const ALLOWED_ORIGINS = [
+  APP_BASE_URL,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  ...((process.env.EXTRA_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)),
+];
+
 module.exports = {
   admin,
   db,
@@ -29,5 +44,6 @@ module.exports = {
   CHARIOW_API_URL,
   CHARIOW_PRODUCT_ID,
   APP_BASE_URL,
+  ALLOWED_ORIGINS,
   TRIAL_DURATION_DAYS,
 };
