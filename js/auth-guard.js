@@ -944,6 +944,14 @@ async function startCheckout(
         );
 
 
+    // IMPORTANT (sécurité) : "message" peut provenir du corps de réponse
+    // de notre propre API, qui elle-même relaie parfois un message brut
+    // renvoyé par l'API Chariow (voir functions/src/checkout.js). On ne
+    // doit donc JAMAIS l'injecter directement dans du innerHTML : si ce
+    // texte contenait un jour du HTML/JS, il s'exécuterait dans le
+    // navigateur de l'utilisateur (XSS). On construit le HTML statique
+    // (sans donnée dynamique) puis on assigne le message via textContent,
+    // qui échappe automatiquement tout contenu.
     zone.innerHTML = `
 
       <div
@@ -951,9 +959,7 @@ async function startCheckout(
         role="alert"
       >
 
-        <p>
-          ${message}
-        </p>
+        <p id="checkoutErrorMessage"></p>
 
         <button
           type="button"
@@ -966,6 +972,10 @@ async function startCheckout(
       </div>
 
     `;
+
+    document.getElementById(
+      'checkoutErrorMessage'
+    ).textContent = message;
 
 
     document
