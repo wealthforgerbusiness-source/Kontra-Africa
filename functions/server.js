@@ -11,6 +11,7 @@ const { checkout } = require("./src/checkout");
 const { chariowWebhook } = require("./src/webhook");
 const { verifyLicenseKey } = require("./src/license-verify");
 const contractsRouter = require("./src/contracts");
+const { ALLOWED_ORIGINS } = require("./src/config");
 
 const app = express();
 
@@ -18,8 +19,20 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // Configuration des middlewares
-// Autorise les requêtes provenant du frontend
-app.use(cors());
+// N'autorise que les origines listées dans ALLOWED_ORIGINS (voir config.js).
+// Le webhook Chariow n'a pas besoin de CORS (server-to-server, pas de navigateur).
+const corsOptions = {
+  origin(origin, callback) {
+    // Requêtes sans "Origin" (ex. server-to-server, curl, webhook Chariow) : autorisées.
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`CORS refusé pour l'origine : ${origin}`);
+    return callback(new Error("Origine non autorisée par CORS."));
+  },
+};
+
+app.use(cors(corsOptions));
 // Parse les requêtes entrantes avec des payloads JSON
 app.use(bodyParser.json());
 
