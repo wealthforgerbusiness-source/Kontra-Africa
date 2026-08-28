@@ -122,13 +122,14 @@ async function handleResubscribe() {
   const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
 
   try {
+    const idToken = await currentUser.getIdToken();
     const res = await fetch(`${API_BASE}/api/checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
       },
       body: JSON.stringify({
-        firebaseUid: currentUser.uid,
         email: currentUser.email || '',
         firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
         lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
@@ -188,10 +189,14 @@ async function handleVerifyLicense() {
   btnVerifyLicense.textContent = 'Vérification…';
 
   try {
+    const idToken = await currentUser.getIdToken();
     const res = await fetch(`${API_BASE}/api/verify-license`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firebaseUid: currentUser.uid, licenseKey: key }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ licenseKey: key }),
     });
 
     const result = await res.json();
