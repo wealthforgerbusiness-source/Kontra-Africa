@@ -4,6 +4,8 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 // Importation des contrôleurs depuis src/
 const { initUser } = require("./src/auth");
@@ -17,6 +19,21 @@ const app = express();
 
 // Le port est fourni par Render via la variable d'environnement PORT
 const PORT = process.env.PORT || 8080;
+
+// En-têtes de sécurité HTTP (CSP, X-Frame-Options, etc.)
+app.use(helmet());
+
+// Limite de débit pour les routes sensibles non couvertes par un limiteur
+// dédié (contracts.js a déjà le sien pour la signature publique).
+// 15 requêtes / 15 min / IP : suffisant pour un usage normal, mais bloque
+// le bourrage de requêtes (checkout spam, brute-force de clé de licence, etc.)
+const sensitiveRoutesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Trop de tentatives, réessaie dans quelques minutes." },
+});
 
 // Configuration des middlewares
 // N'autorise que les origines listées dans ALLOWED_ORIGINS (voir config.js).
@@ -50,10 +67,13 @@ app.use(
 );
 
 // Définition des routes
-app.post("/api/init-user", initUser);
-app.post("/api/checkout", checkout);
+app.post("/api/init-user", sensitiveRoutesLimiter, initUser);
+app.post("/api/checkout", sensitiveRoutesLimiter, checkout);
+// Le webhook Chariow est server-to-server (authentifié par signature HMAC,
+// voir src/webhook.js) : pas de rate limit par IP, sinon on risque de
+// bloquer les pulses légitimes de Chariow.
 app.post("/api/chariow-webhook", chariowWebhook);
-app.post("/api/verify-license", verifyLicenseKey);
+app.post("/api/verify-license", sensitiveRoutesLimiter, verifyLicenseKey);
 app.use("/api/contracts", contractsRouter);
 
 // Démarrage du serveur
