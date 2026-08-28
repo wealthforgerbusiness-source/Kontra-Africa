@@ -1,10 +1,38 @@
 /**
  * Contrôleur Webhook pour la réception des Pulses Chariow.
  */
-const { db } = require("./config");
+const crypto = require("crypto");
+const { db, CHARIOW_WEBHOOK_SECRET } = require("./config");
+
+function isValidWebhookSecret(req) {
+  if (!CHARIOW_WEBHOOK_SECRET) {
+    // Pas de secret configuré sur Render : on refuse tout par sécurité
+    // plutôt que d'accepter n'importe quel appel.
+    console.error(
+      "CHARIOW_WEBHOOK_SECRET n'est pas configuré sur le serveur — webhook refusé."
+    );
+    return false;
+  }
+
+  const provided = req.query.secret || "";
+
+  const expected = Buffer.from(CHARIOW_WEBHOOK_SECRET);
+  const received = Buffer.from(String(provided));
+
+  if (expected.length !== received.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expected, received);
+}
 
 exports.chariowWebhook = async (req, res) => {
   try {
+    if (!isValidWebhookSecret(req)) {
+      console.warn("Webhook Chariow refusé : secret manquant ou invalide.");
+      return res.status(401).json({ received: false, error: "unauthorized" });
+    }
+
     const body = req.body || {};
     // IMPORTANT : Chariow n'enveloppe PAS le payload dans "data" ou "payload".
     // Le payload d'une Pulse est à plat : { event, sale, product, customer, store, ... }
