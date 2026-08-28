@@ -4,32 +4,55 @@
 const crypto = require("crypto");
 const { db, CHARIOW_WEBHOOK_SECRET } = require("./config");
 
-function isValidWebhookSecret(req) {
+/**
+ * Vérifie la signature HMAC-SHA256 envoyée par Chariow dans l'en-tête
+ * "x-chariow-signature", calculée sur le corps BRUT de la requête
+ * (jamais sur JSON.stringify(req.body), qui ne reproduit pas les octets
+ * exacts envoyés par Chariow — voir https://chariow.dev/en/guides/pulse-security).
+ *
+ * CHARIOW_WEBHOOK_SECRET doit contenir le "Secret de signature" du Pulse
+ * (valeur qui commence par "whsec_"), visible et copiable dans le
+ * dashboard Chariow : Automations → Pulses → ton Pulse → onglet Overview
+ * → bloc "Secret de signature" → bouton "Reveal" puis "Copy".
+ */
+function isValidSignature(req) {
   if (!CHARIOW_WEBHOOK_SECRET) {
-    // Pas de secret configuré sur Render : on refuse tout par sécurité
-    // plutôt que d'accepter n'importe quel appel.
     console.error(
       "CHARIOW_WEBHOOK_SECRET n'est pas configuré sur le serveur — webhook refusé."
     );
     return false;
   }
 
-  const provided = req.query.secret || "";
-
-  const expected = Buffer.from(CHARIOW_WEBHOOK_SECRET);
-  const received = Buffer.from(String(provided));
-
-  if (expected.length !== received.length) {
+  if (!req.rawBody) {
+    console.error(
+      "req.rawBody est absent — vérifie que bodyParser.json({ verify }) est bien configuré dans server.js."
+    );
     return false;
   }
 
-  return crypto.timingSafeEqual(expected, received);
+  const received = req.header("x-chariow-signature") || "";
+
+  const expected =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", CHARIOW_WEBHOOK_SECRET)
+      .update(req.rawBody) // Buffer brut, jamais un objet re-sérialisé
+      .digest("hex");
+
+  const receivedBuffer = Buffer.from(received);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (receivedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 }
 
 exports.chariowWebhook = async (req, res) => {
   try {
-    if (!isValidWebhookSecret(req)) {
-      console.warn("Webhook Chariow refusé : secret manquant ou invalide.");
+    if (!isValidSignature(req)) {
+      console.warn("Webhook Chariow refusé : signature manquante ou invalide.");
       return res.status(401).json({ received: false, error: "unauthorized" });
     }
 
