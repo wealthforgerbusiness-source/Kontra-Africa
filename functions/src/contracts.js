@@ -19,8 +19,15 @@ const PDF_ACCESS_DURATION_MS = 24 * 60 * 60 * 1000;
 // CORS
 // ============================================================
 
-function setCors(res, methods) {
-  res.set('Access-Control-Allow-Origin', '*');
+const { ALLOWED_ORIGINS } = require('./config');
+
+function setCors(req, res, methods) {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+
   res.set('Access-Control-Allow-Methods', methods);
   res.set(
     'Access-Control-Allow-Headers',
@@ -249,6 +256,7 @@ router.get(
     try {
 
       setCors(
+        req,
         res,
         'GET, OPTIONS'
       );
@@ -369,6 +377,7 @@ router.post(
     try {
 
       setCors(
+        req,
         res,
         'POST, OPTIONS'
       );
@@ -604,6 +613,7 @@ router.get(
     try {
 
       setCors(
+        req,
         res,
         'GET, OPTIONS'
       );
@@ -732,6 +742,7 @@ router.post(
     try {
 
       setCors(
+        req,
         res,
         'POST, OPTIONS'
       );
