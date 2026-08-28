@@ -1,12 +1,16 @@
 const { db, CHARIOW_API_URL, CHARIOW_API_KEY } = require("./config");
+const { getVerifiedUid } = require("./verify-auth");
 
 exports.verifyLicenseKey = async (req, res) => {
   try {
-    const { firebaseUid, licenseKey } = req.body;
+    const firebaseUid = await getVerifiedUid(req);
 
     if (!firebaseUid) {
-      return res.status(400).json({ error: "Le firebaseUid est requis." });
+      return res.status(401).json({ error: "Authentification requise ou invalide." });
     }
+
+    const { licenseKey } = req.body;
+
     if (!licenseKey || typeof licenseKey !== "string" || !licenseKey.trim()) {
       return res.status(400).json({ error: "Une clé de licence est requise." });
     }
