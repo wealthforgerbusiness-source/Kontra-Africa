@@ -1,10 +1,19 @@
 // js/sign.js
 // Page publique de signature — Kontra-Africa
 
-const API_BASE = 'https://kontra-africa.onrender.com';
+const API_BASE =
+  'https://kontra-africa.onrender.com';
 
-const params = new URLSearchParams(window.location.search);
-const token = params.get('token');
+
+const params =
+  new URLSearchParams(
+    window.location.search
+  );
+
+
+const token =
+  params.get('token');
+
 
 let signaturePad = null;
 
@@ -14,118 +23,135 @@ let signaturePad = null;
 // ============================================================
 
 const els = {
-  loading: document.getElementById('state-loading'),
 
-  error: document.getElementById('state-error'),
-  errorMessage: document.getElementById('error-message'),
+  loading:
+    document.getElementById(
+      'state-loading'
+    ),
+
+  error:
+    document.getElementById(
+      'state-error'
+    ),
+
+  errorMessage:
+    document.getElementById(
+      'error-message'
+    ),
 
   alreadySigned:
-    document.getElementById('state-already-signed'),
+    document.getElementById(
+      'state-already-signed'
+    ),
 
   alreadySignedDate:
-    document.getElementById('already-signed-date'),
+    document.getElementById(
+      'already-signed-date'
+    ),
 
   downloadPdf:
-    document.getElementById('link-download-pdf'),
+    document.getElementById(
+      'link-download-pdf'
+    ),
+
 
   contractView:
-    document.getElementById('contract-view'),
+    document.getElementById(
+      'contract-view'
+    ),
 
   contractTitle:
-    document.getElementById('contract-title'),
+    document.getElementById(
+      'contract-title'
+    ),
 
   contractCreatorName:
-    document.getElementById('contract-creator-name'),
+    document.getElementById(
+      'contract-creator-name'
+    ),
 
   contractContent:
-    document.getElementById('contract-content'),
+    document.getElementById(
+      'contract-content'
+    ),
+
 
   terms:
-    document.getElementById('checkbox-terms'),
+    document.getElementById(
+      'checkbox-terms'
+    ),
 
   typedName:
-    document.getElementById('input-typed-name'),
+    document.getElementById(
+      'input-typed-name'
+    ),
+
 
   canvas:
-    document.getElementById('signature-canvas'),
+    document.getElementById(
+      'signature-canvas'
+    ),
+
 
   clearSignature:
-    document.getElementById('btn-clear-signature'),
+    document.getElementById(
+      'btn-clear-signature'
+    ),
+
 
   signError:
-    document.getElementById('sign-error'),
+    document.getElementById(
+      'sign-error'
+    ),
+
 
   signButton:
-    document.getElementById('btn-sign'),
+    document.getElementById(
+      'btn-sign'
+    ),
+
 
   success:
-    document.getElementById('state-success'),
+    document.getElementById(
+      'state-success'
+    ),
+
 
   successPdf:
     document.getElementById(
       'link-download-pdf-success'
     )
+
 };
 
 
+
 // ============================================================
-// AFFICHAGE DES ÉTATS
+// AFFICHAGE
 // ============================================================
 
 function showState(state) {
 
-  const states = [
+  [
     els.loading,
     els.error,
     els.alreadySigned,
     els.contractView,
     els.success
-  ];
 
-  states.forEach((element) => {
+  ].forEach((element)=>{
 
-    if (!element) {
-      return;
+    if(element){
+
+      element.hidden =
+        element !== state;
+
     }
 
-    element.hidden =
-      element !== state;
-
   });
+
 }
 
-
-// ============================================================
-// ERREUR
-// ============================================================
-
-function showError(message) {
-
-  if (els.errorMessage) {
-
-    els.errorMessage.textContent =
-      message;
-
-  }
-
-  showState(
-    els.error
-  );
-}
-
-
-function showSignError(message) {
-
-  if (!els.signError) {
-    return;
-  }
-
-  els.signError.textContent =
-    message;
-
-  els.signError.hidden =
-    false;
-}
 
 
 // ============================================================
@@ -135,7 +161,7 @@ function showSignError(message) {
 async function apiRequest(
   url,
   options = {}
-) {
+){
 
   const response =
     await fetch(
@@ -143,7 +169,7 @@ async function apiRequest(
       {
         ...options,
 
-        headers: {
+        headers:{
           Accept:
             'application/json',
 
@@ -162,31 +188,18 @@ async function apiRequest(
   let data = {};
 
 
-  if (
+  if(
     contentType.includes(
       'application/json'
     )
-  ) {
+  ){
 
     data =
       await response
         .json()
         .catch(
-          () => ({})
+          ()=>({})
         );
-
-  } else {
-
-    const text =
-      await response
-        .text()
-        .catch(
-          () => ''
-        );
-
-    data = {
-      message: text
-    };
 
   }
 
@@ -195,353 +208,47 @@ async function apiRequest(
     response,
     data
   };
+
 }
 
 
+
 // ============================================================
-// URL PDF
+// URL PDF CLIENT
 // ============================================================
 
-function getPdfUrl() {
+function getPdfUrl(){
 
   return (
-    `${API_BASE}/api/contracts/public/` +
+    `${API_BASE}/api/contracts/public/`+
     `${encodeURIComponent(token)}/pdf`
   );
 
 }
 
 
-// ============================================================
-// AFFICHER LE CONTRAT
-// ============================================================
-
-function displayContract(
-  contract
-) {
-
-  if (els.contractTitle) {
-
-    els.contractTitle.textContent =
-      contract.title || '';
-
-  }
-
-
-  if (els.contractCreatorName) {
-
-    els.contractCreatorName.textContent =
-      contract.creatorName || '';
-
-  }
-
-
-  if (els.contractContent) {
-
-    /*
-     * IMPORTANT :
-     *
-     * textContent empêche l'injection
-     * de HTML venant de Firestore.
-     */
-
-    els.contractContent.textContent =
-      contract.content || '';
-
-  }
-
-
-  /*
-   * IMPORTANT :
-   *
-   * Le nom du client n'est JAMAIS
-   * prérempli.
-   *
-   * Le client doit le saisir lui-même.
-   */
-
-  if (els.typedName) {
-
-    els.typedName.value =
-      '';
-
-    els.typedName.placeholder =
-      'Ex. Jean Dupont';
-
-  }
-
-}
-
 
 // ============================================================
-// SIGNATURE CANVAS
+// CHARGEMENT CONTRAT
 // ============================================================
 
-function initSignaturePad() {
+async function init(){
 
-  if (!els.canvas) {
-    return;
-  }
+  if(!token){
 
+    els.errorMessage.textContent =
+      'Lien invalide.';
 
-  const canvas =
-    els.canvas;
-
-
-  const ctx =
-    canvas.getContext(
-      '2d'
-    );
-
-
-  if (!ctx) {
-    return;
-  }
-
-
-  let drawing =
-    false;
-
-
-  let hasSignature =
-    false;
-
-
-  function getPosition(
-    event
-  ) {
-
-    const rect =
-      canvas.getBoundingClientRect();
-
-
-    const source =
-      event.touches &&
-      event.touches.length
-        ? event.touches[0]
-        : event;
-
-
-    return {
-
-      x:
-        (source.clientX -
-          rect.left) *
-        (canvas.width /
-          rect.width),
-
-      y:
-        (source.clientY -
-          rect.top) *
-        (canvas.height /
-          rect.height)
-
-    };
-
-  }
-
-
-  function startDrawing(
-    event
-  ) {
-
-    drawing =
-      true;
-
-
-    hasSignature =
-      true;
-
-
-    const point =
-      getPosition(
-        event
-      );
-
-
-    ctx.beginPath();
-
-
-    ctx.moveTo(
-      point.x,
-      point.y
-    );
-
-
-    event.preventDefault();
-
-  }
-
-
-  function draw(
-    event
-  ) {
-
-    if (!drawing) {
-      return;
-    }
-
-
-    const point =
-      getPosition(
-        event
-      );
-
-
-    ctx.lineTo(
-      point.x,
-      point.y
-    );
-
-
-    ctx.stroke();
-
-
-    event.preventDefault();
-
-  }
-
-
-  function stopDrawing() {
-
-    drawing =
-      false;
-
-  }
-
-
-  ctx.lineWidth =
-    2.5;
-
-  ctx.lineCap =
-    'round';
-
-  ctx.lineJoin =
-    'round';
-
-  ctx.strokeStyle =
-    '#222';
-
-
-  canvas.addEventListener(
-    'mousedown',
-    startDrawing
-  );
-
-
-  canvas.addEventListener(
-    'mousemove',
-    draw
-  );
-
-
-  canvas.addEventListener(
-    'mouseup',
-    stopDrawing
-  );
-
-
-  canvas.addEventListener(
-    'mouseleave',
-    stopDrawing
-  );
-
-
-  canvas.addEventListener(
-    'touchstart',
-    startDrawing,
-    {
-      passive: false
-    }
-  );
-
-
-  canvas.addEventListener(
-    'touchmove',
-    draw,
-    {
-      passive: false
-    }
-  );
-
-
-  canvas.addEventListener(
-    'touchend',
-    stopDrawing
-  );
-
-
-  if (els.clearSignature) {
-
-    els.clearSignature.addEventListener(
-      'click',
-      () => {
-
-        ctx.clearRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-
-        hasSignature =
-          false;
-
-      }
-    );
-
-  }
-
-
-  signaturePad = {
-
-    isEmpty() {
-
-      return !hasSignature;
-
-    },
-
-
-    toDataURL() {
-
-      return canvas.toDataURL(
-        'image/png'
-      );
-
-    }
-
-  };
-
-}
-
-
-// ============================================================
-// CHARGER LE CONTRAT
-// ============================================================
-
-async function loadContract() {
-
-  if (!token) {
-
-    showError(
-      'Ce lien de signature est invalide.'
+    showState(
+      els.error
     );
 
     return;
+
   }
 
 
-  showState(
-    els.loading
-  );
-
-
-  try {
-
-    const url =
-      `${API_BASE}/api/contracts/public/` +
-      encodeURIComponent(token);
+  try{
 
 
     const {
@@ -549,87 +256,28 @@ async function loadContract() {
       data
     } =
       await apiRequest(
-        url
+        `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}`
       );
 
 
-    // --------------------------------------------------------
-    // EXPIRÉ
-    // --------------------------------------------------------
+    if(!response.ok){
 
-    if (
-      response.status === 410 ||
-      data.status === 'expired'
-    ) {
-
-      showError(
+      throw new Error(
         data.message ||
-        'Ce contrat a expiré.'
+        'Contrat introuvable.'
       );
-
-      return;
 
     }
 
 
-    // --------------------------------------------------------
-    // ERREUR
-    // --------------------------------------------------------
-
-    if (!response.ok) {
-
-      showError(
-        data.message ||
-        'Impossible de charger le contrat.'
-      );
-
-      return;
-
-    }
-
-
-    // --------------------------------------------------------
-    // DÉJÀ SIGNÉ
-    // --------------------------------------------------------
-
-    if (
+    if(
       data.status === 'signed'
-    ) {
+    ){
 
-      if (
-        els.alreadySignedDate &&
-        data.signerSignedAt
-      ) {
-
-        els.alreadySignedDate.textContent =
-          new Date(
-            data.signerSignedAt
-          ).toLocaleString(
-            'fr-FR'
-          );
-
-      }
-
-
-      /*
-       * IMPORTANT :
-       *
-       * Aucun compte à rebours ici.
-       *
-       * La signature du client ne démarre
-       * PAS les 24 heures.
-       *
-       * Le créateur déclenchera les 24 h
-       * depuis son interface.
-       */
-
-
-      if (els.downloadPdf) {
-
-        els.downloadPdf.hidden =
-          true;
-
-      }
+      els.alreadySignedDate.textContent =
+        formatDate(
+          data.signerSignedAt
+        );
 
 
       showState(
@@ -642,26 +290,27 @@ async function loadContract() {
     }
 
 
-    // --------------------------------------------------------
-    // CONTRAT EN ATTENTE
-    // --------------------------------------------------------
-
-    if (
+    if(
       data.status !== 'pending'
-    ) {
+    ){
 
-      showError(
+      throw new Error(
         'Ce contrat n’est plus disponible.'
       );
-
-      return;
 
     }
 
 
-    displayContract(
-      data
-    );
+    els.contractTitle.textContent =
+      data.title || '';
+
+
+    els.contractCreatorName.textContent =
+      data.creatorName || '';
+
+
+    els.contractContent.textContent =
+      data.content || '';
 
 
     showState(
@@ -672,142 +321,255 @@ async function loadContract() {
     initSignaturePad();
 
 
-  } catch (error) {
+
+  }catch(error){
 
     console.error(
-      'Erreur chargement contrat:',
       error
     );
 
 
-    showError(
-      error.message ||
-      'Impossible de charger le contrat.'
+    els.errorMessage.textContent =
+      error.message;
+
+
+    showState(
+      els.error
     );
 
   }
+// ============================================================
+// SIGNATURE PAD
+// ============================================================
+
+function initSignaturePad(){
+
+  if(!els.canvas){
+    return;
+  }
+
+
+  const ctx =
+    els.canvas.getContext(
+      '2d'
+    );
+
+
+  let drawing = false;
+
+
+  function position(e){
+
+    const rect =
+      els.canvas.getBoundingClientRect();
+
+
+    const point =
+      e.touches
+      ? e.touches[0]
+      : e;
+
+
+    return {
+      x:
+        point.clientX -
+        rect.left,
+
+      y:
+        point.clientY -
+        rect.top
+    };
+
+  }
+
+
+  function start(e){
+
+    drawing = true;
+
+    const p =
+      position(e);
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      p.x,
+      p.y
+    );
+
+  }
+
+
+  function draw(e){
+
+    if(!drawing)
+      return;
+
+
+    e.preventDefault();
+
+
+    const p =
+      position(e);
+
+
+    ctx.lineWidth =
+      2;
+
+
+    ctx.lineCap =
+      'round';
+
+
+    ctx.strokeStyle =
+      '#000000';
+
+
+    ctx.lineTo(
+      p.x,
+      p.y
+    );
+
+
+    ctx.stroke();
+
+  }
+
+
+  function stop(){
+
+    drawing = false;
+
+  }
+
+
+
+  els.canvas.addEventListener(
+    'mousedown',
+    start
+  );
+
+  els.canvas.addEventListener(
+    'mousemove',
+    draw
+  );
+
+  window.addEventListener(
+    'mouseup',
+    stop
+  );
+
+
+  els.canvas.addEventListener(
+    'touchstart',
+    start,
+    {
+      passive:false
+    }
+  );
+
+
+  els.canvas.addEventListener(
+    'touchmove',
+    draw,
+    {
+      passive:false
+    }
+  );
+
+
+  window.addEventListener(
+    'touchend',
+    stop
+  );
+
+
+
+  els.clearSignature?.addEventListener(
+    'click',
+    ()=>{
+
+      ctx.clearRect(
+        0,
+        0,
+        els.canvas.width,
+        els.canvas.height
+      );
+
+    }
+  );
+
 
 }
 
 
+
 // ============================================================
-// SIGNER LE CONTRAT
+// ENVOI SIGNATURE
 // ============================================================
 
-async function signContract() {
+async function signContract(){
 
-  if (els.signError) {
+
+  els.signError.hidden =
+    true;
+
+
+  const name =
+    els.typedName.value.trim();
+
+
+
+  if(
+    !els.terms.checked
+  ){
+
+    els.signError.textContent =
+      'Veuillez accepter le contrat.';
 
     els.signError.hidden =
-      true;
-
-  }
-
-
-  // ----------------------------------------------------------
-  // CONDITIONS
-  // ----------------------------------------------------------
-
-  if (
-    !els.terms ||
-    !els.terms.checked
-  ) {
-
-    showSignError(
-      'Vous devez accepter les termes du contrat.'
-    );
+      false;
 
     return;
 
   }
 
 
-  // ----------------------------------------------------------
-  // NOM
-  // ----------------------------------------------------------
 
-  const typedName =
-    els.typedName
-      ? els.typedName.value.trim()
-      : '';
+  if(
+    name.length < 2
+  ){
 
+    els.signError.textContent =
+      'Veuillez saisir votre nom complet.';
 
-  if (!typedName) {
-
-    showSignError(
-      'Veuillez saisir votre nom complet.'
-    );
-
-
-    els.typedName?.focus();
-
+    els.signError.hidden =
+      false;
 
     return;
 
   }
 
 
-  if (
-    typedName.length < 2
-  ) {
 
-    showSignError(
-      'Votre nom est trop court.'
-    );
-
-    return;
-
-  }
+  const signature =
+    els.canvas
+      .toDataURL(
+        'image/png'
+      );
 
 
-  // ----------------------------------------------------------
-  // SIGNATURE
-  // ----------------------------------------------------------
 
-  if (
-    !signaturePad ||
-    signaturePad.isEmpty()
-  ) {
-
-    showSignError(
-      'Veuillez dessiner votre signature.'
-    );
-
-    return;
-
-  }
+  els.signButton.disabled =
+    true;
 
 
-  // ----------------------------------------------------------
-  // BOUTON
-  // ----------------------------------------------------------
-
-  const originalText =
-    els.signButton
-      ? els.signButton.textContent
-      : 'Signer le contrat';
+  els.signButton.textContent =
+    'Signature en cours...';
 
 
-  if (els.signButton) {
 
-    els.signButton.disabled =
-      true;
-
-    els.signButton.textContent =
-      'Signature en cours…';
-
-  }
-
-
-  try {
-
-    const signatureDataUrl =
-      signaturePad.toDataURL();
-
-
-    const url =
-      `${API_BASE}/api/contracts/public/` +
-      `${encodeURIComponent(token)}/sign`;
+  try{
 
 
     const {
@@ -815,30 +577,25 @@ async function signContract() {
       data
     } =
       await apiRequest(
-        url,
+        `${API_BASE}/api/contracts/public/${encodeURIComponent(token)}/sign`,
         {
 
-          method:
-            'POST',
+          method:'POST',
 
-          headers: {
-
+          headers:{
             'Content-Type':
               'application/json'
-
           },
+
 
           body:
             JSON.stringify({
 
-              termsAccepted:
-                true,
-
-              typedName:
-                typedName,
+              signerName:
+                name,
 
               signatureDataUrl:
-                signatureDataUrl
+                signature
 
             })
 
@@ -846,320 +603,159 @@ async function signContract() {
       );
 
 
-    // --------------------------------------------------------
-    // EXPIRÉ
-    // --------------------------------------------------------
 
-    if (
-      response.status === 410 ||
-      data.status === 'expired'
-    ) {
-
-      showSignError(
-        data.message ||
-        'Le contrat a expiré.'
-      );
-
-      return;
-
-    }
-
-
-    // --------------------------------------------------------
-    // ERREUR
-    // --------------------------------------------------------
-
-    if (!response.ok) {
+    if(!response.ok){
 
       throw new Error(
         data.message ||
-        'La signature a échoué.'
+        'Erreur lors de la signature.'
       );
 
     }
 
 
-    // --------------------------------------------------------
-    // VÉRIFICATION
-    // --------------------------------------------------------
 
-    if (
-      data.status !== 'signed'
-    ) {
-
-      throw new Error(
-        'La signature n’a pas été confirmée.'
-      );
-
-    }
+    const pdfUrl =
+      data.pdfUrl ||
+      getPdfUrl();
 
 
-    // ========================================================
-    // IMPORTANT : PAS DE 24 H ICI
-    // ========================================================
 
-    /*
-     * Le client vient de signer.
-     *
-     * Le backend doit simplement avoir enregistré
-     * la signature et changé le statut en "signed".
-     *
-     * Le compte à rebours de 24 h NE commence PAS ici.
-     *
-     * Le créateur le déclenchera lorsqu'il cliquera
-     * sur "Télécharger le PDF".
-     */
-
-
-    // ========================================================
-    // TÉLÉCHARGEMENT AUTOMATIQUE DU CLIENT
-    // ========================================================
-
-    /*
-     * Le client reçoit son PDF immédiatement.
-     *
-     * IMPORTANT :
-     * cette requête ne doit pas démarrer le compteur.
-     *
-     * Le backend doit autoriser le PDF du signataire
-     * juste après la signature.
-     */
-
-    await downloadPdfAutomatically();
-
-
-    // ========================================================
-    // SUCCÈS
-    // ========================================================
+    // affichage succès
 
     showState(
       els.success
     );
 
 
-    /*
-     * Le bouton PDF de la page succès est caché,
-     * car le PDF vient déjà d'être téléchargé.
-     */
 
-    if (els.successPdf) {
+    if(els.successPdf){
 
-      els.successPdf.hidden =
-        true;
+      els.successPdf.href =
+        pdfUrl;
 
     }
 
 
-  } catch (error) {
+
+    if(els.downloadPdf){
+
+      els.downloadPdf.href =
+        pdfUrl;
+
+    }
+
+
+
+    // ==================================================
+    // TELECHARGEMENT AUTOMATIQUE CLIENT
+    // ==================================================
+
+    setTimeout(
+      ()=>{
+
+        const link =
+          document.createElement(
+            'a'
+          );
+
+
+        link.href =
+          pdfUrl;
+
+
+        link.download =
+          'contrat-kontra-africa.pdf';
+
+
+        document.body.appendChild(
+          link
+        );
+
+
+        link.click();
+
+
+        link.remove();
+
+
+      },
+      800
+    );
+
+
+
+  }catch(error){
+
 
     console.error(
-      'Erreur signature:',
       error
     );
 
 
-    showSignError(
-      error.message ||
-      'Impossible de signer le contrat.'
-    );
+    els.signError.textContent =
+      error.message;
 
 
-  } finally {
+    els.signError.hidden =
+      false;
 
-    if (els.signButton) {
 
-      els.signButton.disabled =
-        false;
 
-      els.signButton.textContent =
-        originalText;
+    els.signButton.disabled =
+      false;
 
-    }
+
+    els.signButton.textContent =
+      'Signer le contrat';
 
   }
+
 
 }
 
 
+
 // ============================================================
-// TÉLÉCHARGEMENT AUTOMATIQUE PDF
+// UTIL DATE
 // ============================================================
 
-async function downloadPdfAutomatically() {
+function formatDate(value){
 
-  /*
-   * Petite attente pour laisser Firestore terminer
-   * l'enregistrement de la signature.
-   */
-
-  await new Promise(
-    (resolve) =>
-      setTimeout(
-        resolve,
-        500
-      )
-  );
+  if(!value)
+    return '';
 
 
-  const pdfUrl =
-    getPdfUrl();
+  const d =
+    new Date(value);
 
 
-  const response =
-    await fetch(
-      pdfUrl,
-      {
-        method:
-          'GET',
-
-        headers: {
-          Accept:
-            'application/pdf'
-        }
-      }
-    );
+  if(
+    Number.isNaN(
+      d.getTime()
+    )
+  )
+    return '';
 
 
-  if (!response.ok) {
 
-    let message =
-      'Le contrat a été signé, mais le PDF n’a pas pu être téléchargé.';
-
-
-    try {
-
-      const contentType =
-        response.headers.get(
-          'content-type'
-        ) || '';
-
-
-      if (
-        contentType.includes(
-          'application/json'
-        )
-      ) {
-
-        const data =
-          await response.json();
-
-        if (data.message) {
-
-          message =
-            data.message;
-
-        }
-
-      }
-
-    } catch (_) {
-      // Rien à faire.
-    }
-
-
-    throw new Error(
-      message
-    );
-
-  }
-
-
-  const blob =
-    await response.blob();
-
-
-  if (
-    !blob ||
-    blob.size === 0
-  ) {
-
-    throw new Error(
-      'Le PDF généré est vide.'
-    );
-
-  }
-
-
-  const blobUrl =
-    URL.createObjectURL(
-      blob
-    );
-
-
-  const link =
-    document.createElement(
-      'a'
-    );
-
-
-  link.href =
-    blobUrl;
-
-
-  link.download =
-    'contrat-kontra-africa.pdf';
-
-
-  link.style.display =
-    'none';
-
-
-  document.body.appendChild(
-    link
-  );
-
-
-  link.click();
-
-
-  link.remove();
-
-
-  setTimeout(
-    () => {
-
-      URL.revokeObjectURL(
-        blobUrl
-      );
-
-    },
-    5000
+  return d.toLocaleDateString(
+    'fr-FR'
   );
 
 }
 
 
-// ============================================================
-// ÉVÉNEMENT SIGNATURE
-// ============================================================
-
-if (els.signButton) {
-
-  els.signButton.addEventListener(
-    'click',
-    signContract
-  );
-
-}
-
 
 // ============================================================
-// NETTOYAGE
+// INIT
 // ============================================================
 
-window.addEventListener(
-  'beforeunload',
-  () => {
-
-    // Aucun compte à rebours côté client.
-    // Le délai est géré côté serveur.
-
-  }
+els.signButton?.addEventListener(
+  'click',
+  signContract
 );
 
 
-// ============================================================
-// DÉMARRAGE
-// ============================================================
-
-loadContract();
+init();
+}
