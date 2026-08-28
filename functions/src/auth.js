@@ -2,14 +2,17 @@
  * Contrôleur d'authentification pour initialiser le profil utilisateur.
  */
 const { db, TRIAL_DURATION_DAYS } = require("./config");
+const { getVerifiedUid } = require("./verify-auth");
 
 exports.initUser = async (req, res) => {
   try {
-    const { uid, email, displayName, photoURL } = req.body;
-    
+    const uid = await getVerifiedUid(req);
+
     if (!uid) {
-      return res.status(400).json({ error: "L'uid de l'utilisateur est requis." });
+      return res.status(401).json({ error: "Authentification requise ou invalide." });
     }
+
+    const { email, displayName, photoURL } = req.body;
 
     const userRef = db.collection("users").doc(uid);
     const userDoc = await userRef.get();
