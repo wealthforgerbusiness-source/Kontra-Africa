@@ -394,16 +394,67 @@ function generateContractPdf(contract) {
             115,
             {
               width:495,
-              align:'center'
+              align:'center',
+              underline:true
             }
           );
 
         let currentY =
-          doc.y + 20;
+          doc.y + 25;
 
         // ======================================================
-// INFORMATIONS CONTRAT
+// TERMES DU CONTRAT (contenu)
 // ======================================================
+
+doc
+  .font('Helvetica-Bold')
+  .fontSize(12)
+  .fillColor(BLACK)
+  .text(
+    'TERMES DU CONTRAT',
+    50,
+    currentY
+  );
+
+
+currentY += 22;
+
+
+doc
+  .font('Helvetica')
+  .fontSize(10)
+  .fillColor(BLACK)
+  .text(
+    contract.content || '',
+    50,
+    currentY,
+    {
+      width:495,
+      align:'left',
+      lineGap:3
+    }
+  );
+
+
+currentY =
+  doc.y + 25;
+
+
+
+// ======================================================
+// INFORMATIONS CONTRAT (créateur / signataire)
+// ======================================================
+
+if (
+  currentY > 680
+) {
+
+  doc.addPage();
+
+  currentY = 50;
+
+}
+
 
 doc
   .font('Helvetica-Bold')
@@ -457,48 +508,8 @@ currentY += 35;
 
 
 // ======================================================
-// CONTENU DU CONTRAT
-// ======================================================
-
-doc
-  .font('Helvetica-Bold')
-  .fontSize(12)
-  .fillColor(BLACK)
-  .text(
-    'TERMES DU CONTRAT',
-    50,
-    currentY
-  );
-
-
-currentY += 22;
-
-
-doc
-  .font('Helvetica')
-  .fontSize(10)
-  .fillColor(BLACK)
-  .text(
-    contract.content || '',
-    50,
-    currentY,
-    {
-      width:495,
-      align:'left',
-      lineGap:3
-    }
-  );
-
-
-
-// ======================================================
 // SIGNATURES
 // ======================================================
-
-currentY =
-  doc.y + 25;
-
-
 
 if (
   currentY > 590
@@ -608,6 +619,12 @@ for (
   doc.switchToPage(i);
 
 
+  const originalBottomMargin =
+    doc.page.margins.bottom;
+
+  doc.page.margins.bottom = 0;
+
+
   const footerY =
     doc.page.height - 35;
 
@@ -632,7 +649,8 @@ for (
       50,
       footerY,
       {
-        width:300
+        width:300,
+        lineBreak:false
       }
     );
 
@@ -646,9 +664,14 @@ for (
       footerY,
       {
         width:95,
-        align:'right'
+        align:'right',
+        lineBreak:false
       }
     );
+
+
+  doc.page.margins.bottom =
+    originalBottomMargin;
 
 }
 
