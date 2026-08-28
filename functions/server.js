@@ -33,8 +33,21 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// Parse les requêtes entrantes avec des payloads JSON
-app.use(bodyParser.json());
+
+// Parse les requêtes entrantes avec des payloads JSON.
+// IMPORTANT : on capture aussi le corps BRUT (req.rawBody) via l'option
+// "verify". La vérification de signature Chariow (voir src/webhook.js)
+// doit être calculée sur les octets bruts exacts reçus, PAS sur
+// JSON.stringify(req.body) qui peut ré-échapper différemment les
+// caractères (slashes, accents) et casser la signature.
+// Voir https://chariow.dev/en/guides/pulse-security
+app.use(
+  bodyParser.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // Définition des routes
 app.post("/api/init-user", initUser);
