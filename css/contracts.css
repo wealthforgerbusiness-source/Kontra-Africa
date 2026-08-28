@@ -345,14 +345,20 @@
 
 .copy-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .copy-row input {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   border: 1px solid #DED7F5;
   border-radius: var(--radius-md, 10px);
   padding: 10px 12px;
   min-height: 44px;
   font-size: 0.875rem;
+}
+
+.copy-row .btn {
+  flex: 0 0 auto;
 }
