@@ -2,14 +2,17 @@
  * Contrôleur pour initier une session de paiement Chariow.
  */
 const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID, APP_BASE_URL } = require("./config");
+const { getVerifiedUid } = require("./verify-auth");
 
 exports.checkout = async (req, res) => {
   try {
-    const { firebaseUid, email, firstName, lastName, phone } = req.body;
+    const firebaseUid = await getVerifiedUid(req);
 
     if (!firebaseUid) {
-      return res.status(400).json({ error: "Le firebaseUid est requis." });
+      return res.status(401).json({ error: "Authentification requise ou invalide." });
     }
+
+    const { email, firstName, lastName, phone } = req.body;
 
     const phoneNumber = phone && phone.number ? String(phone.number).replace(/\D/g, '') : '';
     const phoneCountryCode = phone && phone.countryCode ? String(phone.countryCode) : '';
