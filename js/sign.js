@@ -553,10 +553,13 @@ async function signContract(){
 
           JSON.stringify({
 
-            signerName:
+            typedName:
               name,
 
-            signatureDataUrl
+            signatureDataUrl,
+
+            termsAccepted:
+              els.terms.checked
 
           })
 
@@ -700,7 +703,6 @@ function formatDate(value){
     return '';
 
   }
-
 
 
   return date.toLocaleDateString(
