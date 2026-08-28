@@ -117,9 +117,9 @@ function translateAuthError(error) {
 
 async function initUserOnBackend(firebaseUser) {
 
-  const payload = {
-    uid: firebaseUser.uid,
+  const idToken = await firebaseUser.getIdToken();
 
+  const payload = {
     email: firebaseUser.email || '',
 
     displayName:
@@ -165,7 +165,8 @@ async function initUserOnBackend(firebaseUser) {
           method: 'POST',
 
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
           },
 
           body: JSON.stringify(payload),
