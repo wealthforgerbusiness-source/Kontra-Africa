@@ -4,18 +4,6 @@ const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
 
-/*
- * SCEAU
- *
- * Le fichier doit être ici :
- *
- * functions/
- *   src/
- *     pdf-generator.js
- *     assets/
- *       kontrasceau.png
- */
-
 const SEAL_PATH = path.join(
   __dirname,
   'assets',
@@ -24,26 +12,12 @@ const SEAL_PATH = path.join(
 
 
 // ============================================================
-// VÉRIFICATION DU SCEAU
-// ============================================================
-
-if (!fs.existsSync(SEAL_PATH)) {
-  console.warn(
-    'ATTENTION : sceau introuvable :',
-    SEAL_PATH
-  );
-}
-
-
-// ============================================================
 // UTILITAIRES
 // ============================================================
 
 function formatDate(value) {
 
-  if (!value) {
-    return '';
-  }
+  if (!value) return '';
 
   let date;
 
@@ -51,12 +25,9 @@ function formatDate(value) {
     value &&
     typeof value.toDate === 'function'
   ) {
-
     date = value.toDate();
 
-  } else if (
-    value instanceof Date
-  ) {
+  } else if (value instanceof Date) {
 
     date = value;
 
@@ -67,14 +38,8 @@ function formatDate(value) {
   }
 
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-
+  if (Number.isNaN(date.getTime())) {
     return '';
-
   }
 
 
@@ -83,15 +48,14 @@ function formatDate(value) {
     {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
+      year: 'numeric'
     }
   );
-
 }
 
 
 // ============================================================
-// LIGNE
+// LIGNE NOIRE
 // ============================================================
 
 function drawLine(
@@ -103,21 +67,16 @@ function drawLine(
 ) {
 
   doc
-    .moveTo(
-      x1,
-      y1
-    )
-    .lineTo(
-      x2,
-      y2
-    )
+    .strokeColor('#000000')
+    .moveTo(x1,y1)
+    .lineTo(x2,y2)
     .stroke();
 
 }
 
 
 // ============================================================
-// SCEAU
+// SCEAU PETIT
 // ============================================================
 
 function drawSeal(
@@ -127,54 +86,30 @@ function drawSeal(
   size
 ) {
 
-  if (
-    !fs.existsSync(
-      SEAL_PATH
-    )
-  ) {
-
+  if (!fs.existsSync(SEAL_PATH)) {
     return;
-
   }
 
 
   try {
-
-    /*
-     * IMPORTANT :
-     *
-     * On utilise "fit" au lieu de forcer
-     * width + height.
-     *
-     * Cela conserve les proportions du PNG
-     * et empêche le sceau de prendre une
-     * taille énorme si son image originale
-     * possède un grand canvas transparent.
-     */
 
     doc.image(
       SEAL_PATH,
       x,
       y,
       {
-        fit: [
+        fit:[
           size,
-          size,
-        ],
-
-        align:
-          'center',
-
-        valign:
-          'center',
+          size
+        ]
       }
     );
 
 
-  } catch (error) {
+  } catch(error) {
 
     console.error(
-      'Erreur lors de l’insertion du sceau :',
+      'Erreur sceau:',
       error
     );
 
@@ -184,7 +119,7 @@ function drawSeal(
 
 
 // ============================================================
-// BLOC DE SIGNATURE
+// SIGNATURE BLOCK COMPACT
 // ============================================================
 
 function drawSignatureBlock(
@@ -196,23 +131,13 @@ function drawSignatureBlock(
     title,
     name,
     signatureDataUrl,
-    signedAt,
+    signedAt
   }
 ) {
 
-  /*
-   * Hauteur fixe du bloc.
-   *
-   * Le sceau est contenu à l'intérieur
-   * de cette zone.
-   */
 
-  const height = 190;
+  const height = 125;
 
-
-  // ==========================================================
-  // CADRE
-  // ==========================================================
 
   doc
     .roundedRect(
@@ -220,59 +145,38 @@ function drawSignatureBlock(
       y,
       width,
       height,
-      8
+      6
     )
-    .lineWidth(1)
-    .strokeColor(
-      '#D8D3E2'
-    )
+    .lineWidth(0.8)
+    .strokeColor('#000000')
     .stroke();
 
 
-  // ==========================================================
-  // TITRE
-  // ==========================================================
 
   doc
-    .fontSize(11)
-    .font(
-      'Helvetica-Bold'
-    )
-    .fillColor(
-      '#2A2140'
-    )
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#000000')
     .text(
       title,
-      x + 15,
-      y + 15,
-      {
-        width:
-          width - 30,
-      }
+      x + 10,
+      y + 10
     );
 
 
-  // ==========================================================
-  // LIGNE SOUS LE TITRE
-  // ==========================================================
-
   drawLine(
     doc,
-    x + 15,
-    y + 38,
-    x + width - 15,
-    y + 38
+    x + 10,
+    y + 28,
+    x + width - 10,
+    y + 28
   );
 
 
-  // ==========================================================
-  // SIGNATURE
-  // ==========================================================
 
   if (
     signatureDataUrl &&
-    typeof signatureDataUrl ===
-      'string'
+    typeof signatureDataUrl === 'string'
   ) {
 
     try {
@@ -291,47 +195,23 @@ function drawSignatureBlock(
         );
 
 
-      /*
-       * Signature volontairement limitée.
-       *
-       * Elle ne pourra jamais dépasser
-       * cette zone.
-       */
-
-      const signatureMaxWidth =
-        Math.min(
-          130,
-          width - 110
-        );
-
-
-      const signatureMaxHeight =
-        48;
-
-
       doc.image(
         buffer,
-        x + 15,
-        y + 50,
+        x + 10,
+        y + 35,
         {
-          fit: [
-            signatureMaxWidth,
-            signatureMaxHeight,
-          ],
-
-          align:
-            'left',
-
-          valign:
-            'center',
+          fit:[
+            100,
+            35
+          ]
         }
       );
 
 
-    } catch (error) {
+    } catch(error){
 
       console.error(
-        'Impossible d’insérer la signature :',
+        'Erreur signature:',
         error
       );
 
@@ -340,92 +220,51 @@ function drawSignatureBlock(
   }
 
 
-// ==========================================================
-// LIGNE DE SIGNATURE
-// ==========================================================
-
   drawLine(
     doc,
-    x + 15,
-    y + 122,
-    x + width - 15,
-    y + 122
+    x + 10,
+    y + 75,
+    x + width - 10,
+    y + 75
   );
 
 
-// ==========================================================
-// NOM
-// ==========================================================
 
   doc
-    .fontSize(10)
-    .font(
-      'Helvetica-Bold'
-    )
-    .fillColor(
-      '#222222'
-    )
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .fillColor('#000000')
     .text(
-      name ||
-        'Non renseigné',
-      x + 15,
-      y + 132,
+      name || 'Non renseigné',
+      x + 10,
+      y + 82,
       {
         width:
-          width - 85,
+          width - 60
       }
     );
 
 
-// ==========================================================
-// DATE
-// ==========================================================
 
   doc
-    .fontSize(8)
-    .font(
-      'Helvetica'
-    )
-    .fillColor(
-      '#666666'
-    )
+    .font('Helvetica')
+    .fontSize(7)
+    .fillColor('#000000')
     .text(
       signedAt
-        ? `Signé le ${formatDate(
-            signedAt
-          )}`
+        ? `Signé le ${formatDate(signedAt)}`
         : 'En attente de signature',
-      x + 15,
-      y + 150,
-      {
-        width:
-          width - 80,
-      }
+      x + 10,
+      y + 98
     );
 
-
-// ==========================================================
-// PETIT SCEAU
-// ==========================================================
-
-  /*
-   * Le sceau est maintenant placé
-   * à droite du bloc de signature.
-   *
-   * Taille maximale : 42 x 42 pt.
-   *
-   * Il ne peut donc pas provoquer
-   * une nouvelle page.
-   */
-
-  const sealSize = 42;
 
 
   drawSeal(
     doc,
-    x + width - 58,
-    y + 132,
-    sealSize
+    x + width - 45,
+    y + 80,
+    30
   );
 
 
@@ -435,12 +274,10 @@ function drawSignatureBlock(
 
 
 // ============================================================
-// GÉNÉRATION DU PDF
+// GENERATION PDF
 // ============================================================
 
-function generateContractPdf(
-  contract
-) {
+function generateContractPdf(contract) {
 
   return new Promise(
     (
@@ -450,61 +287,47 @@ function generateContractPdf(
 
       try {
 
+
         const doc =
           new PDFDocument({
-            size:
-              'A4',
 
-            margin:
-              50,
+            size:'A4',
 
-            bufferPages:
-              true,
+            margin:50,
 
-            info: {
+            bufferPages:true,
 
+            info:{
               Title:
                 contract.title ||
                 'Contrat Kontra-Africa',
 
               Author:
                 contract.creatorName ||
-                'Kontra-Africa',
-
-              Subject:
-                'Contrat signé électroniquement',
-
-            },
+                'Kontra-Africa'
+            }
 
           });
 
 
-        const chunks =
-          [];
+
+        const chunks=[];
 
 
         doc.on(
           'data',
-          (chunk) => {
-
-            chunks.push(
-              chunk
-            );
-
+          chunk=>{
+            chunks.push(chunk);
           }
         );
 
 
         doc.on(
           'end',
-          () => {
-
+          ()=>{
             resolve(
-              Buffer.concat(
-                chunks
-              )
+              Buffer.concat(chunks)
             );
-
           }
         );
 
@@ -515,71 +338,34 @@ function generateContractPdf(
         );
 
 
-        // ======================================================
-        // COULEURS
-        // ======================================================
 
-        const purple =
-          '#5B21B6';
-
-        const dark =
-          '#222222';
-
-        const gray =
-          '#666666';
+        const BLACK =
+          '#000000';
 
 
-        // ======================================================
-        // EN-TÊTE
-        // ======================================================
+
+        const GRAY =
+          '#000000';
+
+
+
+        // EN-TETE
 
         doc
-          .font(
-            'Helvetica-Bold'
-          )
+          .font('Helvetica-Bold')
           .fontSize(20)
-          .fillColor(
-            purple
-          )
+          .fillColor(BLACK)
           .text(
             'KONTRA-AFRICA',
             50,
-            45,
-            {
-              width:
-                350,
-            }
+            45
           );
 
 
-        /*
-         * IMPORTANT :
-         *
-         * LE GRAND SCEAU QUI ÉTAIT ICI
-         * A ÉTÉ SUPPRIMÉ.
-         *
-         * Avant :
-         *
-         * drawSeal(
-         *   doc,
-         *   470,
-         *   35,
-         *   75
-         * );
-         *
-         * Maintenant le sceau apparaît
-         * uniquement près des signatures.
-         */
-
-
         doc
-          .font(
-            'Helvetica'
-          )
+          .font('Helvetica')
           .fontSize(8)
-          .fillColor(
-            gray
-          )
+          .fillColor(BLACK)
           .text(
             'Contrat électronique',
             50,
@@ -596,376 +382,284 @@ function generateContractPdf(
         );
 
 
-        // ======================================================
         // TITRE
-        // ======================================================
 
         doc
-          .font(
-            'Helvetica-Bold'
-          )
+          .font('Helvetica-Bold')
           .fontSize(18)
-          .fillColor(
-            dark
-          )
+          .fillColor(BLACK)
           .text(
-            contract.title ||
-              'Contrat',
+            contract.title || 'Contrat',
             50,
             115,
             {
-              width:
-                495,
-
-              align:
-                'center',
+              width:495,
+              align:'center'
             }
           );
-
-
         // ======================================================
-        // INFORMATIONS
-        // ======================================================
-
-        let currentY =
-          160;
-
-
-        doc
-          .font(
-            'Helvetica-Bold'
-          )
-          .fontSize(10)
-          .fillColor(
-            dark
-          )
-          .text(
-            'CRÉATEUR',
-            50,
-            currentY
-          );
-
-
-        doc
-          .font(
-            'Helvetica'
-          )
-          .fontSize(10)
-          .fillColor(
-            dark
-          )
-          .text(
-            contract.creatorName ||
-              'Non renseigné',
-            140,
-            currentY
-          );
-
-
-        currentY +=
-          22;
-
-
-        doc
-          .font(
-            'Helvetica-Bold'
-          )
-          .text(
-            'SIGNATAIRE',
-            50,
-            currentY
-          );
-
-
-        doc
-          .font(
-            'Helvetica'
-          )
-          .text(
-            contract.signerName ||
-              'Non renseigné',
-            140,
-            currentY
-          );
-
-
-        currentY +=
-          35;
-
-
-        // ======================================================
-        // CONTENU DU CONTRAT
-        // ======================================================
-
-        doc
-          .font(
-            'Helvetica-Bold'
-          )
-          .fontSize(12)
-          .fillColor(
-            purple
-          )
-          .text(
-            'TERMES DU CONTRAT',
-            50,
-            currentY
-          );
-
-
-        currentY +=
-          22;
-
-
-        doc
-          .font(
-            'Helvetica'
-          )
-          .fontSize(10)
-          .fillColor(
-            dark
-          )
-          .text(
-            contract.content ||
-              '',
-            50,
-            currentY,
-            {
-              width:
-                495,
+// INFORMATIONS CONTRAT
+// ======================================================
 
-              align:
-                'left',
+doc
+  .font('Helvetica-Bold')
+  .fontSize(10)
+  .fillColor(BLACK)
+  .text(
+    'CRÉATEUR',
+    50,
+    currentY
+  );
 
-              lineGap:
-                4,
-            }
-          );
 
+doc
+  .font('Helvetica')
+  .fontSize(10)
+  .fillColor(BLACK)
+  .text(
+    contract.creatorName ||
+      'Non renseigné',
+    140,
+    currentY
+  );
 
-        // ======================================================
-        // SIGNATURES
-        // ======================================================
 
-        currentY =
-          doc.y + 35;
+currentY += 22;
 
 
-        /*
-         * Vérification avant les signatures.
-         */
+doc
+  .font('Helvetica-Bold')
+  .fillColor(BLACK)
+  .text(
+    'SIGNATAIRE',
+    50,
+    currentY
+  );
 
-        if (
-          currentY >
-          580
-        ) {
 
-          doc.addPage();
+doc
+  .font('Helvetica')
+  .fillColor(BLACK)
+  .text(
+    contract.signerName ||
+      'Non renseigné',
+    140,
+    currentY
+  );
 
-          currentY =
-            55;
 
-        }
+currentY += 35;
 
 
-        doc
-          .font(
-            'Helvetica-Bold'
-          )
-          .fontSize(13)
-          .fillColor(
-            purple
-          )
-          .text(
-            'SIGNATURES',
-            50,
-            currentY
-          );
 
+// ======================================================
+// CONTENU DU CONTRAT
+// ======================================================
 
-        currentY +=
-          22;
+doc
+  .font('Helvetica-Bold')
+  .fontSize(12)
+  .fillColor(BLACK)
+  .text(
+    'TERMES DU CONTRAT',
+    50,
+    currentY
+  );
 
 
-        // ======================================================
-        // DIMENSIONS DES BLOCS
-        // ======================================================
+currentY += 22;
 
-        const gap =
-          15;
 
+doc
+  .font('Helvetica')
+  .fontSize(10)
+  .fillColor(BLACK)
+  .text(
+    contract.content || '',
+    50,
+    currentY,
+    {
+      width:495,
+      align:'left',
+      lineGap:3
+    }
+  );
 
-        const blockWidth =
-          (495 - gap) /
-          2;
 
 
-        // ======================================================
-        // SIGNATURE CRÉATEUR
-        // ======================================================
+// ======================================================
+// SIGNATURES
+// ======================================================
 
-        drawSignatureBlock(
-          doc,
-          {
+currentY =
+  doc.y + 25;
 
-            x:
-              50,
 
-            y:
-              currentY,
 
-            width:
-              blockWidth,
+if (
+  currentY > 590
+) {
 
-            title:
-              'CRÉATEUR',
+  doc.addPage();
 
-            name:
-              contract.creatorName,
+  currentY = 50;
 
-            signatureDataUrl:
-              contract.creatorSignatureDataUrl,
+}
 
-            signedAt:
-              contract.creatorSignedAt,
 
-          }
-        );
 
+doc
+  .font('Helvetica-Bold')
+  .fontSize(12)
+  .fillColor(BLACK)
+  .text(
+    'SIGNATURES',
+    50,
+    currentY
+  );
 
-        // ======================================================
-        // SIGNATURE CLIENT
-        // ======================================================
 
-        drawSignatureBlock(
-          doc,
-          {
+currentY += 20;
 
-            x:
-              50 +
-              blockWidth +
-              gap,
 
-            y:
-              currentY,
 
-            width:
-              blockWidth,
+const gap = 15;
 
-            title:
-              'SIGNATAIRE',
 
-            /*
-             * IMPORTANT :
-             *
-             * On affiche le nom réellement
-             * saisi par le client.
-             */
+const blockWidth =
+  (495-gap)/2;
 
-            name:
-              contract.signerTypedName ||
-              contract.signerName,
 
-            signatureDataUrl:
-              contract.signerSignatureDataUrl,
 
-            signedAt:
-              contract.signerSignedAt,
+drawSignatureBlock(
+  doc,
+  {
+    x:50,
 
-          }
-        );
+    y:currentY,
 
+    width:blockWidth,
 
-        // ======================================================
-        // PIED DE PAGE
-        // ======================================================
+    title:'CRÉATEUR',
 
-        const range =
-          doc.bufferedPageRange();
+    name:
+      contract.creatorName,
 
+    signatureDataUrl:
+      contract.creatorSignatureDataUrl,
 
-        for (
-          let i =
-            range.start;
+    signedAt:
+      contract.creatorSignedAt
+  }
+);
 
-          i <
-          range.start +
-            range.count;
 
-          i++
-        ) {
 
-          doc.switchToPage(
-            i
-          );
+drawSignatureBlock(
+  doc,
+  {
+    x:
+      50 +
+      blockWidth +
+      gap,
 
+    y:currentY,
 
-          const footerY =
-            doc.page.height -
-            35;
+    width:blockWidth,
 
+    title:'SIGNATAIRE',
 
-          drawLine(
-            doc,
-            50,
-            footerY - 8,
-            545,
-            footerY - 8
-          );
+    name:
+      contract.signerTypedName ||
+      contract.signerName,
 
+    signatureDataUrl:
+      contract.signerSignatureDataUrl,
 
-          doc
-            .font(
-              'Helvetica'
-            )
-            .fontSize(7)
-            .fillColor(
-              gray
-            )
-            .text(
-              'Kontra-Africa — Contrat électronique',
-              50,
-              footerY,
-              {
-                width:
-                  300,
-              }
-            );
+    signedAt:
+      contract.signerSignedAt
+  }
+);
 
 
-          doc
-            .fontSize(7)
-            .text(
-              `Page ${
-                i + 1
-              } / ${
-                range.count
-              }`,
-              450,
-              footerY,
-              {
-                width:
-                  95,
 
-                align:
-                  'right',
-              }
-            );
+// ======================================================
+// PIED DE PAGE
+// ======================================================
 
-        }
+const range =
+  doc.bufferedPageRange();
 
 
-        // ======================================================
-        // FIN DU PDF
-        // ======================================================
+for (
+  let i = range.start;
 
-        doc.end();
+  i <
+  range.start + range.count;
 
+  i++
+) {
 
-      } catch (error) {
 
-        reject(
-          error
-        );
+  doc.switchToPage(i);
+
+
+  const footerY =
+    doc.page.height - 35;
+
+
+
+  drawLine(
+    doc,
+    50,
+    footerY - 8,
+    545,
+    footerY - 8
+  );
+
+
+
+  doc
+    .font('Helvetica')
+    .fontSize(7)
+    .fillColor(BLACK)
+    .text(
+      'Kontra-Africa — Contrat électronique',
+      50,
+      footerY,
+      {
+        width:300
+      }
+    );
+
+
+
+  doc
+    .fontSize(7)
+    .text(
+      `Page ${i + 1} / ${range.count}`,
+      450,
+      footerY,
+      {
+        width:95,
+        align:'right'
+      }
+    );
+
+}
+
+
+
+// ======================================================
+// FIN
+// ======================================================
+
+doc.end();
+
+
+      } catch(error) {
+
+        reject(error);
 
       }
 
@@ -975,10 +669,14 @@ function generateContractPdf(
 }
 
 
-// ============================================================
+
+// ======================================================
 // EXPORT
-// ============================================================
+// ======================================================
 
 module.exports = {
-  generateContractPdf,
+  generateContractPdf
 };
+
+
+        let currentY = 160;
