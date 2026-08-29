@@ -1,8 +1,15 @@
-const admin = require("firebase-admin");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
 
 // ============================================================
 // FIREBASE ADMIN
 // ============================================================
+// IMPORTANT : firebase-admin v14+ a supprimé l'ancienne API
+// "namespaced" (admin.auth(), admin.credential.cert(),
+// admin.firestore.FieldValue...). On utilise donc uniquement
+// l'API modulaire partout (voir aussi verify-auth.js et
+// contracts.js qui ont été mis à jour en conséquence).
+//
 // Render n'a pas de disque persistant : on ne peut pas utiliser
 // applicationDefault() qui cherche un fichier via
 // GOOGLE_APPLICATION_CREDENTIALS. On charge donc le JSON du
@@ -25,12 +32,12 @@ try {
   );
 }
 
-const adminApp = admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+const adminApp = initializeApp({
+  credential: cert(serviceAccount),
 });
 
 // Firestore
-const db = adminApp.firestore();
+const db = getFirestore(adminApp);
 
 // ============================================================
 // VARIABLES D'ENVIRONNEMENT
@@ -89,7 +96,6 @@ const ALLOWED_ORIGINS = [
 // ============================================================
 
 module.exports = {
-  admin,
   adminApp,
   db,
   CHARIOW_API_KEY,
