@@ -10,6 +10,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   serverTimestamp,
   waitForPendingWrites,
@@ -142,7 +143,9 @@ function listenToContracts(uid) {
       orderBy(
         'createdAt',
         'desc'
-      )
+      ),
+
+      limit(50)
     );
 
 
