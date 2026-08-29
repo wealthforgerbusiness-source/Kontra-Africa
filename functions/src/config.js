@@ -1,6 +1,4 @@
 const admin = require("firebase-admin");
-const { initializeApp, cert } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
 
 // ============================================================
 // FIREBASE ADMIN
@@ -27,12 +25,12 @@ try {
   );
 }
 
-const adminApp = initializeApp({
-  credential: cert(serviceAccount),
+const adminApp = admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 });
 
 // Firestore
-const db = getFirestore(adminApp);
+const db = adminApp.firestore();
 
 // ============================================================
 // VARIABLES D'ENVIRONNEMENT
