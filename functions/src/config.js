@@ -1,14 +1,33 @@
-const { initializeApp, applicationDefault } = require("firebase-admin/app");
+const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 
 // ============================================================
 // FIREBASE ADMIN
 // ============================================================
-// Utilise automatiquement GOOGLE_APPLICATION_CREDENTIALS
-// configuré dans les variables d'environnement de Render.
+// Render n'a pas de disque persistant : on ne peut pas utiliser
+// applicationDefault() qui cherche un fichier via
+// GOOGLE_APPLICATION_CREDENTIALS. On charge donc le JSON du
+// service account depuis une variable d'env (FIREBASE_SERVICE_ACCOUNT),
+// à définir sur Render avec le contenu complet du fichier JSON
+// téléchargé dans Firebase Console > Paramètres > Comptes de service.
+
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  throw new Error(
+    "FIREBASE_SERVICE_ACCOUNT manquante : ajoute la clé JSON du service account dans les variables d'environnement Render."
+  );
+}
+
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} catch (err) {
+  throw new Error(
+    "FIREBASE_SERVICE_ACCOUNT invalide : vérifie que le JSON est bien collé en entier, sans être tronqué."
+  );
+}
 
 const adminApp = initializeApp({
-  credential: applicationDefault(),
+  credential: cert(serviceAccount),
 });
 
 // Firestore
