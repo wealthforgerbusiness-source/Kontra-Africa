@@ -4,8 +4,9 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { generateContractPdf } = require('./pdf-generator');
-const { admin, db, ALLOWED_ORIGINS } = require('./config');
+const { db, ALLOWED_ORIGINS } = require('./config');
 
 const PDF_ACCESS_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -176,40 +177,40 @@ async function expireContract(contractRef) {
     status: 'expired',
 
     content:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     signerName:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     creatorName:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     creatorSignatureDataUrl:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     signerTypedName:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     signerSignatureDataUrl:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     termsAcceptedBySigner:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     signerSignedAt:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     creatorSignedAt:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     pdfAccessStartedAt:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     pdfExpiresAt:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
     shareToken:
-      admin.firestore.FieldValue.delete(),
+      FieldValue.delete(),
 
   });
 }
@@ -498,7 +499,7 @@ router.post(
       }
 
       const signerSignedAt =
-        admin.firestore.Timestamp.now();
+        Timestamp.now();
 
       await contractDoc.ref.update({
 
@@ -826,7 +827,7 @@ router.post(
       // ========================================================
 
       const now =
-        admin.firestore.Timestamp.now();
+        Timestamp.now();
 
       const result =
         await db.runTransaction(
@@ -901,40 +902,40 @@ router.post(
                       'expired',
 
                     content:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     signerName:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     creatorName:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     creatorSignatureDataUrl:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     signerTypedName:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     signerSignatureDataUrl:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     termsAcceptedBySigner:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     signerSignedAt:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     creatorSignedAt:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     pdfAccessStartedAt:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     pdfExpiresAt:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                     shareToken:
-                      admin.firestore.FieldValue.delete(),
+                      FieldValue.delete(),
 
                   }
                 );
@@ -958,7 +959,7 @@ router.post(
             // ==================================================
 
             const expiresAt =
-              admin.firestore.Timestamp.fromMillis(
+              Timestamp.fromMillis(
                 now.toMillis() +
                 PDF_ACCESS_DURATION_MS
               );
