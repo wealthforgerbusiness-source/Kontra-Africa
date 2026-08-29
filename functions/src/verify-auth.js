@@ -4,7 +4,8 @@
  * Ne JAMAIS faire confiance à un uid/firebaseUid envoyé dans req.body :
  * n'importe qui peut mettre l'uid qu'il veut dans un body JSON.
  */
-const { admin } = require("./config");
+const { getAuth } = require("firebase-admin/auth");
+const { adminApp } = require("./config");
 
 async function getVerifiedUid(req) {
   const authorization = req.headers.authorization || "";
@@ -16,7 +17,7 @@ async function getVerifiedUid(req) {
   const idToken = authorization.substring(7).trim();
 
   try {
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    const decoded = await getAuth(adminApp).verifyIdToken(idToken);
     return decoded.uid;
   } catch (error) {
     console.error("Token Firebase invalide :", error.message);
