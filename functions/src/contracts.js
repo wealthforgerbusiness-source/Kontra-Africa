@@ -5,8 +5,9 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 
 const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { generateContractPdf } = require('./pdf-generator');
-const { db, ALLOWED_ORIGINS } = require('./config');
+const { db, adminApp, ALLOWED_ORIGINS } = require('./config');
 
 const PDF_ACCESS_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -77,9 +78,7 @@ async function getAuthenticatedUser(req) {
   }
 
   try {
-    return await admin
-      .auth()
-      .verifyIdToken(idToken);
+    return await getAuth(adminApp).verifyIdToken(idToken);
   } catch (error) {
     console.error(
       'Token Firebase invalide :',
