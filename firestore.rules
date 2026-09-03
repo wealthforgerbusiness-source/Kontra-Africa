@@ -1,7 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // -----------------------------------------------------------------------
     // ADMIN
     // -----------------------------------------------------------------------
@@ -10,7 +9,6 @@ service cloud.firestore {
         && request.auth.token.email == 'optisitedigital@gmail.com'
         && request.auth.token.email_verified == true;
     }
-
     // -----------------------------------------------------------------------
     // UTILISATEUR CONNECTÉ
     // -----------------------------------------------------------------------
@@ -18,20 +16,22 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.uid == userId;
     }
-
-    // Liste blanche : SEULS ces champs peuvent être modifiés par l'utilisateur.
-    // balance et exchangeRate sont volontairement exclus : ils doivent être
-    // gérés uniquement côté serveur (Cloud Function) pour éviter la fraude.
+    // Liste blanche : SEULS ces champs peuvent être modifiés par l'utilisateur
+    // directement depuis le client.
     function isOnlyChangingAllowedFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly([
           'displayName',
           'photoURL',
           'currencySymbol',
-          'savingsGoal'
+          'exchangeRate',
+          'exchangeRateUpdatedAt',
+          'displayCurrency',
+          'savingsGoalAmount',
+          'savingsCurrentAmount',
+          'balance'
         ]);
     }
-
     // -----------------------------------------------------------------------
     // USERS
     // -----------------------------------------------------------------------
@@ -41,13 +41,11 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         && isOnlyChangingAllowedFields();
       allow delete: if false;
-
       match /transactions/{transactionId} {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if false;
       }
     }
-
     // -----------------------------------------------------------------------
     // CONTRACTS
     // -----------------------------------------------------------------------
@@ -62,14 +60,12 @@ service cloud.firestore {
         && request.resource.data.pdfExpiresAt == null;
       allow update, delete: if false;
     }
-
     // -----------------------------------------------------------------------
     // ADMIN SETTINGS
     // -----------------------------------------------------------------------
     match /admin_settings/{docId} {
       allow read, write: if isAdmin();
     }
-
     // -----------------------------------------------------------------------
     // FILET DE SÉCURITÉ
     // -----------------------------------------------------------------------
