@@ -21,6 +21,22 @@ const signLimiter = rateLimit({
   message: { error: "Trop de tentatives, réessaie dans quelques minutes." },
 });
 
+// Limite pour la lecture publique d'un contrat (GET /public/:token) et la
+// génération du PDF (GET /public/:token/pdf) : ces deux routes n'exigent
+// aucune authentification et, contrairement à /sign, n'avaient jusqu'ici
+// AUCUNE limite. La génération du PDF est coûteuse en CPU (PDFKit tourne
+// à chaque appel, sans cache), donc sans limite quelqu'un possédant un
+// seul lien pouvait la spammer à volonté et faire exploser la charge/coût
+// Render. Un peu plus permissif que signLimiter car la lecture simple
+// (ouvrir le lien) est une action légitime plus fréquente que signer.
+const publicReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Trop de tentatives, réessaie dans quelques minutes." },
+});
+
 
 // ============================================================
 // CORS
@@ -254,6 +270,7 @@ async function ensurePdfAccessStillValid(
 
 router.get(
   '/public/:token',
+  publicReadLimiter,
   async (req, res) => {
 
     try {
@@ -612,6 +629,7 @@ router.post(
 
 router.get(
   '/public/:token/pdf',
+  publicReadLimiter,
   async (req, res) => {
 
     try {
