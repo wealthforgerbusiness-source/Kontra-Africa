@@ -19,20 +19,16 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
-    function isNotChangingBillingFields() {
-      return !request.resource.data
-        .diff(resource.data)
-        .affectedKeys()
-        .hasAny([
-          'subscriptionStatus',
-          'subscriptionExpiresAt',
-          'trialStartDate',
-          'trialEndDate',
-          'chariowLicenseKey',
-          'lastFailedSaleAt',
-          'lastFailedSaleEvent',
-          'uid',
-          'createdAt'
+    // Liste blanche : SEULS ces champs peuvent être modifiés par l'utilisateur.
+    // balance et exchangeRate sont volontairement exclus : ils doivent être
+    // gérés uniquement côté serveur (Cloud Function) pour éviter la fraude.
+    function isOnlyChangingAllowedFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'displayName',
+          'photoURL',
+          'currencySymbol',
+          'savingsGoal'
         ]);
     }
 
@@ -43,7 +39,7 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if false;
       allow update: if isOwner(userId)
-        && isNotChangingBillingFields();
+        && isOnlyChangingAllowedFields();
       allow delete: if false;
 
       match /transactions/{transactionId} {
@@ -58,14 +54,12 @@ service cloud.firestore {
     match /contracts/{contractId} {
       allow read: if request.auth != null
         && resource.data.creatorId == request.auth.uid;
-
       allow create: if request.auth != null
         && request.resource.data.creatorId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.signerSignedAt == null
         && request.resource.data.pdfAccessStartedAt == null
         && request.resource.data.pdfExpiresAt == null;
-
       allow update, delete: if false;
     }
 
