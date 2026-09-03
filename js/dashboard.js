@@ -6,7 +6,8 @@ import {
   where,
   orderBy,
   limit,
-  getDocs
+  getDocs,
+  getCountFromServer
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
 const PAGE_NAME = 'dashboard';
@@ -169,29 +170,41 @@ function renderSavings(userData) {
   hintEl.textContent = `${formatPercent(percent)}% de l'objectif atteint`;
 }
 
-/* --- Contrats : compte les statuts pending / signed --- */
+/* --- Contrats : compte les statuts pending / signed --------------------
+   OPTIMISATION COÛT FIRESTORE :
+   Avant : un seul getDocs() qui récupérait TOUS les documents `contracts`
+   du créateur (autant de lectures facturées que de contrats), rien que
+   pour en compter deux statuts.
+   Après : deux requêtes d'agrégation getCountFromServer(), une par statut.
+   Chaque agrégation est facturée comme 1 seule lecture côté serveur,
+   quel que soit le nombre de contrats correspondants. Le coût reste donc
+   constant (2 lectures) même si l'utilisateur a 10, 1 000 ou 100 000
+   contrats, au lieu de croître linéairement avec le nombre de contrats.
+   Aucune règle Firestore à changer : count() s'appuie sur les mêmes
+   règles de lecture que la requête where() existante. ------------------ */
 async function loadContractsSummary(uid) {
   const pendingEl = document.getElementById('pendingContractsValue');
   const signedEl = document.getElementById('signedContractsValue');
 
   try {
-    const contractsQuery = query(
+    const pendingQuery = query(
       collection(db, 'contracts'),
-      where('creatorId', '==', uid)
+      where('creatorId', '==', uid),
+      where('status', '==', 'pending')
     );
-    const snap = await getDocs(contractsQuery);
+    const signedQuery = query(
+      collection(db, 'contracts'),
+      where('creatorId', '==', uid),
+      where('status', '==', 'signed')
+    );
 
-    let pending = 0;
-    let signed = 0;
+    const [pendingSnap, signedSnap] = await Promise.all([
+      getCountFromServer(pendingQuery),
+      getCountFromServer(signedQuery)
+    ]);
 
-    snap.forEach((docSnap) => {
-      const status = docSnap.data().status;
-      if (status === 'pending') pending += 1;
-      if (status === 'signed') signed += 1;
-    });
-
-    pendingEl.textContent = String(pending);
-    signedEl.textContent = String(signed);
+    pendingEl.textContent = String(pendingSnap.data().count);
+    signedEl.textContent = String(signedSnap.data().count);
   } catch (err) {
     console.error('Erreur de chargement des contrats :', err);
     pendingEl.textContent = '—';
