@@ -24,6 +24,41 @@
   <link rel="stylesheet" href="/css/landing.css">
 
   <style>
+    /* Masque la landing tant qu'on n'a pas vérifié si une session existe déjà */
+    html.auth-checking body > *:not(#pwaSplash) { visibility: hidden; }
+  </style>
+  <script>document.documentElement.classList.add('auth-checking');</script>
+  <script type="module">
+    import { auth } from '/js/firebase-config.js';
+    import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+
+    // Si une session Firebase est déjà active (PWA rouverte, retour sur le site),
+    // on saute directement le dashboard au lieu de rester bloqué sur la landing.
+    const AUTH_CHECK_TIMEOUT_MS = 2500;
+    let decided = false;
+
+    const stopChecking = () => {
+      if (decided) return;
+      decided = true;
+      document.documentElement.classList.remove('auth-checking');
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      if (decided) return;
+      if (user) {
+        decided = true;
+        window.location.replace('/dashboard.html');
+        return;
+      }
+      stopChecking();
+    });
+
+    // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
+    // sans session locale), on affiche quand même la landing après 2,5s.
+    setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
+  </script>
+
+  <style>
     /* --- Splash screen affiché uniquement quand l'app est ouverte en mode PWA installée --- */
     #pwaSplash {
       position: fixed;
