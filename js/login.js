@@ -1,3 +1,14 @@
+// ============================================================
+// SYSTÈME DE CAPTURE UNIVERSEL DES ERREURS (AVANT TOUT IMPORT)
+// ============================================================
+// Aucune console développeur n'est disponible côté mobile : tout est donc
+// affiché directement à l'écran dans l'encadré #debug-log.
+//
+// IMPORTANT : signInWithRedirect() fait quitter complètement la page vers
+// Google puis revenir — c'est un vrai rechargement de page, qui efface tout
+// ce qui est en mémoire. Le journal est donc aussi persisté dans
+// localStorage pour survivre à ce rechargement et rester lisible au retour.
+
 const DEBUG_LOG_STORAGE_KEY = 'kontra_debug_log_v1';
 const DEBUG_LOG_MAX_CHARS = 20000; // évite une croissance illimitée
 
@@ -122,13 +133,63 @@ const AUTH_PENDING_KEY = 'kontra_auth_pending';
 const REDIRECT_FALLBACK_TIMEOUT_MS = 8000;
 
 // ============================================================
+// RÉVEIL ANTICIPÉ DU SERVEUR (Render se met en veille après inactivité)
+// ============================================================
+// On envoie un ping vers /health DÈS LE CHARGEMENT de la page de connexion,
+// bien avant que l'utilisateur ne clique sur "Continuer avec Google". Le
+// temps que l'utilisateur lise l'écran et coche la case CGU, le serveur a
+// généralement déjà eu le temps de se réveiller en arrière-plan. Résultat :
+// au moment où initUserOnBackend() est appelé après la connexion Google,
+// le serveur répond quasi instantanément au lieu de faire attendre
+// l'utilisateur plusieurs dizaines de secondes (fenêtre de risque réduite
+// pour le problème des onglets déchargés en arrière-plan).
+
+const SERVER_WARMUP_TIMEOUT_MS = 45000; // 45s max d'attente pour le réveil
+
+let serverIsWarm = false;
+
+const serverWarmupPromise = (async () => {
+  try {
+    debugLog('🔥 Ping de réveil envoyé vers', `${API_BASE_URL}/health`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SERVER_WARMUP_TIMEOUT_MS);
+
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      serverIsWarm = true;
+      debugLog('🔥 Serveur réveillé et prêt (ping /health OK)');
+    } else {
+      debugLog('🔥 Ping /health a répondu mais avec un statut', response.status);
+    }
+  } catch (err) {
+    debugLog('🔥 Échec du ping de réveil (le serveur tentera quand même via init-user):', err?.message || err);
+  }
+})();
+
+// ============================================================
 // DETECTION MOBILE / STANDALONE
 // ============================================================
 // signInWithPopup() a été testé et confirmé fonctionnel sur mobile
 // (navigateur classique, non installé) — voir logs de diagnostic du
-// 13/09. On garde donc Popup partout, sauf en mode PWA installée
-// (standalone), où le Popup est plus susceptible d'être bloqué par le
-// système ; on utilise alors Redirect dans ce cas précis.
+// 13/09. On l'utilise donc désormais PARTOUT, y compris en PWA installée,
+// car signInWithRedirect() est plus fragile : la page quitte complètement
+// l'app pour Google puis revient sur un nouveau chargement, et si le
+// téléphone a beaucoup d'onglets/apps ouverts, l'ancienne instance de la
+// PWA peut être déchargée par le système avant d'avoir pu récupérer le
+// résultat (getRedirectResult() revient alors vide, même si la connexion
+// Google a réussi). Avec Popup, la page d'origine ne quitte jamais son
+// contexte, ce qui évite ce problème.
+//
+// signInWithRedirect() reste utilisé uniquement en solution de secours
+// automatique si le navigateur bloque la fenêtre popup (voir
+// startGoogleSignIn ci-dessous).
 
 const isStandalone =
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -139,9 +200,7 @@ const isMobileDevice =
   (window.matchMedia('(pointer: coarse)').matches &&
     window.matchMedia('(hover: none)').matches);
 
-const shouldUseRedirect = isStandalone;
-
-debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, 'shouldUseRedirect:', shouldUseRedirect);
+debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, '(popup utilisé en priorité dans tous les cas)');
 
 // ------------------------------------------------------------
 // DIAGNOSTIC DOMAINE (cause fréquente d'un getRedirectResult() qui
@@ -611,6 +670,28 @@ async function startGoogleSignIn() {
     return;
   }
 
+  // --------------------------------------------------------
+  // ATTENTE DU RÉVEIL SERVEUR (si le ping envoyé au chargement de
+  // la page n'a pas encore fini) — AVANT d'ouvrir le popup Google.
+  // Dans la grande majorité des cas, le ping envoyé au chargement de
+  // la page a déjà fini pendant que l'utilisateur lisait l'écran et
+  // cochait la case : cette étape est alors instantanée et invisible.
+  // --------------------------------------------------------
+
+  if (!serverIsWarm) {
+
+    debugLog('🔥 Serveur pas encore confirmé prêt, attente avant le popup Google...');
+
+    showLoading("Préparation du serveur…");
+
+    await Promise.race([
+      serverWarmupPromise,
+      sleep(SERVER_WARMUP_TIMEOUT_MS)
+    ]);
+
+    debugLog('🔥 Fin de l\'attente de réveil, ouverture du popup Google');
+  }
+
   showLoading(
     "Connexion à Google…"
   );
@@ -640,44 +721,50 @@ async function startGoogleSignIn() {
     );
 
     // --------------------------------------------------------
-    // MOBILE (standalone ou navigateur classique) : REDIRECT
+    // POPUP EN PRIORITE (mobile ET desktop)
     // --------------------------------------------------------
+    // Le popup garde la page d'origine active en permanence : elle ne
+    // quitte jamais son contexte, donc pas de risque que le système
+    // décharge l'app en arrière-plan pendant l'échange avec Google.
 
-    if (shouldUseRedirect) {
-
-      debugLog(
-        '📱 Connexion Google avec Redirect (mobile)'
-      );
-
-      debugLog('📱 Appel de signInWithRedirect()...');
-      setOperation('signInWithRedirect');
-
-      await signInWithRedirect(
-        auth,
-        googleProvider
-      );
-
-      debugLog('📱 signInWithRedirect() résolu (la page devrait être redirigée)');
-
-      return; // La page va être rechargée par la redirection Google.
-    }
-
-    // --------------------------------------------------------
-    // DESKTOP : POPUP
-    // --------------------------------------------------------
-
-    debugLog(
-      '🌐 Connexion Google avec Popup'
-    );
-
+    debugLog('🌐 Connexion Google avec Popup');
     debugLog('🌐 Appel de signInWithPopup()...');
     setOperation('signInWithPopup');
 
-    const result =
-      await signInWithPopup(
+    let result;
+
+    try {
+
+      result = await signInWithPopup(
         auth,
         googleProvider
       );
+
+    } catch (popupErr) {
+
+      // Repli automatique sur Redirect UNIQUEMENT si le navigateur a
+      // concrètement bloqué l'ouverture de la fenêtre popup (cas rare).
+      // Dans tous les autres cas (fermeture volontaire, annulation...),
+      // on laisse l'erreur remonter normalement.
+      if (popupErr?.code === 'auth/popup-blocked') {
+
+        debugLog('⚠️ Popup bloquée par le navigateur — repli sur signInWithRedirect()');
+
+        debugLog('📱 Appel de signInWithRedirect()...');
+        setOperation('signInWithRedirect (repli après popup bloquée)');
+
+        await signInWithRedirect(
+          auth,
+          googleProvider
+        );
+
+        debugLog('📱 signInWithRedirect() résolu (la page devrait être redirigée)');
+
+        return; // La page va être rechargée par la redirection Google.
+      }
+
+      throw popupErr;
+    }
 
     debugLog('🌐 signInWithPopup() résolu');
     setOperation('aucune opération en cours (popup résolu)');
