@@ -3,10 +3,6 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/f
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { logout } from './auth-guard.js';
 
-/* IMPORTANT : ces chemins doivent correspondre EXACTEMENT aux noms de
-   fichiers réels sur GitHub (sensible à la casse et à l'orthographe).
-   Le bug précédent venait d'un lien vers /contrats.html alors que le
-   fichier s'appelle contracts.html. */
 const NAV_ITEMS = [
   {
     page: 'dashboard',
@@ -25,6 +21,12 @@ const NAV_ITEMS = [
     href: '/finances.html',
     label: 'Finances',
     icon: '<path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/>'
+  },
+  {
+    page: 'stock',
+    href: '/stock.html',
+    label: 'Stock',
+    icon: '<path d="M3 7l9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>'
   },
   {
     page: 'profil',
@@ -70,8 +72,6 @@ function renderSidebar(activePage) {
 }
 
 function renderBottomNav(activePage) {
-  // Si une bottom nav existe déjà sur la page (cas de dashboard.html, qui la
-  // code en dur), on ne la duplique pas.
   if (document.querySelector('.app-bottomnav')) return;
 
   const nav = document.createElement('nav');
@@ -98,13 +98,12 @@ function fillUserInfo(user, userData) {
   }
 }
 
-/* --- Point d'entrée : à appeler une fois, en haut du script de la page --- */
 export function renderAppNav(activePage) {
   renderSidebar(activePage);
   renderBottomNav(activePage);
 
   onAuthStateChanged(auth, async (user) => {
-    if (!user) return; // la redirection vers /login.html est gérée ailleurs
+    if (!user) return;
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
       fillUserInfo(user, snap.exists() ? snap.data() : null);
