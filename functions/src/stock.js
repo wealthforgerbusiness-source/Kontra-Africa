@@ -460,13 +460,15 @@ router.post("/reports/close-day", async (req, res) => {
     }
 
     // ------------------------------------------------------------
-    // Archivage des ventes du jour (seulement si le PDF a réussi)
+    // Suppression définitive des ventes du jour (seulement si le PDF a réussi)
+    // Choix produit : le PDF téléchargé est la seule trace conservée de la
+    // journée, les documents Firestore sont libérés pour repartir à zéro.
     // ------------------------------------------------------------
     if (dailySales.length > 0) {
       const batch = db.batch();
       dailySales.forEach((sale) => {
         const saleRef = userRef.collection("sales").doc(sale.id);
-        batch.update(saleRef, { archived: true, archivedAt: new Date() });
+        batch.delete(saleRef);
       });
       await batch.commit();
     }
