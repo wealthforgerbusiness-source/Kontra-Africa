@@ -308,6 +308,80 @@ router.post("/sales", async (req, res) => {
   }
 });
 
+// GET /sales?date=YYYY-MM-DD — lister les ventes individuelles d'une journée
+// (date optionnelle, défaut = jour courant dans le fuseau de l'utilisateur)
+router.get("/sales", async (req, res) => {
+  try {
+    const uid = await getVerifiedUid(req);
+    if (!uid) return res.status(401).json({ error: "Non authentifié" });
+
+    const timezone = await getUserTimezone(uid);
+
+    let { date } = req.query;
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Paramètre date invalide, format attendu YYYY-MM-DD" });
+    }
+    if (!date) {
+      date = getTodayInTimezone(timezone);
+    }
+
+    // Fenêtre de requête Firestore élargie d'un jour de chaque côté : les bornes
+    // calendaires du fuseau utilisateur ne correspondent pas forcément aux bornes
+    // UTC du jour "date". Le filtrage précis se fait ensuite avec extractDayInTimezone.
+    const windowStart = new Date(`${date}T00:00:00.000Z`);
+    windowStart.setUTCDate(windowStart.getUTCDate() - 1);
+    const windowEnd = new Date(`${date}T23:59:59.999Z`);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 1);
+
+    const snap = await db
+      .collection("users")
+      .doc(uid)
+      .collection("sales")
+      .where("saleDate", ">=", windowStart)
+      .where("saleDate", "<=", windowEnd)
+      .get();
+
+    const sales = snap.docs
+      .map((doc) => {
+        const data = doc.data();
+        const saleDateObj =
+          data.saleDate && typeof data.saleDate.toDate === "function"
+            ? data.saleDate.toDate()
+            : new Date(data.saleDate);
+        return {
+          id: doc.id,
+          productId: data.productId,
+          productName: data.productName,
+          quantity: data.quantity,
+          unitSellingPrice: data.unitSellingPrice,
+          unitPurchasePrice: data.unitPurchasePrice,
+          totalRevenue: data.totalRevenue,
+          totalProfit: data.totalProfit,
+          saleDate: saleDateObj.toISOString(),
+          _saleDateObj: saleDateObj,
+        };
+      })
+      .filter((sale) => extractDayInTimezone(sale._saleDateObj, timezone) === date)
+      .sort((a, b) => b._saleDateObj - a._saleDateObj)
+      .map(({ _saleDateObj, ...sale }) => sale);
+
+    const summary = sales.reduce(
+      (acc, sale) => {
+        acc.revenue += sale.totalRevenue || 0;
+        acc.profit += sale.totalProfit || 0;
+        acc.count += 1;
+        return acc;
+      },
+      { revenue: 0, profit: 0, count: 0 }
+    );
+
+    return res.status(200).json({ date, sales, summary });
+  } catch (error) {
+    console.error("Erreur GET /sales :", error);
+    return res.status(500).json({ error: "Erreur serveur lors de la récupération des ventes" });
+  }
+});
+
 // DELETE /sales/:id — retrait autorisé uniquement le jour même (fuseau utilisateur)
 router.delete("/sales/:id", async (req, res) => {
   try {
