@@ -52,10 +52,6 @@
           <span class="spinner" aria-hidden="true"></span>
           <p id="loadingLabel">Connexion en cours…</p>
         </div>
-        <div class="login-state login-state--error" id="errorState" role="alert" hidden>
-          <p id="errorMessage">Une erreur est survenue.</p>
-          <button type="button" id="retryBtn" class="btn btn-secondary">Réessayer</button>
-        </div>
         <!-- Solution de secours affichée uniquement si la connexion reste
              bloquée en mode PWA installée (bug connu de certains navigateurs
              mobiles avec le stockage de session en mode standalone). -->
@@ -66,15 +62,14 @@
       </div>
       <p class="login-card__trial">Essai gratuit de 3 jours, sans carte bancaire requise</p>
     </div>
-    <div class="debug-panel">
-      <div class="debug-panel__header">
-        <span class="debug-panel__title">Journal de débogage</span>
-        <div class="debug-panel__actions">
-          <button type="button" id="debugCopyBtn" class="debug-panel__btn">Copier</button>
-          <button type="button" id="debugClearBtn" class="debug-panel__btn">Effacer</button>
-        </div>
+    <!-- Notification d'erreur : toast indépendant, n'écrase jamais le bouton
+         de connexion en dessous. Fermeture manuelle via le bouton X. -->
+    <div class="error-toast" id="errorState" role="alert" hidden>
+      <p id="errorMessage">Une erreur est survenue.</p>
+      <div class="error-toast__actions">
+        <button type="button" id="retryBtn" class="error-toast__retry">Réessayer</button>
+        <button type="button" id="errorCloseBtn" class="error-toast__close" aria-label="Fermer la notification">&times;</button>
       </div>
-      <div id="debug-log" class="debug-panel__log"></div>
     </div>
   </main>
   <script type="module" src="/js/login.js"></script>
