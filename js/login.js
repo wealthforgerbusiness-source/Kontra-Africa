@@ -131,6 +131,28 @@ const shouldUseRedirect = isStandalone || isMobileDevice;
 
 debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, 'shouldUseRedirect:', shouldUseRedirect);
 
+// ------------------------------------------------------------
+// DIAGNOSTIC DOMAINE (cause fréquente d'un getRedirectResult() qui
+// revient toujours null : le domaine réel de la page n'est pas dans
+// la liste des domaines autorisés de Firebase, ou ne correspond pas
+// à authDomain).
+// ------------------------------------------------------------
+
+debugLog('🌐 Domaine actuel (hostname):', window.location.hostname);
+debugLog('🌐 Origine actuelle (origin):', window.location.origin);
+debugLog('🌐 authDomain configuré dans Firebase:', auth?.config?.authDomain || 'inconnu');
+debugLog('🍪 Cookies activés:', navigator.cookieEnabled);
+
+try {
+  if (window.indexedDB) {
+    debugLog('💾 IndexedDB disponible: oui');
+  } else {
+    debugLog('💾 IndexedDB disponible: NON — la redirection Google ne peut pas fonctionner sans IndexedDB');
+  }
+} catch (err) {
+  debugLog('💾 Erreur test IndexedDB:', err, 'stack:', err?.stack || 'pas de stack');
+}
+
 // ============================================================
 // ELEMENTS
 // ============================================================
@@ -151,6 +173,8 @@ const openBrowserBtn = document.getElementById('openBrowserBtn');
 
 const debugCopyBtn = document.getElementById('debugCopyBtn');
 const debugClearBtn = document.getElementById('debugClearBtn');
+
+const testPopupBtn = document.getElementById('testPopupBtn');
 
 // ============================================================
 // UI
@@ -741,6 +765,55 @@ if (openBrowserBtn) {
 
     }
   );
+}
+
+// ============================================================
+// BOUTON DE TEST POPUP (diagnostic temporaire — à retirer une fois
+// le problème de redirection résolu)
+// ============================================================
+
+if (testPopupBtn) {
+
+  testPopupBtn.addEventListener('click', async () => {
+
+    debugLog('🧪 Test Popup manuel déclenché, checkbox coché:', termsCheckbox.checked);
+
+    if (!termsCheckbox.checked) {
+      debugLog('⛔ Checkbox non cochée, test Popup annulé');
+      return;
+    }
+
+    showLoading("Test Popup en cours…");
+
+    try {
+
+      debugLog('🧪 Appel de signInWithPopup() (forcé, hors détection mobile)...');
+
+      const result = await signInWithPopup(auth, googleProvider);
+
+      debugLog('🧪 signInWithPopup() résolu');
+
+      if (!result || !result.user) {
+        throw new Error('Aucun utilisateur Google reçu (test Popup).');
+      }
+
+      debugLog('✅ Test Popup réussi :', result.user.email);
+
+      await completeSignIn(result.user);
+
+    } catch (err) {
+
+      debugLog(
+        '❌ Test Popup échoué:',
+        err,
+        'message:', err?.message || 'pas de message',
+        'code:', err?.code || 'pas de code',
+        'stack:', err?.stack || 'pas de stack'
+      );
+
+      showError(translateAuthError(err));
+    }
+  });
 }
 
 // ============================================================
