@@ -1,14 +1,3 @@
-// ============================================================
-// SYSTÈME DE CAPTURE UNIVERSEL DES ERREURS (AVANT TOUT IMPORT)
-// ============================================================
-// Aucune console développeur n'est disponible côté mobile : tout est donc
-// affiché directement à l'écran dans l'encadré #debug-log.
-//
-// IMPORTANT : signInWithRedirect() fait quitter complètement la page vers
-// Google puis revenir — c'est un vrai rechargement de page, qui efface tout
-// ce qui est en mémoire. Le journal est donc aussi persisté dans
-// localStorage pour survivre à ce rechargement et rester lisible au retour.
-
 const DEBUG_LOG_STORAGE_KEY = 'kontra_debug_log_v1';
 const DEBUG_LOG_MAX_CHARS = 20000; // évite une croissance illimitée
 
@@ -194,8 +183,6 @@ const retryBtn = document.getElementById('retryBtn');
 const openBrowserFallback = document.getElementById('openBrowserFallback');
 const openBrowserBtn = document.getElementById('openBrowserBtn');
 
-const debugCopyBtn = document.getElementById('debugCopyBtn');
-const debugClearBtn = document.getElementById('debugClearBtn');
 
 // ============================================================
 // UI
@@ -222,13 +209,12 @@ function showLoading(label) {
 
 function showError(message) {
   googleBtn.hidden = false;
-  googleBtn.disabled = false;
+  googleBtn.disabled = !termsCheckbox.checked;
 
   loadingState.hidden = true;
-
-  errorState.hidden = false;
   if (openBrowserFallback) openBrowserFallback.hidden = true;
 
+  errorState.hidden = false;
   errorMessage.textContent = message;
 }
 
@@ -585,7 +571,7 @@ async function checkRedirectResult() {
       debugLog('⚠️ Connexion attendue mais aucun résultat exploitable reçu — la page a probablement été interrompue/rechargée pendant le processus');
       localStorage.removeItem(AUTH_PENDING_KEY);
       showError(
-        "La connexion a été interrompue (souvent causé par trop d'onglets ouverts dans le navigateur, qui force la fermeture de la page en arrière-plan). Réessayez — cela fonctionne généralement du premier coup avec moins d'onglets ouverts."
+        "Supprimez vos onglets en arrière-plan : cela peut bloquer la connexion."
       );
     }
 
@@ -788,6 +774,26 @@ if (retryBtn) {
 }
 
 // ============================================================
+// BOUTON X — fermeture manuelle de la notification
+// ============================================================
+
+const errorCloseBtn = document.getElementById('errorCloseBtn');
+
+if (errorCloseBtn) {
+
+  errorCloseBtn.addEventListener(
+    'click',
+    () => {
+
+      debugLog('✖️ Notification d\'erreur fermée manuellement');
+
+      errorState.hidden = true;
+
+    }
+  );
+}
+
+// ============================================================
 // BOUTON "OUVRIR DANS LE NAVIGATEUR" (secours PWA bloquée)
 // ============================================================
 
@@ -810,58 +816,6 @@ if (openBrowserBtn) {
 
     }
   );
-}
-
-// ============================================================
-// BOUTONS DU PANNEAU DE DEBUG (copier / effacer le journal)
-// ============================================================
-
-if (debugCopyBtn) {
-
-  debugCopyBtn.addEventListener('click', async () => {
-
-    const text = debugLogEl ? debugLogEl.textContent : '';
-
-    try {
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        // Solution de secours si l'API Clipboard n'est pas disponible
-        // (anciens navigateurs mobiles, contexte non sécurisé, etc.)
-        const tmp = document.createElement('textarea');
-        tmp.value = text;
-        tmp.style.position = 'fixed';
-        tmp.style.opacity = '0';
-        document.body.appendChild(tmp);
-        tmp.focus();
-        tmp.select();
-        document.execCommand('copy');
-        document.body.removeChild(tmp);
-      }
-
-      debugLog('📋 Journal copié dans le presse-papiers');
-
-    } catch (err) {
-
-      debugLog(
-        '❌ Échec de la copie du journal:',
-        err,
-        'message:', err?.message || 'pas de message',
-        'stack:', err?.stack || 'pas de stack'
-      );
-    }
-  });
-}
-
-if (debugClearBtn) {
-
-  debugClearBtn.addEventListener('click', () => {
-
-    if (debugLogEl) debugLogEl.textContent = '';
-    persistDebugLog('');
-    debugLog('🧹 Journal effacé manuellement');
-  });
 }
 
 // ============================================================
