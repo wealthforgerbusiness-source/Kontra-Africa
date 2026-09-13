@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock & Ventes — Kontra-Africa</title>
+
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/stock.css" />
+</head>
+<body>
+
+  <div id="app-shell" class="app-shell">
+
+    <nav id="app-sidebar" class="app-sidebar" aria-label="Navigation principale"></nav>
+
+    <main class="app-main" id="main-content">
+
+      <!-- Bandeau hors-ligne commun (réutilisé, peuplé par le JS partagé) -->
+      <div id="offline-banner" class="offline-banner" hidden></div>
+
+      <!-- ============================================================ -->
+      <!-- HEADER -->
+      <!-- ============================================================ -->
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Stock & Ventes</h1>
+          <p class="page-subtitle">Gérez vos produits, vos ventes et vos dépenses du jour</p>
+        </div>
+      </header>
+
+      <!-- ============================================================ -->
+      <!-- CARD BÉNÉFICE DU JOUR -->
+      <!-- ============================================================ -->
+      <section class="balance-card" id="daily-profit-card">
+        <p class="balance-card__label">Bénéfice du jour</p>
+        <p class="balance-card__amount">
+          <span id="daily-profit-currency">—</span><span id="daily-profit-value">0</span>
+        </p>
+      </section>
+
+      <div class="finances-grid">
+
+        <!-- ============================================================ -->
+        <!-- ALERTES STOCK -->
+        <!-- ============================================================ -->
+        <section id="low-stock-section" class="panel" hidden>
+          <h2 class="panel-title">Alertes stock</h2>
+          <div id="low-stock-badges" class="low-stock-badges">
+            <!-- badges injectés par JS -->
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- PRODUITS -->
+        <!-- ============================================================ -->
+        <section class="panel">
+          <div class="panel-header-row">
+            <h2 class="panel-title">Produits</h2>
+            <button id="btn-add-product" class="btn btn-credit btn-sm">+ Ajouter un produit</button>
+          </div>
+
+          <div id="products-list" class="products-list">
+            <div class="state-message">Chargement…</div>
+          </div>
+
+          <button class="btn btn-secondary" id="btn-load-more-products" hidden>Charger plus</button>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- VENTES DU JOUR -->
+        <!-- ============================================================ -->
+        <section class="panel">
+          <h2 class="panel-title">Ventes du jour</h2>
+
+          <div id="sales-today-list" class="sales-list">
+            <div class="state-message">Chargement…</div>
+          </div>
+
+          <div id="daily-summary" class="daily-summary">
+            <!-- résumé injecté par JS -->
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- DÉPENSES -->
+        <!-- ============================================================ -->
+        <section class="panel">
+          <div class="panel-header-row">
+            <h2 class="panel-title">Dépenses</h2>
+            <button id="btn-add-expense" class="btn btn-credit btn-sm">+ Ajouter une dépense</button>
+          </div>
+
+          <div id="expenses-today-list" class="expenses-list">
+            <div class="state-message">Chargement…</div>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MODAL : AJOUTER / MODIFIER UN PRODUIT -->
+  <!-- ============================================================ -->
+  <dialog id="modal-product" class="modal">
+    <form id="form-product" class="modal-content" novalidate>
+      <div class="modal-header">
+        <h2 id="modal-product-title">Ajouter un produit</h2>
+        <button type="button" class="modal-close" data-action="close-product-modal" aria-label="Fermer">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="product-id" name="productId" />
+
+        <div class="form-field">
+          <label for="product-name">Nom du produit</label>
+          <input type="text" id="product-name" name="name" required />
+        </div>
+
+        <div class="form-field">
+          <label for="product-purchase-price">Prix d'achat</label>
+          <input type="number" id="product-purchase-price" name="purchasePrice" min="0" step="0.01" required />
+        </div>
+
+        <div class="form-field">
+          <label for="product-selling-price">Prix de vente</label>
+          <input type="number" id="product-selling-price" name="sellingPrice" min="0" step="0.01" required />
+        </div>
+
+        <div class="form-field">
+          <label for="product-stock-quantity">Quantité en stock</label>
+          <input type="number" id="product-stock-quantity" name="stockQuantity" min="0" step="1" required />
+        </div>
+
+        <div class="form-field">
+          <label for="product-low-stock-threshold">Seuil d'alerte (optionnel)</label>
+          <input type="number" id="product-low-stock-threshold" name="lowStockThreshold" min="0" step="1" placeholder="5" />
+        </div>
+
+        <div class="form-field">
+          <label for="product-unit">Unité</label>
+          <select id="product-unit" name="unit">
+            <option value="piece">Pièce</option>
+            <option value="kg">Kg</option>
+            <option value="litre">Litre</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+
+        <p class="form-error" role="alert" hidden></p>
+        <p class="saved-msg" role="status" hidden>Enregistré</p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-action="close-product-modal">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============================================================ -->
+  <!-- MODAL : VENDRE (QUANTITÉ) -->
+  <!-- ============================================================ -->
+  <dialog id="modal-sell" class="modal">
+    <form id="form-sell" class="modal-content" novalidate>
+      <div class="modal-header">
+        <h2>Vendre <span id="modal-sell-product-name"></span></h2>
+        <button type="button" class="modal-close" data-action="close-sell-modal" aria-label="Fermer">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="sell-product-id" name="productId" />
+
+        <div class="form-field">
+          <label for="sell-quantity">Quantité vendue</label>
+          <input type="number" id="sell-quantity" name="quantity" min="1" step="1" required />
+        </div>
+
+        <div class="state-message" id="sell-stock-hint"></div>
+
+        <p class="form-error" role="alert" hidden></p>
+        <p class="saved-msg" role="status" hidden>Vente enregistrée</p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-action="close-sell-modal">Annuler</button>
+        <button type="submit" class="btn btn-credit">Confirmer la vente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============================================================ -->
+  <!-- MODAL : AJOUTER UNE DÉPENSE -->
+  <!-- ============================================================ -->
+  <dialog id="modal-expense" class="modal">
+    <form id="form-expense" class="modal-content" novalidate>
+      <div class="modal-header">
+        <h2>Ajouter une dépense</h2>
+        <button type="button" class="modal-close" data-action="close-expense-modal" aria-label="Fermer">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="expense-label">Libellé</label>
+          <input type="text" id="expense-label" name="label" required />
+        </div>
+
+        <div class="form-field">
+          <label for="expense-amount">Montant</label>
+          <input type="number" id="expense-amount" name="amount" min="0" step="0.01" required />
+        </div>
+
+        <div class="form-field">
+          <label for="expense-category">Catégorie</label>
+          <input type="text" id="expense-category" name="category" list="expense-category-options" placeholder="Transport, loyer, fournitures..." />
+          <datalist id="expense-category-options">
+            <option value="Transport"></option>
+            <option value="Loyer"></option>
+            <option value="Fournitures"></option>
+            <option value="Salaires"></option>
+            <option value="Autre"></option>
+          </datalist>
+        </div>
+
+        <p class="form-error" role="alert" hidden></p>
+        <p class="saved-msg" role="status" hidden>Enregistré</p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-action="close-expense-modal">Annuler</button>
+        <button type="submit" class="btn btn-debit">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app-nav.js"></script>
+  <script type="module" src="js/stock.js"></script>
+</body>
+</html>
