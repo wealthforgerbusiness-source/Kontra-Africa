@@ -11,7 +11,9 @@ import {
 
 import {
   buildCountryOptionsHtml,
-  cleanPhoneDigits
+  cleanPhoneDigits,
+  getDialCode,
+  DEFAULT_COUNTRY_CODE
 } from '/js/phone-countries.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
@@ -510,20 +512,23 @@ function renderPaywall(user) {
             <select
               id="paywallCountry"
               class="paywall__phone-select"
+              aria-label="Pays"
             >
               ${buildCountryOptionsHtml()}
             </select>
 
             <span
-              class="paywall__phone-divider"
+              class="paywall__phone-prefix"
+              id="paywallDialPrefix"
               aria-hidden="true"
-            ></span>
+              style="display:inline-flex;align-items:center;padding:0 8px;font-weight:600;color:var(--color-text-secondary,#555);white-space:nowrap;"
+            >${getDialCode(DEFAULT_COUNTRY_CODE)}</span>
 
             <input
               type="tel"
               id="paywallPhone"
               class="paywall__phone-input"
-              placeholder="8123456789"
+              placeholder="812 345 678"
               inputmode="numeric"
               autocomplete="tel"
             >
@@ -690,6 +695,42 @@ function renderPaywall(user) {
         verifyLicenseBtn
       )
   );
+
+
+  // ----------------------------------------------------------
+  // Préfixe d'indicatif (+243, +225, ...) affiché devant le
+  // champ de saisie du numéro, synchronisé avec le pays choisi.
+  // ----------------------------------------------------------
+
+  const countrySelect =
+    document.getElementById(
+      'paywallCountry'
+    );
+
+  const dialPrefixEl =
+    document.getElementById(
+      'paywallDialPrefix'
+    );
+
+  function updateDialPrefix() {
+
+    const selectedOption =
+      countrySelect.options[
+        countrySelect.selectedIndex
+      ];
+
+    dialPrefixEl.textContent =
+      selectedOption
+        ? selectedOption.dataset.dial
+        : '';
+  }
+
+  countrySelect.addEventListener(
+    'change',
+    updateDialPrefix
+  );
+
+  updateDialPrefix();
 
 
   checkoutBtn.addEventListener(
