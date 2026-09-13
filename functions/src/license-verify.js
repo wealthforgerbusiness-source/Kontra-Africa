@@ -1,5 +1,15 @@
-const { db, CHARIOW_API_URL, CHARIOW_API_KEY } = require("./config");
+const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID } = require("./config");
 const { getVerifiedUid } = require("./verify-auth");
+
+// Extrait l'identifiant produit d'une licence Chariow. Confirmé : l'API
+// renvoie un objet "product" imbriqué avec un id NUMÉRIQUE interne (ex: 42),
+// distinct de l'identifiant public "prd_xxx" utilisé ailleurs (liens de
+// vente, etc.). CHARIOW_PRODUCT_ID doit donc contenir ce nombre, pas le
+// "prd_xxx".
+function extractProductId(licenseData) {
+  if (!licenseData || !licenseData.product) return null;
+  return licenseData.product.id;
+}
 
 exports.verifyLicenseKey = async (req, res) => {
   try {
@@ -30,6 +40,27 @@ exports.verifyLicenseKey = async (req, res) => {
     }
 
     let { data } = await response.json();
+
+    // CRITIQUE : une clé de licence valide chez Chariow peut appartenir à
+    // N'IMPORTE QUEL produit vendu sur la boutique (ou sur le compte lié à
+    // la clé API), pas forcément à Kontra-Africa. Sans ce contrôle,
+    // n'importe quelle licence active — même achetée pour un tout autre
+    // produit, à n'importe quel prix — débloquerait l'accès ici.
+    const productId = extractProductId(data);
+
+    if (productId === null || productId === undefined) {
+      console.error(`Licence ${cleanKey} : impossible de lire data.product.id dans la réponse Chariow — la structure de la réponse a peut-être changé.`);
+      return res.status(200).json({ valid: false, error: "Cette licence n'est pas valide pour ce produit." });
+    }
+
+    // Comparaison en Number() : CHARIOW_PRODUCT_ID est un identifiant
+    // numérique interne (ex: 42), pas le "prd_xxx" public. Number() évite
+    // un faux négatif si CHARIOW_PRODUCT_ID est défini comme string dans
+    // une variable d'environnement (toujours des strings côté process.env).
+    if (Number(productId) !== Number(CHARIOW_PRODUCT_ID)) {
+      console.warn(`Licence ${cleanKey} rattachée au produit ${productId} ("${data.product.name || 'nom inconnu'}"), attendu ${CHARIOW_PRODUCT_ID}. Tentative de ${firebaseUid}.`);
+      return res.status(200).json({ valid: false, error: "Cette licence n'est pas valide pour ce produit." });
+    }
 
     // NOUVEAU : une licence fraîchement achetée n'est pas "active" tant
     // qu'elle n'a pas été activée une première fois (status
