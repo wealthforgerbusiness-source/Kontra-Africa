@@ -29,13 +29,39 @@
   <div class="app-shell" id="appShell" hidden>
 
     <!-- ============================= SIDEBAR (desktop) ============================= -->
-    <!-- ⚠️ CORRECTIF : cette page utilisait une sidebar codée en dur, écrite
-         avant l'ajout de la page "Stock" et jamais mise à jour depuis — d'où
-         le lien manquant. Comme toutes les autres pages (Finances, Contrats,
-         Stock, Profil), on utilise maintenant un conteneur vide avec
-         id="app-sidebar", rempli dynamiquement par renderAppNav() (voir
-         js/app-nav.js) à partir de la liste NAV_ITEMS à jour. -->
-    <nav id="app-sidebar" class="app-sidebar" aria-label="Navigation principale"></nav>
+    <aside class="app-sidebar">
+      <a href="/" class="app-sidebar__brand">
+        <img src="/logo.webp" alt="Kontra-Africa" class="app-sidebar__logo">
+        <span class="app-sidebar__brand-text">Kontra-Africa</span>
+      </a>
+
+      <nav class="app-nav" aria-label="Navigation de l'application">
+        <a href="/dashboard.html" class="app-nav__link is-active" data-page="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          <span>Tableau de bord</span>
+        </a>
+        <a href="/contracts.html" class="app-nav__link" data-page="contrats">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+          <span>Contrats</span>
+        </a>
+        <a href="/finances.html" class="app-nav__link" data-page="finances">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+          <span>Finances</span>
+        </a>
+        <a href="/profil.html" class="app-nav__link" data-page="profil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+          <span>Profil</span>
+        </a>
+      </nav>
+
+      <div class="app-sidebar__user" id="sidebarUser">
+        <img src="" alt="" class="app-sidebar__avatar" id="sidebarAvatar" hidden>
+        <div class="app-sidebar__user-info">
+          <p class="app-sidebar__user-name" id="sidebarUserName">—</p>
+          <button type="button" class="app-sidebar__logout" id="sidebarLogout">Se déconnecter</button>
+        </div>
+      </div>
+    </aside>
 
     <!-- ============================= TOPBAR (mobile) ============================= -->
     <header class="app-topbar">
@@ -100,7 +126,6 @@
         <section class="dashboard-card dashboard-card--activity">
           <p class="dashboard-card__label">Activité des 7 derniers jours</p>
           <div class="balance-activity-chart" id="balanceActivityChart"></div>
-          <div class="balance-activity-list" id="balanceActivityList"></div>
           <p class="dashboard-chart-empty" id="activityEmptyState" hidden>Pas encore de mouvement sur votre solde.</p>
         </section>
 
@@ -108,12 +133,24 @@
     </main>
 
     <!-- ============================= BOTTOM NAV (mobile) ============================= -->
-    <!-- ⚠️ CORRECTIF : supprimé, codé en dur ici aussi (sans Stock).
-         renderAppNav() crée maintenant ce bloc dynamiquement (voir
-         renderBottomNav() dans js/app-nav.js) et l'ajoute à la fin de
-         <body>, avec la liste à jour, exactement comme sur les autres
-         pages. Ne pas remettre de <nav class="app-bottomnav"> statique ici,
-         sinon renderAppNav() le détecte déjà présent et ne le remplace pas. -->
+    <nav class="app-bottomnav" aria-label="Navigation de l'application">
+      <a href="/dashboard.html" class="app-bottomnav__link is-active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span>Accueil</span>
+      </a>
+      <a href="/contracts.html" class="app-bottomnav__link" data-page="contrats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+        <span>Contrats</span>
+      </a>
+      <a href="/finances.html" class="app-bottomnav__link" data-page="finances">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <span>Finances</span>
+      </a>
+      <a href="/profil.html" class="app-bottomnav__link" data-page="profil">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+        <span>Profil</span>
+      </a>
+    </nav>
 
   </div>
 
