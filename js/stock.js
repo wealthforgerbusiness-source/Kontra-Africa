@@ -11,7 +11,7 @@ import { renderAppNav } from "./app-nav.js";
 
 renderAppNav("stock"); // sidebar desktop + bottom nav mobile
 
-const API_BASE = "/api/stock";
+const API_BASE = "https://kontra-africa.onrender.com/api/stock";
 const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
 
 // ============================================================
