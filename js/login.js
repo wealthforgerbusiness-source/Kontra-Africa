@@ -75,6 +75,28 @@ window.addEventListener('unhandledrejection', (event) => {
 debugLog('———— Nouveau chargement de page ————');
 debugLog('✅ Script login.js démarré');
 
+// ------------------------------------------------------------
+// TRACEUR D'OPÉRATION EN COURS
+// ------------------------------------------------------------
+// Sert à savoir précisément ce que le script était en train de faire si la
+// page se décharge/recharge de façon inattendue en plein milieu d'un flux
+// de connexion (ex : Chrome qui décharge l'onglet pour libérer de la
+// mémoire pendant que l'utilisateur est sur l'écran Google).
+
+let currentOperation = 'aucune opération en cours';
+
+function setOperation(op) {
+  currentOperation = op;
+}
+
+window.addEventListener('pagehide', (event) => {
+  debugLog('👋 pagehide déclenché — opération en cours au moment du déchargement:', currentOperation, 'persisted:', event.persisted);
+});
+
+window.addEventListener('visibilitychange', () => {
+  debugLog('👁️ Visibilité changée:', document.visibilityState, '— opération en cours:', currentOperation);
+});
+
 // ============================================================
 // IMPORTS
 // ============================================================
@@ -276,6 +298,7 @@ function translateAuthError(error) {
 async function initUserOnBackend(firebaseUser) {
 
   debugLog('🚀 initUserOnBackend() démarré pour', firebaseUser?.email || 'email inconnu');
+  setOperation('initUserOnBackend');
 
   const idToken = await firebaseUser.getIdToken();
 
@@ -530,10 +553,12 @@ async function checkRedirectResult() {
   try {
 
     debugLog('🔎 Appel de getRedirectResult(auth)...');
+    setOperation('getRedirectResult (checkRedirectResult)');
 
     const result = await getRedirectResult(auth);
 
     debugLog('🔎 getRedirectResult() résolu, result:', result ? 'objet reçu' : 'null/undefined');
+    setOperation('aucune opération en cours');
 
     if (fallbackTimer) clearTimeout(fallbackTimer);
 
@@ -550,15 +575,23 @@ async function checkRedirectResult() {
       return;
     }
 
-    // Aucun résultat exploitable. Si on attendait un retour de redirection,
-    // on nettoie le flag et on laisse l'utilisateur retenter normalement.
+    // Aucun résultat exploitable. Si on attendait un retour de connexion
+    // (redirect OU popup interrompu par un rechargement de page — ex :
+    // l'onglet a été déchargé par le navigateur en arrière-plan, ce qui
+    // arrive souvent avec beaucoup d'onglets ouverts), on ne doit JAMAIS
+    // laisser l'utilisateur revenir silencieusement à l'écran de départ
+    // sans explication : il faut un message clair + un bouton Réessayer.
     if (wasPending) {
-      debugLog('⚠️ Redirection attendue mais aucun résultat exploitable reçu');
+      debugLog('⚠️ Connexion attendue mais aucun résultat exploitable reçu — la page a probablement été interrompue/rechargée pendant le processus');
       localStorage.removeItem(AUTH_PENDING_KEY);
-      showButton();
+      showError(
+        "La connexion a été interrompue (souvent causé par trop d'onglets ouverts dans le navigateur, qui force la fermeture de la page en arrière-plan). Réessayez — cela fonctionne généralement du premier coup avec moins d'onglets ouverts."
+      );
     }
 
   } catch (err) {
+
+    setOperation('aucune opération en cours');
 
     if (fallbackTimer) clearTimeout(fallbackTimer);
 
@@ -585,6 +618,7 @@ async function startGoogleSignIn() {
   // CRITIQUE : ce log doit apparaître dès le clic, avant toute autre
   // vérification, pour savoir si le clic est bien détecté par le JS.
   debugLog('👆 Clic bouton Google détecté, checkbox coché:', termsCheckbox.checked);
+  setOperation('startGoogleSignIn (juste après le clic)');
 
   if (!termsCheckbox.checked) {
     debugLog('⛔ Checkbox non cochée, connexion annulée');
@@ -595,6 +629,12 @@ async function startGoogleSignIn() {
     "Connexion à Google…"
   );
 
+  // Posé pour les DEUX flux (Popup ET Redirect) : sert à détecter, au
+  // prochain chargement de page, qu'une connexion était en cours et a été
+  // interrompue avant d'aboutir (rechargement forcé du navigateur, onglet
+  // déchargé en arrière-plan, etc.) — voir checkRedirectResult().
+  localStorage.setItem(AUTH_PENDING_KEY, '1');
+
   try {
 
     // --------------------------------------------------------
@@ -602,6 +642,7 @@ async function startGoogleSignIn() {
     // --------------------------------------------------------
 
     debugLog('🔐 Appel de setPersistence()...');
+    setOperation('setPersistence');
 
     await setPersistence(
       auth,
@@ -622,9 +663,8 @@ async function startGoogleSignIn() {
         '📱 Connexion Google avec Redirect (mobile)'
       );
 
-      localStorage.setItem(AUTH_PENDING_KEY, '1');
-
       debugLog('📱 Appel de signInWithRedirect()...');
+      setOperation('signInWithRedirect');
 
       await signInWithRedirect(
         auth,
@@ -645,6 +685,7 @@ async function startGoogleSignIn() {
     );
 
     debugLog('🌐 Appel de signInWithPopup()...');
+    setOperation('signInWithPopup');
 
     const result =
       await signInWithPopup(
@@ -653,6 +694,8 @@ async function startGoogleSignIn() {
       );
 
     debugLog('🌐 signInWithPopup() résolu');
+    setOperation('aucune opération en cours (popup résolu)');
+    localStorage.removeItem(AUTH_PENDING_KEY);
 
     // --------------------------------------------------------
     // VERIFICATION UTILISATEUR
@@ -682,6 +725,9 @@ async function startGoogleSignIn() {
     );
 
   } catch (err) {
+
+    setOperation('aucune opération en cours');
+    localStorage.removeItem(AUTH_PENDING_KEY);
 
     debugLog(
       '❌ Erreur Google:',
