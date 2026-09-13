@@ -618,6 +618,79 @@ router.post("/sales", async (req, res) => {
 });
 
 // ============================================================
+// DELETE /api/stock/sales/:id
+// (Le frontend appelait déjà cette route pour le retrait d'une vente et la
+// réintégration de stock, mais elle n'existait pas côté backend — ajoutée
+// ici. Nécessaire pour que le retrait de vente en ligne, ET la synchro
+// différée du type "delete-sale" côté frontend, fonctionnent réellement.)
+// ============================================================
+
+router.delete("/sales/:id", async (req, res) => {
+  try {
+    const user = await requireAuth(req, res);
+    if (!user) return;
+
+    const id = cleanString(req.params.id, 150);
+
+    if (!id) {
+      return res.status(400).json({
+        error: "Identifiant de vente manquant.",
+      });
+    }
+
+    const saleRef = salesCollection(user.uid).doc(id);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const saleDoc = await transaction.get(saleRef);
+
+      if (!saleDoc.exists) {
+        return { notFound: true };
+      }
+
+      const sale = saleDoc.data();
+      const productRef = productsCollection(user.uid).doc(sale.productId);
+      const productDoc = await transaction.get(productRef);
+
+      // Si le produit a depuis été supprimé/archivé différemment, on ne
+      // bloque pas le retrait de la vente pour autant — on réintègre le
+      // stock seulement si le produit existe toujours.
+      if (productDoc.exists) {
+        const currentStock = Number(productDoc.data().stockQuantity || 0);
+
+        transaction.update(productRef, {
+          stockQuantity: currentStock + Number(sale.quantity || 0),
+          updatedAt: Timestamp.now(),
+        });
+      }
+
+      transaction.delete(saleRef);
+
+      return { notFound: false };
+    });
+
+    if (result.notFound) {
+      // Idempotent : si la vente n'existe déjà plus (ex: la file d'attente
+      // hors ligne rejoue une suppression déjà appliquée), on répond succès
+      // plutôt que 404 pour ne pas bloquer indéfiniment la synchro.
+      return res.status(200).json({
+        success: true,
+        alreadyDeleted: true,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (error) {
+    console.error("DELETE /sales/:id :", error);
+
+    return res.status(500).json({
+      error: "Impossible de retirer la vente.",
+    });
+  }
+});
+
+// ============================================================
 // RAPPORT JOURNALIER
 // GET /api/stock/reports/daily?date=YYYY-MM-DD
 // ============================================================
@@ -734,6 +807,14 @@ router.get("/reports/daily", async (req, res) => {
 // ============================================================
 // CLÔTURE DE JOURNÉE
 // POST /api/stock/reports/close-day
+//
+// ⚠️ CHANGEMENT : cette route ne supprime plus rien elle-même. Elle se
+// contente de générer le PDF du rapport et de le renvoyer. La suppression
+// réelle des ventes du jour se fait via la route séparée ci-dessous
+// (/reports/close-day/confirm), appelée par le frontend UNIQUEMENT après que
+// le PDF a bien été téléchargé côté client — pour ne jamais perdre de
+// données si le téléchargement échoue ou si la connexion coupe entre les
+// deux.
 // ============================================================
 
 router.post("/reports/close-day", async (req, res) => {
@@ -771,33 +852,44 @@ router.post("/reports/close-day", async (req, res) => {
       )
       .get();
 
+    const sales = snapshot.docs.map((doc) => doc.data());
+
     let totalRevenue = 0;
     let totalProfit = 0;
     let totalQuantity = 0;
+    const perProduct = new Map(); // productName -> { quantity, profit }
 
-    snapshot.docs.forEach((doc) => {
-      const sale = doc.data();
+    sales.forEach((sale) => {
+      totalRevenue += Number(sale.totalRevenue || 0);
+      totalProfit += Number(sale.totalProfit || 0);
+      totalQuantity += Number(sale.quantity || 0);
 
-      totalRevenue += Number(
-        sale.totalRevenue || 0
-      );
-
-      totalProfit += Number(
-        sale.totalProfit || 0
-      );
-
-      totalQuantity += Number(
-        sale.quantity || 0
-      );
+      const key = sale.productName || "Produit inconnu";
+      const entry = perProduct.get(key) || { quantity: 0, profit: 0 };
+      entry.quantity += Number(sale.quantity || 0);
+      entry.profit += Number(sale.totalProfit || 0);
+      perProduct.set(key, entry);
     });
 
-    // PDF simple.
+    let topSeller = null;
+    let lowestProfitProduct = null;
+
+    for (const [name, stats] of perProduct.entries()) {
+      if (!topSeller || stats.quantity > topSeller.quantity) {
+        topSeller = { name, ...stats };
+      }
+      if (!lowestProfitProduct || stats.profit < lowestProfitProduct.profit) {
+        lowestProfitProduct = { name, ...stats };
+      }
+    }
+
+    // ---- Génération du PDF (mise en page plus professionnelle) ----
     const PDFDocument = require("pdfkit");
+    const path = require("path");
+    const fs = require("fs");
+    const sealPath = path.join(__dirname, "assets", "kontrasceau.png");
 
-    const pdf = new PDFDocument({
-      margin: 50,
-    });
-
+    const pdf = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
     const chunks = [];
 
     pdf.on("data", (chunk) => {
@@ -805,92 +897,141 @@ router.post("/reports/close-day", async (req, res) => {
     });
 
     const pdfPromise = new Promise((resolve, reject) => {
-      pdf.on("end", () => {
-        resolve(Buffer.concat(chunks));
-      });
-
+      pdf.on("end", () => resolve(Buffer.concat(chunks)));
       pdf.on("error", reject);
     });
 
-    pdf
-      .fontSize(22)
-      .text("Kontra-Africa", {
-        align: "center",
+    // En-tête
+    pdf.fillColor("#000000").font("Helvetica-Bold").fontSize(20).text("KONTRA-AFRICA", 50, 45);
+    pdf.font("Helvetica").fontSize(8).text(`Rapport journalier — ${dateString}`, 50, 72);
+    pdf.strokeColor("#000000").moveTo(50, 90).lineTo(545, 90).stroke();
+
+    let y = 110;
+    pdf.font("Helvetica-Bold").fontSize(12).text("RAPPORT DU JOUR", 50, y);
+    y += 25;
+
+    pdf.font("Helvetica-Bold").fontSize(10).text("Détail des ventes", 50, y);
+    y += 18;
+    pdf.font("Helvetica").fontSize(9);
+
+    if (sales.length === 0) {
+      pdf.text("Aucune vente enregistrée aujourd'hui.", 50, y);
+      y += 16;
+    } else {
+      sales.forEach((sale) => {
+        pdf.text(
+          `${sale.productName || "?"} × ${sale.quantity} — ${sale.totalRevenue} (bénéfice ${sale.totalProfit})`,
+          50,
+          y
+        );
+        y += 14;
+        if (y > 720) {
+          pdf.addPage();
+          y = 50;
+        }
       });
-
-    pdf.moveDown();
-
-    pdf
-      .fontSize(18)
-      .text("Rapport de clôture");
-
-    pdf
-      .fontSize(12)
-      .text(`Date : ${dateString}`);
-
-    pdf.moveDown();
-
-    pdf.text(
-      `Nombre de ventes : ${snapshot.size}`
-    );
-
-    pdf.text(
-      `Quantité vendue : ${totalQuantity}`
-    );
-
-    pdf.text(
-      `Chiffre d'affaires : ${totalRevenue}`
-    );
-
-    pdf.text(
-      `Bénéfice : ${totalProfit}`
-    );
-
-    pdf.moveDown();
-
-    pdf.text(
-      "Généré automatiquement par Kontra-Africa."
-    );
-
-    pdf.end();
-
-    const buffer = await pdfPromise;
-
-    // Suppression des ventes du jour après génération du rapport.
-    if (!snapshot.empty) {
-      const batch = db.batch();
-
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-
-      await batch.commit();
     }
 
-    res.setHeader(
-      "Content-Type",
-      "application/pdf"
-    );
+    y += 10;
+    pdf.strokeColor("#000000").moveTo(50, y).lineTo(545, y).stroke();
+    y += 15;
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="rapport-${dateString}.pdf"`
-    );
+    pdf.font("Helvetica-Bold").fontSize(10).text("Résumé", 50, y);
+    y += 16;
+    pdf.font("Helvetica").fontSize(9);
+    pdf.text(`Chiffre d'affaires total : ${totalRevenue}`, 50, y);
+    y += 14;
+    pdf.text(`Bénéfice total : ${totalProfit}`, 50, y);
+    y += 14;
+    pdf.text(`Nombre de ventes : ${snapshot.size}`, 50, y);
+    y += 14;
+    pdf.text(`Quantité totale vendue : ${totalQuantity}`, 50, y);
+    y += 20;
 
-    res.setHeader(
-      "Cache-Control",
-      "no-store"
-    );
+    if (topSeller) {
+      pdf.font("Helvetica-Bold").text("Produit le plus vendu : ", 50, y, { continued: true });
+      pdf.font("Helvetica").text(`${topSeller.name} (${topSeller.quantity} unités)`);
+      y += 16;
+    }
+    if (lowestProfitProduct) {
+      pdf.font("Helvetica-Bold").text("Produit au bénéfice le plus faible : ", 50, y, { continued: true });
+      pdf.font("Helvetica").text(`${lowestProfitProduct.name} (${lowestProfitProduct.profit})`);
+      y += 16;
+    }
+
+    // Sceau + pied de page
+    if (fs.existsSync(sealPath)) {
+      try {
+        pdf.image(sealPath, 480, 720, { fit: [50, 50] });
+      } catch (e) {
+        console.error("Erreur sceau :", e);
+      }
+    }
+    pdf.strokeColor("#000000").moveTo(50, 770).lineTo(545, 770).stroke();
+    pdf.font("Helvetica").fontSize(8).text("Kontra-Africa — Rapport de gestion", 50, 778);
+
+    pdf.end();
+    const buffer = await pdfPromise;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="rapport-${dateString}.pdf"`);
+    res.setHeader("Cache-Control", "no-store");
 
     return res.status(200).send(buffer);
   } catch (error) {
-    console.error(
-      "POST /reports/close-day :",
-      error
-    );
+    console.error("POST /reports/close-day :", error);
 
     return res.status(500).json({
-      error: "Impossible de clôturer la journée.",
+      error: "Impossible de générer le rapport de clôture.",
+    });
+  }
+});
+
+// ============================================================
+// CONFIRMATION DE CLÔTURE — supprime réellement les ventes du jour
+// POST /api/stock/reports/close-day/confirm
+//
+// Appelée par le frontend uniquement après confirmation que le PDF a bien
+// été téléchargé côté client. Supprime réellement (pas d'archivage) les
+// ventes du jour. Ne touche JAMAIS aux produits ni à leur stock.
+// ============================================================
+
+router.post("/reports/close-day/confirm", async (req, res) => {
+  try {
+    const user = await requireAuth(req, res);
+    if (!user) return;
+
+    const today = new Date();
+
+    const dateString =
+      `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+      ).padStart(2, "0")}-${String(
+        today.getDate()
+      ).padStart(2, "0")}`;
+
+    const startDate = new Date(`${dateString}T00:00:00`);
+    const endDate = new Date(`${dateString}T23:59:59.999`);
+
+    const snapshot = await salesCollection(user.uid)
+      .where("saleDate", ">=", Timestamp.fromDate(startDate))
+      .where("saleDate", "<=", Timestamp.fromDate(endDate))
+      .get();
+
+    if (!snapshot.empty) {
+      const batch = db.batch();
+      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+    }
+
+    return res.status(200).json({
+      deleted: snapshot.size,
+    });
+  } catch (error) {
+    console.error("POST /reports/close-day/confirm :", error);
+
+    return res.status(500).json({
+      error: "Erreur lors de la suppression des ventes du jour.",
     });
   }
 });
