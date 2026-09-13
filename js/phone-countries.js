@@ -20,13 +20,26 @@ export const COUNTRIES = [
 
 const DEFAULT_COUNTRY_CODE = 'CD';
 
-/* --- Construit les <option> du <select> pays pour le paiement --- */
+/* --- Construit les <option> du <select> pays pour le paiement ------------
+   Le nom du pays seul est affiché dans l'option (le drapeau + nom) : c'est
+   plus lisible qu'un texte du type "RD Congo (+243)" collé dans la liste.
+   L'indicatif (+243, +225, ...) est stocké dans data-dial sur chaque option
+   et affiché séparément, en préfixe fixe, à côté du champ de saisie du
+   numéro (voir updateDialPrefix() dans auth-guard.js). --------------------- */
 export function buildCountryOptionsHtml(selectedCode = DEFAULT_COUNTRY_CODE) {
   return COUNTRIES.map((country) => {
     const selected = country.code === selectedCode ? ' selected' : '';
-    return `<option value="${country.code}"${selected}>${country.flag} ${country.name} (${country.dial})</option>`;
+    return `<option value="${country.code}"${selected} data-dial="${country.dial}">${country.flag} ${country.name}</option>`;
   }).join('');
 }
+
+/* --- Retourne l'indicatif téléphonique (+243, +225, ...) pour un code pays --- */
+export function getDialCode(countryCode) {
+  const country = COUNTRIES.find((c) => c.code === countryCode);
+  return country ? country.dial : '';
+}
+
+export { DEFAULT_COUNTRY_CODE };
 
 /* --- Ne garde que les chiffres d'un numéro saisi (espaces, +, tirets, etc. retirés) --- */
 export function cleanPhoneDigits(value) {
