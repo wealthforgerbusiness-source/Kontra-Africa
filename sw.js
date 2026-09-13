@@ -1,11 +1,3 @@
-// =============================================================================
-// KONTRA-AFRICA — SERVICE WORKER (le vrai, pas le fichier d'auth-guard)
-// =============================================================================
-// Ce fichier tourne dans le contexte "Service Worker" du navigateur.
-// PAS de window, PAS de document, PAS de code d'auth Firebase ici.
-// L'auth-guard reste dans /js/auth-guard.js — ne rien y toucher.
-// =============================================================================
-
 const CACHE_VERSION = 'kontra-v1';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -19,6 +11,7 @@ const APP_SHELL_URLS = [
   '/dashboard.html',
   '/contracts.html',
   '/finances.html',
+  '/stock.html',
   '/profil.html',
   '/sign.html',
 
@@ -34,6 +27,7 @@ const APP_SHELL_URLS = [
   '/css/login.css',
   '/css/contracts.css',
   '/css/finances.css',
+  '/css/stock.css',
   '/css/profil.css',
   '/css/sign.css',
 
@@ -43,11 +37,13 @@ const APP_SHELL_URLS = [
   '/js/sw-register.js',
   '/js/offline-queue.js',
   '/js/phone-countries.js',
+  '/js/currency.js',
   '/js/landing.js',
   '/js/login.js',
   '/js/dashboard.js',
   '/js/contracts.js',
   '/js/finances.js',
+  '/js/stock.js',
   '/js/profil.js',
   '/js/sign.js'
 ];
