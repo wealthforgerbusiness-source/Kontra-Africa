@@ -170,6 +170,7 @@ router.get("/products", async (req, res) => {
 
     const snapshot = await productsCollection(user.uid)
       .orderBy("createdAt", "desc")
+      .limit(500)
       .get();
 
     const products = snapshot.docs.map(serializeProduct);
