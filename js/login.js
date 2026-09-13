@@ -274,6 +274,7 @@ const openBrowserBtn = document.getElementById('openBrowserBtn');
 function showButton() {
   googleBtn.hidden = false;
   googleBtn.disabled = !termsCheckbox.checked;
+  retryBtn.hidden = true;
 
   loadingState.hidden = true;
   errorState.hidden = true;
@@ -282,6 +283,7 @@ function showButton() {
 
 function showLoading(label) {
   googleBtn.hidden = true;
+  retryBtn.hidden = true;
 
   loadingState.hidden = false;
   errorState.hidden = true;
@@ -291,11 +293,11 @@ function showLoading(label) {
 }
 
 function showError(message) {
-  // Le bouton "Continuer avec Google" reste masqué en cas d'échec : on ne
-  // montre que le bouton "Réessayer" du toast, qui relance directement la
-  // connexion Google (la 2e tentative fonctionne systématiquement, inutile
-  // de faire recliquer sur "Continuer avec Google" en plus).
+  // Le bouton "Continuer avec Google" est remplacé, au même endroit, par le
+  // bouton "Réessayer" rouge : cliquer dessus relance direct la connexion
+  // Google (la 2e tentative fonctionne systématiquement).
   googleBtn.hidden = true;
+  retryBtn.hidden = false;
 
   loadingState.hidden = true;
   if (openBrowserFallback) openBrowserFallback.hidden = true;
@@ -310,6 +312,7 @@ function showOpenBrowserFallback() {
   if (!openBrowserFallback) return;
 
   googleBtn.hidden = true;
+  retryBtn.hidden = true;
   loadingState.hidden = true;
   errorState.hidden = true;
   openBrowserFallback.hidden = false;
