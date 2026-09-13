@@ -1,3 +1,22 @@
+const debugLogEl = document.getElementById('debug-log');
+function debugLog(...args) {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (debugLogEl) {
+    debugLogEl.textContent += message + '\n';
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+  }
+  console.log(...args);
+}
+
+const originalConsoleError = console.error;
+console.error = function(...args) {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (debugLogEl) {
+    debugLogEl.textContent += '❌ ' + message + '\n';
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+  }
+  originalConsoleError.apply(console, args);
+};
 import { auth, googleProvider } from '/js/firebase-config.js';
 
 import {
