@@ -291,8 +291,11 @@ function showLoading(label) {
 }
 
 function showError(message) {
-  googleBtn.hidden = false;
-  googleBtn.disabled = !termsCheckbox.checked;
+  // Le bouton "Continuer avec Google" reste masqué en cas d'échec : on ne
+  // montre que le bouton "Réessayer" du toast, qui relance directement la
+  // connexion Google (la 2e tentative fonctionne systématiquement, inutile
+  // de faire recliquer sur "Continuer avec Google" en plus).
+  googleBtn.hidden = true;
 
   loadingState.hidden = true;
   if (openBrowserFallback) openBrowserFallback.hidden = true;
@@ -873,9 +876,11 @@ if (retryBtn) {
     'click',
     () => {
 
-      debugLog('🔁 Clic bouton Réessayer');
+      debugLog('🔁 Clic bouton Réessayer — relance directe de la connexion Google');
 
-      showButton();
+      errorState.hidden = true;
+
+      startGoogleSignIn();
 
     }
   );
@@ -895,7 +900,9 @@ if (errorCloseBtn) {
 
       debugLog('✖️ Notification d\'erreur fermée manuellement');
 
-      errorState.hidden = true;
+      // Le bouton Google était masqué pendant l'erreur (voir showError) :
+      // on le réaffiche ici pour que l'écran ne reste pas vide.
+      showButton();
 
     }
   );
