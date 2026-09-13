@@ -1,11 +1,10 @@
 const { db, CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID } = require("./config");
 const { getVerifiedUid } = require("./verify-auth");
 
-// Extrait l'identifiant produit d'une licence Chariow. Confirmé : l'API
-// renvoie un objet "product" imbriqué avec un id NUMÉRIQUE interne (ex: 42),
-// distinct de l'identifiant public "prd_xxx" utilisé ailleurs (liens de
-// vente, etc.). CHARIOW_PRODUCT_ID doit donc contenir ce nombre, pas le
-// "prd_xxx".
+// Extrait l'identifiant produit d'une licence Chariow. Confirmé par un
+// appel réel à l'API : l'objet "product" imbriqué contient un "id" au
+// même format public que les autres identifiants Chariow (ex: "prd_tqwlmf8w"),
+// pas un nombre interne séparé.
 function extractProductId(licenseData) {
   if (!licenseData || !licenseData.product) return null;
   return licenseData.product.id;
@@ -53,11 +52,7 @@ exports.verifyLicenseKey = async (req, res) => {
       return res.status(200).json({ valid: false, error: "Cette licence n'est pas valide pour ce produit." });
     }
 
-    // Comparaison en Number() : CHARIOW_PRODUCT_ID est un identifiant
-    // numérique interne (ex: 42), pas le "prd_xxx" public. Number() évite
-    // un faux négatif si CHARIOW_PRODUCT_ID est défini comme string dans
-    // une variable d'environnement (toujours des strings côté process.env).
-    if (Number(productId) !== Number(CHARIOW_PRODUCT_ID)) {
+    if (productId !== CHARIOW_PRODUCT_ID) {
       console.warn(`Licence ${cleanKey} rattachée au produit ${productId} ("${data.product.name || 'nom inconnu'}"), attendu ${CHARIOW_PRODUCT_ID}. Tentative de ${firebaseUid}.`);
       return res.status(200).json({ valid: false, error: "Cette licence n'est pas valide pour ce produit." });
     }
