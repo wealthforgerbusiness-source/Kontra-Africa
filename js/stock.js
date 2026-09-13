@@ -1,3 +1,19 @@
+// ============================================================
+// js/stock.js
+// Page Stock & Ventes — CRUD produits/ventes/dépenses,
+// support hors-ligne via offline-queue.js.
+//
+// ⚠️ HYPOTHÈSES RESTANTES (hors périmètre de cette correction) :
+// - Le pattern d'attache du token Bearer (authFetch ci-dessous) est
+//   reconstitué en l'absence du code réel de finances.js/contracts.js.
+//   Si un helper `apiFetch`/`authFetch` partagé existe déjà, remplace
+//   authFetch par un import de ce module plutôt que de dupliquer la logique.
+// - `syncPendingActions(type, syncFn)` est supposé retirer lui-même les
+//   entrées de la queue au fur et à mesure de leur succès. Si ce n'est
+//   pas le cas, il faut appeler removePendingAction(entry.localId)
+//   explicitement dans chaque syncFn ci-dessous.
+// ============================================================
+
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
@@ -816,8 +832,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // d'une session précédente, avant même que l'auth soit résolue.
   await updateOnlineStatus();
 
-  const user = await requireAppAccess();
+  const access = await requireAppAccess();
+
+  // requireAppAccess() résout `null` quand l'accès est refusé (paywall,
+  // document Firestore absent, erreur fatale) : dans ces cas, elle a déjà
+  // remplacé document.body par l'écran correspondant. On arrête ici pour
+  // ne pas continuer à manipuler des éléments qui n'existent plus.
+  if (!access) return;
+
+  const { user, userData: initialUserData } = access;
   currentUser = user;
+  if (initialUserData) currentUserData = initialUserData;
 
   listenToUserDoc(user.uid, (userData) => {
     currentUserData = userData;
