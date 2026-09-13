@@ -150,6 +150,37 @@
   flex-shrink: 0;
 }
 
+/* --- Bouton Réessayer (remplace le bouton Google, même emplacement,
+       en cas d'échec de connexion) --- */
+
+.retry-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 46px;
+  padding: 0 var(--space-5);
+  background: var(--color-error);
+  border: 1.5px solid var(--color-error);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-base);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.retry-btn:hover {
+  opacity: 0.9;
+}
+
+.retry-btn:active {
+  transform: scale(0.98);
+}
+
 /* --- État de chargement --- */
 
 .login-state {
@@ -193,7 +224,9 @@
 }
 
 /* ==========================================================================
-   Notification d'erreur — toast flottant, indépendant du bouton Google
+   Notification d'erreur — toast flottant, garde uniquement le message et la
+   fermeture manuelle. Le bouton "Réessayer" est désormais dans la carte
+   (voir .retry-btn), à l'emplacement du bouton Google.
    ========================================================================== */
 
 .error-toast {
@@ -241,18 +274,6 @@
   align-items: flex-start;
   gap: var(--space-2);
   flex-shrink: 0;
-}
-
-.error-toast__retry {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-error);
-  background: transparent;
-  border: 1px solid rgba(216, 64, 47, 0.35);
-  border-radius: var(--radius-sm, 6px);
-  padding: 5px 10px;
-  white-space: nowrap;
-  cursor: pointer;
 }
 
 .error-toast__close {
