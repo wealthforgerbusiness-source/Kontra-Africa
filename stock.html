@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stock & Ventes — Kontra-Africa</title>
+  <link rel="icon" href="/logo.webp" type="image/webp" />
 
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/app.css" />
@@ -19,38 +20,124 @@
 
       <div id="offline-banner" class="offline-banner" hidden></div>
 
-      <header class="page-header">
+      <header class="app-page-header">
         <div>
-          <h1 class="page-title">Stock & Ventes</h1>
-          <p class="page-subtitle">Gérez vos produits, vos ventes et vos dépenses du jour</p>
+          <h1>Stock & Ventes</h1>
+          <p class="app-page-header__subtitle">Gérez vos produits et vos ventes du jour</p>
         </div>
       </header>
 
-      <section class="balance-card" id="daily-profit-card">
-        <p class="balance-card__label">Bénéfice du jour</p>
-        <p class="balance-card__amount">
-          <span id="daily-profit-currency">—</span><span id="daily-profit-value">0</span>
-        </p>
-      </section>
+      <div class="stock-tabs" role="tablist" aria-label="Sections Stock">
+        <button type="button" class="stock-tab is-active" data-tab="dashboard" role="tab" aria-selected="true" id="stock-tab-dashboard">Dashboard</button>
+        <button type="button" class="stock-tab" data-tab="produits" role="tab" aria-selected="false" id="stock-tab-produits">Produits</button>
+        <button type="button" class="stock-tab" data-tab="ventes" role="tab" aria-selected="false" id="stock-tab-ventes">Ventes</button>
+      </div>
 
-      <div class="finances-grid">
+      <!-- ================================================== -->
+      <!-- DASHBOARD                                            -->
+      <!-- ================================================== -->
+      <section class="stock-panel" data-tab-panel="dashboard" role="tabpanel">
 
-        <section id="low-stock-section" class="panel" hidden>
+        <div class="dashboard-grid">
+
+          <div class="dashboard-card">
+            <div class="dashboard-card__label-row">
+              <span class="dashboard-card__label">Solde actuel</span>
+              <button type="button" class="dashboard-card__convert" id="btn-convert-balance">🔄 USD</button>
+            </div>
+            <p class="dashboard-card__value" id="stock-balance-value">—</p>
+          </div>
+
+          <div class="dashboard-card">
+            <div class="dashboard-card__label-row">
+              <span class="dashboard-card__label">Bénéfice du jour</span>
+              <button type="button" class="dashboard-card__convert" id="btn-convert-profit">🔄 USD</button>
+            </div>
+            <p class="dashboard-card__value" id="daily-profit-value">—</p>
+          </div>
+
+          <div class="dashboard-card">
+            <span class="dashboard-card__label">Produit le plus vendu (aujourd'hui)</span>
+            <p class="dashboard-card__value" id="top-product-name">—</p>
+            <p class="dashboard-card__hint" id="top-product-qty"></p>
+          </div>
+
+          <div class="dashboard-card">
+            <span class="dashboard-card__label">Produit le moins vendu (aujourd'hui)</span>
+            <p class="dashboard-card__value" id="low-product-name">—</p>
+            <p class="dashboard-card__hint" id="low-product-qty"></p>
+          </div>
+
+        </div>
+
+        <section class="panel" id="low-stock-section" hidden>
           <h2 class="panel-title">Alertes stock</h2>
           <div id="low-stock-badges" class="low-stock-badges"></div>
         </section>
 
         <section class="panel">
           <div class="panel-header-row">
+            <h2 class="panel-title">Actions rapides</h2>
+          </div>
+          <div class="quick-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-add-stock">+ Ajouter du stock</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel-title">Clôture de journée</h2>
+          <p class="panel-hint">Génère le PDF du rapport du jour, puis supprime définitivement les ventes du jour pour repartir à zéro demain. Pense à bien télécharger le PDF avant de fermer l'onglet.</p>
+          <button type="button" id="btn-close-day" class="btn btn-primary">Clôturer la journée</button>
+        </section>
+
+      </section>
+
+      <!-- ================================================== -->
+      <!-- PRODUITS                                             -->
+      <!-- ================================================== -->
+      <section class="stock-panel" data-tab-panel="produits" role="tabpanel" hidden>
+
+        <section class="panel">
+          <div class="panel-header-row">
             <h2 class="panel-title">Produits</h2>
-            <button id="btn-add-product" class="btn btn-credit btn-sm">+ Ajouter un produit</button>
+            <button id="btn-add-product" class="btn btn-primary btn-sm">+ Ajouter un produit</button>
+          </div>
+
+          <div class="stock-search">
+            <input type="search" id="product-search" placeholder="Rechercher un produit…" aria-label="Rechercher un produit" />
           </div>
 
           <div id="products-list" class="products-list">
             <div class="state-message">Chargement…</div>
           </div>
+        </section>
 
-          <button class="btn btn-secondary" id="btn-load-more-products" hidden>Charger plus</button>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- VENTES                                               -->
+      <!-- ================================================== -->
+      <section class="stock-panel" data-tab-panel="ventes" role="tabpanel" hidden>
+
+        <section class="panel">
+          <h2 class="panel-title">Nouvelle vente</h2>
+
+          <div class="form-field">
+            <label for="sale-product-search">Produit</label>
+            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
+            <datalist id="sale-product-options"></datalist>
+          </div>
+
+          <div class="form-field">
+            <label for="sale-quantity">Quantité</label>
+            <input type="number" id="sale-quantity" min="1" step="1" />
+          </div>
+
+          <div class="state-message" id="sale-stock-hint"></div>
+          <p class="form-error" role="alert" id="sale-form-error" hidden></p>
+          <p class="saved-msg" role="status" id="sale-saved-msg" hidden>Vente enregistrée</p>
+
+          <button type="button" class="btn btn-credit" id="btn-confirm-sale">Confirmer la vente</button>
         </section>
 
         <section class="panel">
@@ -61,22 +148,9 @@
           </div>
 
           <div id="daily-summary" class="daily-summary"></div>
-
-          <button id="btn-close-day" class="btn btn-primary">Clôturer la journée</button>
         </section>
 
-        <section class="panel">
-          <div class="panel-header-row">
-            <h2 class="panel-title">Dépenses</h2>
-            <button id="btn-add-expense" class="btn btn-credit btn-sm">+ Ajouter une dépense</button>
-          </div>
-
-          <div id="expenses-today-list" class="expenses-list">
-            <div class="state-message">Chargement…</div>
-          </div>
-        </section>
-
-      </div>
+      </section>
 
     </main>
   </div>
@@ -98,12 +172,18 @@
 
         <div class="form-field">
           <label for="product-purchase-price">Prix d'achat</label>
-          <input type="number" id="product-purchase-price" name="purchasePrice" min="0" step="0.01" required />
+          <div class="form-field__currency-row">
+            <input type="number" id="product-purchase-price" name="purchasePrice" min="0" step="0.01" required />
+            <span class="form-field__currency" id="product-purchase-currency"></span>
+          </div>
         </div>
 
         <div class="form-field">
           <label for="product-selling-price">Prix de vente</label>
-          <input type="number" id="product-selling-price" name="sellingPrice" min="0" step="0.01" required />
+          <div class="form-field__currency-row">
+            <input type="number" id="product-selling-price" name="sellingPrice" min="0" step="0.01" required />
+            <span class="form-field__currency" id="product-selling-currency"></span>
+          </div>
         </div>
 
         <div class="form-field">
@@ -133,75 +213,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-action="close-product-modal">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="modal-sell" class="modal">
-    <form id="form-sell" class="modal-content" novalidate>
-      <div class="modal-header">
-        <h2>Vendre <span id="modal-sell-product-name"></span></h2>
-        <button type="button" class="modal-close" data-action="close-sell-modal" aria-label="Fermer">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <input type="hidden" id="sell-product-id" name="productId" />
-
-        <div class="form-field">
-          <label for="sell-quantity">Quantité vendue</label>
-          <input type="number" id="sell-quantity" name="quantity" min="1" step="1" required />
-        </div>
-
-        <div class="state-message" id="sell-stock-hint"></div>
-
-        <p class="form-error" role="alert" hidden></p>
-        <p class="saved-msg" role="status" hidden>Vente enregistrée</p>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-action="close-sell-modal">Annuler</button>
-        <button type="submit" class="btn btn-credit">Confirmer la vente</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="modal-expense" class="modal">
-    <form id="form-expense" class="modal-content" novalidate>
-      <div class="modal-header">
-        <h2>Ajouter une dépense</h2>
-        <button type="button" class="modal-close" data-action="close-expense-modal" aria-label="Fermer">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <div class="form-field">
-          <label for="expense-label">Libellé</label>
-          <input type="text" id="expense-label" name="label" required />
-        </div>
-
-        <div class="form-field">
-          <label for="expense-amount">Montant</label>
-          <input type="number" id="expense-amount" name="amount" min="0" step="0.01" required />
-        </div>
-
-        <div class="form-field">
-          <label for="expense-category">Catégorie</label>
-          <input type="text" id="expense-category" name="category" list="expense-category-options" placeholder="Transport, loyer, fournitures..." />
-          <datalist id="expense-category-options">
-            <option value="Transport"></option>
-            <option value="Loyer"></option>
-            <option value="Fournitures"></option>
-            <option value="Salaires"></option>
-            <option value="Autre"></option>
-          </datalist>
-        </div>
-
-        <p class="form-error" role="alert" hidden></p>
-        <p class="saved-msg" role="status" hidden>Enregistré</p>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-action="close-expense-modal">Annuler</button>
-        <button type="submit" class="btn btn-debit">Enregistrer</button>
       </div>
     </form>
   </dialog>
