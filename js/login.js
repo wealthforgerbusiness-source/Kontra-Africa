@@ -1,22 +1,39 @@
+// ============================================================
+// SYSTÈME DE CAPTURE UNIVERSEL DES ERREURS (AVANT TOUT IMPORT)
+// ============================================================
+// Aucune console développeur n'est disponible côté mobile : tout est donc
+// affiché directement à l'écran dans l'encadré #debug-log.
+
 const debugLogEl = document.getElementById('debug-log');
+
 function debugLog(...args) {
-  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const message = args.map(a => {
+    if (a instanceof Error) return `${a.name}: ${a.message}`;
+    return typeof a === 'object' ? JSON.stringify(a) : String(a);
+  }).join(' ');
   if (debugLogEl) {
     debugLogEl.textContent += message + '\n';
     debugLogEl.scrollTop = debugLogEl.scrollHeight;
   }
-  console.log(...args);
 }
 
-const originalConsoleError = console.error;
-console.error = function(...args) {
-  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  if (debugLogEl) {
-    debugLogEl.textContent += '❌ ' + message + '\n';
-    debugLogEl.scrollTop = debugLogEl.scrollHeight;
-  }
-  originalConsoleError.apply(console, args);
-};
+// Capture toute erreur JS non attrapée (y compris hors de nos try/catch,
+// dans des scripts tiers, etc.)
+window.addEventListener('error', (event) => {
+  debugLog('💥 ERREUR JS NON CAPTURÉE:', event.message, 'à', event.filename + ':' + event.lineno);
+});
+
+// Capture toute Promise rejetée sans .catch()
+window.addEventListener('unhandledrejection', (event) => {
+  debugLog('💥 PROMESSE REJETÉE NON CAPTURÉE:', event.reason?.message || event.reason);
+});
+
+debugLog('✅ Script login.js démarré');
+
+// ============================================================
+// IMPORTS
+// ============================================================
+
 import { auth, googleProvider } from '/js/firebase-config.js';
 
 import {
@@ -66,6 +83,8 @@ const isMobileDevice =
     window.matchMedia('(hover: none)').matches);
 
 const shouldUseRedirect = isStandalone || isMobileDevice;
+
+debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, 'shouldUseRedirect:', shouldUseRedirect);
 
 // ============================================================
 // ELEMENTS
@@ -144,7 +163,7 @@ function sleep(ms) {
 // ============================================================
 
 function translateAuthError(error) {
-  console.error('Firebase Auth error:', error);
+  debugLog('❌ Firebase Auth error:', error, error?.code || 'pas de code', 'stack:', error?.stack || 'pas de stack');
 
   const code = error?.code;
 
@@ -185,6 +204,8 @@ function translateAuthError(error) {
 
 async function initUserOnBackend(firebaseUser) {
 
+  debugLog('🚀 initUserOnBackend() démarré pour', firebaseUser?.email || 'email inconnu');
+
   const idToken = await firebaseUser.getIdToken();
 
   const payload = {
@@ -215,7 +236,7 @@ async function initUserOnBackend(firebaseUser) {
         : `Le serveur démarre… nouvelle tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
     );
 
-    console.log(
+    debugLog(
       `🚀 init-user : tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
     );
 
@@ -253,9 +274,12 @@ async function initUserOnBackend(firebaseUser) {
 
         const data = await response
           .json()
-          .catch(() => ({}));
+          .catch((jsonErr) => {
+            debugLog('⚠️ Réponse init-user OK mais JSON invalide:', jsonErr?.message, 'stack:', jsonErr?.stack || 'pas de stack');
+            return {};
+          });
 
-        console.log(
+        debugLog(
           '✅ Compte initialisé côté serveur',
           data
         );
@@ -271,9 +295,10 @@ async function initUserOnBackend(firebaseUser) {
         `init-user a répondu avec le statut ${response.status}`
       );
 
-      console.error(
+      debugLog(
         `❌ Tentative ${attempt} échouée :`,
-        error
+        error,
+        'stack:', error?.stack || 'pas de stack'
       );
 
       lastError = error;
@@ -295,7 +320,7 @@ async function initUserOnBackend(firebaseUser) {
 
       if (err.name === 'AbortError') {
 
-        console.warn(
+        debugLog(
           `⏱️ Timeout init-user à la tentative ${attempt}`
         );
 
@@ -305,9 +330,10 @@ async function initUserOnBackend(firebaseUser) {
 
       } else {
 
-        console.error(
+        debugLog(
           `❌ Erreur init-user tentative ${attempt}:`,
-          err
+          err,
+          'stack:', err?.stack || 'pas de stack'
         );
 
         lastError = err;
@@ -324,7 +350,7 @@ async function initUserOnBackend(firebaseUser) {
         "Le serveur démarre… veuillez patienter."
       );
 
-      console.log(
+      debugLog(
         `⏳ Nouvelle tentative dans ${RETRY_DELAY_MS / 1000} secondes`
       );
 
@@ -335,6 +361,8 @@ async function initUserOnBackend(firebaseUser) {
   // ----------------------------------------------------------
   // TOUTES LES TENTATIVES ONT ÉCHOUÉ
   // ----------------------------------------------------------
+
+  debugLog('❌ init-user : toutes les tentatives ont échoué. Dernière erreur:', lastError, 'stack:', lastError?.stack || 'pas de stack');
 
   throw lastError || new Error(
     'INIT_USER_FAILED'
@@ -349,7 +377,7 @@ async function completeSignIn(firebaseUser) {
 
   try {
 
-    console.log(
+    debugLog(
       '✅ Firebase connecté :',
       firebaseUser.email
     );
@@ -360,7 +388,7 @@ async function completeSignIn(firebaseUser) {
 
     await initUserOnBackend(firebaseUser);
 
-    console.log(
+    debugLog(
       '✅ Utilisateur prêt côté serveur'
     );
 
@@ -368,14 +396,18 @@ async function completeSignIn(firebaseUser) {
     // DASHBOARD
     // --------------------------------------------------------
 
+    debugLog('➡️ Redirection vers /dashboard.html');
+
     window.location.href =
       '/dashboard.html';
 
   } catch (err) {
 
-    console.error(
+    debugLog(
       '❌ Impossible de préparer le compte :',
-      err
+      err,
+      'message:', err?.message || 'pas de message',
+      'stack:', err?.stack || 'pas de stack'
     );
 
     if (
@@ -401,7 +433,11 @@ async function completeSignIn(firebaseUser) {
 
 async function checkRedirectResult() {
 
+  debugLog('🔎 checkRedirectResult() démarré');
+
   const wasPending = localStorage.getItem(AUTH_PENDING_KEY) === '1';
+
+  debugLog('🔎 wasPending:', wasPending);
 
   let fallbackTimer = null;
 
@@ -422,7 +458,11 @@ async function checkRedirectResult() {
 
   try {
 
+    debugLog('🔎 Appel de getRedirectResult(auth)...');
+
     const result = await getRedirectResult(auth);
+
+    debugLog('🔎 getRedirectResult() résolu, result:', result ? 'objet reçu' : 'null/undefined');
 
     if (fallbackTimer) clearTimeout(fallbackTimer);
 
@@ -430,7 +470,7 @@ async function checkRedirectResult() {
 
       localStorage.removeItem(AUTH_PENDING_KEY);
 
-      console.log(
+      debugLog(
         '✅ Google connecté (redirect) :',
         result.user.email
       );
@@ -442,6 +482,7 @@ async function checkRedirectResult() {
     // Aucun résultat exploitable. Si on attendait un retour de redirection,
     // on nettoie le flag et on laisse l'utilisateur retenter normalement.
     if (wasPending) {
+      debugLog('⚠️ Redirection attendue mais aucun résultat exploitable reçu');
       localStorage.removeItem(AUTH_PENDING_KEY);
       showButton();
     }
@@ -452,9 +493,12 @@ async function checkRedirectResult() {
 
     localStorage.removeItem(AUTH_PENDING_KEY);
 
-    console.error(
+    debugLog(
       '❌ Erreur redirect Google :',
-      err
+      err,
+      'message:', err?.message || 'pas de message',
+      'code:', err?.code || 'pas de code',
+      'stack:', err?.stack || 'pas de stack'
     );
 
     showError(translateAuthError(err));
@@ -467,7 +511,12 @@ async function checkRedirectResult() {
 
 async function startGoogleSignIn() {
 
+  // CRITIQUE : ce log doit apparaître dès le clic, avant toute autre
+  // vérification, pour savoir si le clic est bien détecté par le JS.
+  debugLog('👆 Clic bouton Google détecté, checkbox coché:', termsCheckbox.checked);
+
   if (!termsCheckbox.checked) {
+    debugLog('⛔ Checkbox non cochée, connexion annulée');
     return;
   }
 
@@ -481,12 +530,14 @@ async function startGoogleSignIn() {
     // PERSISTENCE FIREBASE
     // --------------------------------------------------------
 
+    debugLog('🔐 Appel de setPersistence()...');
+
     await setPersistence(
       auth,
       browserLocalPersistence
     );
 
-    console.log(
+    debugLog(
       '🔐 Persistence Firebase configurée'
     );
 
@@ -496,16 +547,20 @@ async function startGoogleSignIn() {
 
     if (shouldUseRedirect) {
 
-      console.log(
+      debugLog(
         '📱 Connexion Google avec Redirect (mobile)'
       );
 
       localStorage.setItem(AUTH_PENDING_KEY, '1');
 
+      debugLog('📱 Appel de signInWithRedirect()...');
+
       await signInWithRedirect(
         auth,
         googleProvider
       );
+
+      debugLog('📱 signInWithRedirect() résolu (la page devrait être redirigée)');
 
       return; // La page va être rechargée par la redirection Google.
     }
@@ -514,15 +569,19 @@ async function startGoogleSignIn() {
     // DESKTOP : POPUP
     // --------------------------------------------------------
 
-    console.log(
+    debugLog(
       '🌐 Connexion Google avec Popup'
     );
+
+    debugLog('🌐 Appel de signInWithPopup()...');
 
     const result =
       await signInWithPopup(
         auth,
         googleProvider
       );
+
+    debugLog('🌐 signInWithPopup() résolu');
 
     // --------------------------------------------------------
     // VERIFICATION UTILISATEUR
@@ -538,7 +597,7 @@ async function startGoogleSignIn() {
       );
     }
 
-    console.log(
+    debugLog(
       '✅ Google connecté :',
       result.user.email
     );
@@ -553,9 +612,12 @@ async function startGoogleSignIn() {
 
   } catch (err) {
 
-    console.error(
+    debugLog(
       '❌ Erreur Google:',
-      err
+      err,
+      'message:', err?.message || 'pas de message',
+      'code:', err?.code || 'pas de code',
+      'stack:', err?.stack || 'pas de stack'
     );
 
     showError(
@@ -572,6 +634,8 @@ termsCheckbox.addEventListener(
   'change',
   () => {
 
+    debugLog('☑️ Checkbox changée, coché:', termsCheckbox.checked);
+
     googleBtn.disabled =
       !termsCheckbox.checked;
   }
@@ -586,6 +650,8 @@ googleBtn.addEventListener(
   startGoogleSignIn
 );
 
+debugLog('🎯 Event listener attaché au bouton Google');
+
 // ============================================================
 // BOUTON RETRY
 // ============================================================
@@ -595,6 +661,8 @@ if (retryBtn) {
   retryBtn.addEventListener(
     'click',
     () => {
+
+      debugLog('🔁 Clic bouton Réessayer');
 
       showButton();
 
@@ -611,6 +679,8 @@ if (openBrowserBtn) {
   openBrowserBtn.addEventListener(
     'click',
     () => {
+
+      debugLog('🌍 Clic bouton "Ouvrir dans le navigateur"');
 
       localStorage.removeItem(AUTH_PENDING_KEY);
 
@@ -631,6 +701,6 @@ if (openBrowserBtn) {
 
 checkRedirectResult();
 
-console.log(
+debugLog(
   '✅ Kontra-Africa Login chargé'
 );
