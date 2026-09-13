@@ -52,6 +52,9 @@
           <span class="spinner" aria-hidden="true"></span>
           <p id="loadingLabel">Connexion en cours…</p>
         </div>
+        <!-- Remplace le bouton Google au même endroit en cas d'échec : relance
+             directement la connexion Google au clic (voir login.js). -->
+        <button type="button" id="retryBtn" class="retry-btn" hidden>Réessayer</button>
         <!-- Solution de secours affichée uniquement si la connexion reste
              bloquée en mode PWA installée (bug connu de certains navigateurs
              mobiles avec le stockage de session en mode standalone). -->
@@ -67,7 +70,6 @@
     <div class="error-toast" id="errorState" role="alert" hidden>
       <p id="errorMessage">Une erreur est survenue.</p>
       <div class="error-toast__actions">
-        <button type="button" id="retryBtn" class="error-toast__retry">Réessayer</button>
         <button type="button" id="errorCloseBtn" class="error-toast__close" aria-label="Fermer la notification">&times;</button>
       </div>
     </div>
