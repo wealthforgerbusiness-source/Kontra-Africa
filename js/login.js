@@ -113,10 +113,11 @@ const REDIRECT_FALLBACK_TIMEOUT_MS = 8000;
 // ============================================================
 // DETECTION MOBILE / STANDALONE
 // ============================================================
-// signInWithPopup() échoue sur mobile (testé : navigateur mobile classique
-// ET PWA installée) — problème connu de Firebase Auth sur mobile, quel que
-// soit le mode d'affichage. On bascule donc sur signInWithRedirect() dès
-// qu'on est sur mobile, pas seulement en mode standalone.
+// signInWithPopup() a été testé et confirmé fonctionnel sur mobile
+// (navigateur classique, non installé) — voir logs de diagnostic du
+// 13/09. On garde donc Popup partout, sauf en mode PWA installée
+// (standalone), où le Popup est plus susceptible d'être bloqué par le
+// système ; on utilise alors Redirect dans ce cas précis.
 
 const isStandalone =
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -127,7 +128,7 @@ const isMobileDevice =
   (window.matchMedia('(pointer: coarse)').matches &&
     window.matchMedia('(hover: none)').matches);
 
-const shouldUseRedirect = isStandalone || isMobileDevice;
+const shouldUseRedirect = isStandalone;
 
 debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, 'shouldUseRedirect:', shouldUseRedirect);
 
@@ -173,8 +174,6 @@ const openBrowserBtn = document.getElementById('openBrowserBtn');
 
 const debugCopyBtn = document.getElementById('debugCopyBtn');
 const debugClearBtn = document.getElementById('debugClearBtn');
-
-const testPopupBtn = document.getElementById('testPopupBtn');
 
 // ============================================================
 // UI
@@ -765,55 +764,6 @@ if (openBrowserBtn) {
 
     }
   );
-}
-
-// ============================================================
-// BOUTON DE TEST POPUP (diagnostic temporaire — à retirer une fois
-// le problème de redirection résolu)
-// ============================================================
-
-if (testPopupBtn) {
-
-  testPopupBtn.addEventListener('click', async () => {
-
-    debugLog('🧪 Test Popup manuel déclenché, checkbox coché:', termsCheckbox.checked);
-
-    if (!termsCheckbox.checked) {
-      debugLog('⛔ Checkbox non cochée, test Popup annulé');
-      return;
-    }
-
-    showLoading("Test Popup en cours…");
-
-    try {
-
-      debugLog('🧪 Appel de signInWithPopup() (forcé, hors détection mobile)...');
-
-      const result = await signInWithPopup(auth, googleProvider);
-
-      debugLog('🧪 signInWithPopup() résolu');
-
-      if (!result || !result.user) {
-        throw new Error('Aucun utilisateur Google reçu (test Popup).');
-      }
-
-      debugLog('✅ Test Popup réussi :', result.user.email);
-
-      await completeSignIn(result.user);
-
-    } catch (err) {
-
-      debugLog(
-        '❌ Test Popup échoué:',
-        err,
-        'message:', err?.message || 'pas de message',
-        'code:', err?.code || 'pas de code',
-        'stack:', err?.stack || 'pas de stack'
-      );
-
-      showError(translateAuthError(err));
-    }
-  });
 }
 
 // ============================================================
