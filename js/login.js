@@ -3,16 +3,60 @@
 // ============================================================
 // Aucune console développeur n'est disponible côté mobile : tout est donc
 // affiché directement à l'écran dans l'encadré #debug-log.
+//
+// IMPORTANT : signInWithRedirect() fait quitter complètement la page vers
+// Google puis revenir — c'est un vrai rechargement de page, qui efface tout
+// ce qui est en mémoire. Le journal est donc aussi persisté dans
+// localStorage pour survivre à ce rechargement et rester lisible au retour.
+
+const DEBUG_LOG_STORAGE_KEY = 'kontra_debug_log_v1';
+const DEBUG_LOG_MAX_CHARS = 20000; // évite une croissance illimitée
 
 const debugLogEl = document.getElementById('debug-log');
 
+function loadPersistedDebugLog() {
+  try {
+    return localStorage.getItem(DEBUG_LOG_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function persistDebugLog(fullText) {
+  try {
+    const trimmed = fullText.length > DEBUG_LOG_MAX_CHARS
+      ? fullText.slice(fullText.length - DEBUG_LOG_MAX_CHARS)
+      : fullText;
+    localStorage.setItem(DEBUG_LOG_STORAGE_KEY, trimmed);
+  } catch (e) {
+    // localStorage indisponible ou plein : on continue sans persister,
+    // le journal reste au moins visible en mémoire pour la session en cours.
+  }
+}
+
 function debugLog(...args) {
+  const time = new Date().toLocaleTimeString('fr-FR', { hour12: false });
   const message = args.map(a => {
     if (a instanceof Error) return `${a.name}: ${a.message}`;
     return typeof a === 'object' ? JSON.stringify(a) : String(a);
   }).join(' ');
+  const line = `[${time}] ${message}`;
   if (debugLogEl) {
-    debugLogEl.textContent += message + '\n';
+    debugLogEl.textContent += line + '\n';
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+    persistDebugLog(debugLogEl.textContent);
+  } else {
+    persistDebugLog(loadPersistedDebugLog() + line + '\n');
+  }
+}
+
+// Au chargement du script, on réaffiche d'abord le journal des sessions
+// précédentes (avant la redirection Google, par exemple), avec un séparateur
+// visuel pour bien distinguer chaque chargement de page.
+if (debugLogEl) {
+  const previousLog = loadPersistedDebugLog();
+  if (previousLog) {
+    debugLogEl.textContent = previousLog;
     debugLogEl.scrollTop = debugLogEl.scrollHeight;
   }
 }
@@ -28,6 +72,7 @@ window.addEventListener('unhandledrejection', (event) => {
   debugLog('💥 PROMESSE REJETÉE NON CAPTURÉE:', event.reason?.message || event.reason);
 });
 
+debugLog('———— Nouveau chargement de page ————');
 debugLog('✅ Script login.js démarré');
 
 // ============================================================
@@ -103,6 +148,9 @@ const retryBtn = document.getElementById('retryBtn');
 
 const openBrowserFallback = document.getElementById('openBrowserFallback');
 const openBrowserBtn = document.getElementById('openBrowserBtn');
+
+const debugCopyBtn = document.getElementById('debugCopyBtn');
+const debugClearBtn = document.getElementById('debugClearBtn');
 
 // ============================================================
 // UI
@@ -693,6 +741,58 @@ if (openBrowserBtn) {
 
     }
   );
+}
+
+// ============================================================
+// BOUTONS DU PANNEAU DE DEBUG (copier / effacer le journal)
+// ============================================================
+
+if (debugCopyBtn) {
+
+  debugCopyBtn.addEventListener('click', async () => {
+
+    const text = debugLogEl ? debugLogEl.textContent : '';
+
+    try {
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Solution de secours si l'API Clipboard n'est pas disponible
+        // (anciens navigateurs mobiles, contexte non sécurisé, etc.)
+        const tmp = document.createElement('textarea');
+        tmp.value = text;
+        tmp.style.position = 'fixed';
+        tmp.style.opacity = '0';
+        document.body.appendChild(tmp);
+        tmp.focus();
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+      }
+
+      debugLog('📋 Journal copié dans le presse-papiers');
+
+    } catch (err) {
+
+      debugLog(
+        '❌ Échec de la copie du journal:',
+        err,
+        'message:', err?.message || 'pas de message',
+        'stack:', err?.stack || 'pas de stack'
+      );
+    }
+  });
+}
+
+if (debugClearBtn) {
+
+  debugClearBtn.addEventListener('click', () => {
+
+    if (debugLogEl) debugLogEl.textContent = '';
+    persistDebugLog('');
+    debugLog('🧹 Journal effacé manuellement');
+  });
 }
 
 // ============================================================
