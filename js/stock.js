@@ -1,23 +1,7 @@
-// ============================================================
-// js/stock.js
-// Page Stock & Ventes — CRUD produits/ventes/dépenses,
-// support hors-ligne via offline-queue.js.
-//
-// ⚠️ HYPOTHÈSES RESTANTES (hors périmètre de cette correction) :
-// - Le pattern d'attache du token Bearer (authFetch ci-dessous) est
-//   reconstitué en l'absence du code réel de finances.js/contracts.js.
-//   Si un helper `apiFetch`/`authFetch` partagé existe déjà, remplace
-//   authFetch par un import de ce module plutôt que de dupliquer la logique.
-// - `syncPendingActions(type, syncFn)` est supposé retirer lui-même les
-//   entrées de la queue au fur et à mesure de leur succès. Si ce n'est
-//   pas le cas, il faut appeler removePendingAction(entry.localId)
-//   explicitement dans chaque syncFn ci-dessous.
-// ============================================================
-
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
-import { getCurrencySymbol, formatAmount, convertFromLocal } from "./currency.js";
+import { getCurrencySymbol, formatAmount } from "./currency.js";
 import {
   addPendingAction,
   getPendingActions,
@@ -34,34 +18,58 @@ const API_BASE = "/api/stock";
 // ============================================================
 
 const offlineBanner = document.getElementById("offline-banner");
+
+// Onglets
+const stockTabs = document.querySelectorAll(".stock-tab");
+const stockPanels = document.querySelectorAll(".stock-panel[data-tab-panel]");
+
+// Dashboard
+const stockBalanceValue = document.getElementById("stock-balance-value");
+const btnConvertBalance = document.getElementById("btn-convert-balance");
+const dailyProfitValue = document.getElementById("daily-profit-value");
+const btnConvertProfit = document.getElementById("btn-convert-profit");
+const topProductName = document.getElementById("top-product-name");
+const topProductQty = document.getElementById("top-product-qty");
+const lowProductName = document.getElementById("low-product-name");
+const lowProductQty = document.getElementById("low-product-qty");
 const lowStockSection = document.getElementById("low-stock-section");
 const lowStockBadges = document.getElementById("low-stock-badges");
-const dailyProfitCurrency = document.getElementById("daily-profit-currency");
-const dailyProfitValue = document.getElementById("daily-profit-value");
-const productsList = document.getElementById("products-list");
-const salesTodayList = document.getElementById("sales-today-list");
-const dailySummary = document.getElementById("daily-summary");
-const expensesTodayList = document.getElementById("expenses-today-list");
+const btnQuickAddStock = document.getElementById("btn-quick-add-stock");
+const btnCloseDay = document.getElementById("btn-close-day");
 
+// Produits
 const btnAddProduct = document.getElementById("btn-add-product");
-const btnAddExpense = document.getElementById("btn-add-expense");
-
+const productSearch = document.getElementById("product-search");
+const productsList = document.getElementById("products-list");
 const modalProduct = document.getElementById("modal-product");
 const formProduct = document.getElementById("form-product");
-const modalSell = document.getElementById("modal-sell");
-const formSell = document.getElementById("form-sell");
-const modalExpense = document.getElementById("modal-expense");
-const formExpense = document.getElementById("form-expense");
+const productPurchaseCurrency = document.getElementById("product-purchase-currency");
+const productSellingCurrency = document.getElementById("product-selling-currency");
+
+// Ventes
+const saleProductSearch = document.getElementById("sale-product-search");
+const saleProductOptions = document.getElementById("sale-product-options");
+const saleQuantity = document.getElementById("sale-quantity");
+const saleStockHint = document.getElementById("sale-stock-hint");
+const saleFormError = document.getElementById("sale-form-error");
+const saleSavedMsg = document.getElementById("sale-saved-msg");
+const btnConfirmSale = document.getElementById("btn-confirm-sale");
+const salesTodayList = document.getElementById("sales-today-list");
+const dailySummary = document.getElementById("daily-summary");
 
 // ============================================================
 // State
 // ============================================================
 
 let currentUser = null;
-let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local" };
+let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local", balance: 0 };
 let products = new Map(); // id -> product
 let salesToday = [];
-let expensesToday = [];
+let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
+
+// Toggles indépendants des deux cartes du dashboard (🔄 USD)
+let balanceViewCurrency = "local";
+let profitViewCurrency = "local";
 
 // ============================================================
 // Auth + fetch helper (pattern à réconcilier avec finances.js)
@@ -117,7 +125,7 @@ function listenToUserDoc(uid, onUpdate) {
 }
 
 // ============================================================
-// Dates (fuseau horaire LOCAL du navigateur, cf. exigence client)
+// Dates (fuseau horaire LOCAL du navigateur)
 // ============================================================
 
 function getTodayLocalISODate() {
@@ -147,7 +155,26 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// Bandeau hors-ligne (pattern finances.js + compteur ajouté)
+// Onglets (Dashboard / Produits / Ventes)
+// ============================================================
+
+function switchTab(tabName) {
+  stockTabs.forEach((tab) => {
+    const isActive = tab.dataset.tab === tabName;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  });
+  stockPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.tabPanel !== tabName;
+  });
+}
+
+stockTabs.forEach((tab) => {
+  tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+});
+
+// ============================================================
+// Bandeau hors-ligne
 // ============================================================
 
 async function updateOnlineStatus() {
@@ -160,8 +187,6 @@ async function updateOnlineStatus() {
 
   if (total > 0) {
     offlineBanner.textContent = `Hors ligne — synchronisation en attente (${total})`;
-    // Le bandeau reste visible tant qu'il reste des actions non synchronisées,
-    // même si le navigateur se croit revenu en ligne (ex: sync interrompue).
     offlineBanner.hidden = false;
   } else {
     offlineBanner.textContent = "";
@@ -171,7 +196,7 @@ async function updateOnlineStatus() {
 
 window.addEventListener("online", () => {
   updateOnlineStatus();
-  if (currentUser) trySyncPending(currentUser.uid);
+  if (currentUser) trySyncPending();
 });
 window.addEventListener("offline", updateOnlineStatus);
 
@@ -198,6 +223,8 @@ async function syncSaleAction(entry) {
 }
 
 async function syncExpenseAction(entry) {
+  // Pas d'UI de création de dépense sur cette page, mais on synchronise quand
+  // même celles ajoutées ailleurs (ex. page Finances) via la même queue.
   await authFetch("/expenses", { method: "POST", body: JSON.stringify(entry.payload) });
 }
 
@@ -205,7 +232,6 @@ async function trySyncPending() {
   if (!navigator.onLine) return;
 
   try {
-    // Ordre imposé : les ventes dépendent des produits déjà synchronisés.
     await syncPendingActions("product", syncProductAction);
     await syncPendingActions("sale", syncSaleAction);
     await syncPendingActions("expense", syncExpenseAction);
@@ -223,7 +249,7 @@ async function trySyncPending() {
 
 async function refreshAllData() {
   try {
-    await Promise.all([loadProducts(), loadSalesToday(), loadExpensesToday()]);
+    await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
   } catch (error) {
     console.error("Erreur lors du chargement des données stock :", error);
   }
@@ -236,39 +262,218 @@ async function loadProducts() {
 }
 
 async function loadSalesToday() {
-  // Pas de paramètre date : le backend calcule le jour par défaut dans le
-  // fuseau horaire de l'utilisateur (users/{uid}.timezone), cohérent avec
-  // DELETE /sales/:id et GET /reports/daily. Le résumé renvoyé par cette
-  // route (summary) n'est pas consommé tel quel ici : renderDailySummary
-  // recalcule à partir de `salesToday` pour rester exact même après une
-  // vente ajoutée en local de façon optimiste (hors ligne notamment).
   const data = await authFetch("/sales");
   salesToday = data.sales;
   renderSalesToday();
 }
 
-async function loadExpensesToday() {
+async function loadDailyReport() {
   const today = getTodayLocalISODate();
-  const data = await authFetch(`/expenses?from=${today}&to=${today}`);
-  expensesToday = data.expenses;
-  renderExpensesToday();
+  try {
+    const data = await authFetch(`/reports/daily?date=${today}`);
+    totalExpensesToday = data.totalExpenses || 0;
+  } catch (error) {
+    console.error("Erreur lors du chargement du rapport du jour :", error);
+    totalExpensesToday = 0;
+  }
+  renderDailyProfitCard();
 }
+
+// ============================================================
+// Rendu — Dashboard (solde, bénéfice, top/low produit)
+// ============================================================
+
+function renderBalanceCard() {
+  stockBalanceValue.textContent = formatAmount(currentUserData.balance || 0, currentUserData, balanceViewCurrency);
+  btnConvertBalance.textContent =
+    balanceViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
+}
+
+btnConvertBalance.addEventListener("click", () => {
+  balanceViewCurrency = balanceViewCurrency === "local" ? "usd" : "local";
+  renderBalanceCard();
+});
+
+function renderDailyProfitCard() {
+  const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+  const netProfit = salesProfit - totalExpensesToday;
+
+  dailyProfitValue.textContent = formatAmount(netProfit, currentUserData, profitViewCurrency);
+  btnConvertProfit.textContent =
+    profitViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
+}
+
+btnConvertProfit.addEventListener("click", () => {
+  profitViewCurrency = profitViewCurrency === "local" ? "usd" : "local";
+  renderDailyProfitCard();
+});
+
+function renderTopLowProducts() {
+  if (salesToday.length === 0) {
+    topProductName.textContent = "—";
+    topProductQty.textContent = "";
+    lowProductName.textContent = "—";
+    lowProductQty.textContent = "";
+    return;
+  }
+
+  const qtyByProduct = new Map();
+  for (const sale of salesToday) {
+    const entry = qtyByProduct.get(sale.productId) || { name: sale.productName, qty: 0 };
+    entry.qty += sale.quantity;
+    qtyByProduct.set(sale.productId, entry);
+  }
+
+  const entries = [...qtyByProduct.values()].sort((a, b) => b.qty - a.qty);
+  const top = entries[0];
+  const low = entries[entries.length - 1];
+
+  topProductName.textContent = top.name;
+  topProductQty.textContent = `${top.qty} vendu(s)`;
+  lowProductName.textContent = low.name;
+  lowProductQty.textContent = `${low.qty} vendu(s)`;
+}
+
+function renderLowStockSection() {
+  const lowStockProducts = [...products.values()].filter(
+    (p) => !p.archived && p.stockQuantity <= (p.lowStockThreshold ?? 5)
+  );
+
+  if (lowStockProducts.length === 0) {
+    lowStockSection.hidden = true;
+    return;
+  }
+
+  lowStockSection.hidden = false;
+  lowStockBadges.innerHTML = "";
+  for (const product of lowStockProducts) {
+    const isOut = product.stockQuantity <= 0;
+    const badge = document.createElement("span");
+    badge.className = "low-stock-badge " + (isOut ? "low-stock-badge--error" : "low-stock-badge--warning");
+    badge.innerHTML = `${escapeHtml(product.name)} — <span class="low-stock-badge__qty">${product.stockQuantity}</span>`;
+    lowStockBadges.appendChild(badge);
+  }
+}
+
+// "Ajouter du stock" — pas de modale dédiée dans le HTML fourni : flux
+// minimal par prompts en attendant un vrai composant.
+btnQuickAddStock.addEventListener("click", async () => {
+  const productNames = [...products.values()].map((p) => p.name);
+  if (productNames.length === 0) {
+    window.alert("Ajoute d'abord un produit avant de pouvoir réapprovisionner son stock.");
+    return;
+  }
+
+  const name = window.prompt(`Quel produit réapprovisionner ?\n${productNames.join(", ")}`);
+  if (name === null) return;
+
+  const product = findProductByName(name);
+  if (!product) {
+    window.alert("Produit introuvable.");
+    return;
+  }
+
+  const addedRaw = window.prompt(
+    `Quantité à ajouter au stock de "${product.name}" (stock actuel : ${product.stockQuantity}) :`
+  );
+  if (addedRaw === null) return;
+
+  const added = Number(addedRaw);
+  if (!Number.isInteger(added) || added <= 0) {
+    window.alert("Quantité invalide.");
+    return;
+  }
+
+  await handleUpdateProduct(product.id, {
+    name: product.name,
+    purchasePrice: product.purchasePrice,
+    sellingPrice: product.sellingPrice,
+    stockQuantity: product.stockQuantity + added,
+    lowStockThreshold: product.lowStockThreshold,
+    unit: product.unit,
+  });
+});
+
+// ============================================================
+// Clôture de journée (génère le PDF, puis vide les ventes du jour)
+// ============================================================
+
+btnCloseDay.addEventListener("click", async () => {
+  if (
+    !window.confirm(
+      "Clôturer la journée ? Le PDF sera téléchargé puis les ventes du jour seront définitivement supprimées."
+    )
+  ) {
+    return;
+  }
+
+  if (!navigator.onLine) {
+    window.alert("La clôture de journée nécessite une connexion internet.");
+    return;
+  }
+
+  const originalLabel = btnCloseDay.textContent;
+  btnCloseDay.disabled = true;
+  btnCloseDay.textContent = "Génération du rapport…";
+
+  try {
+    // /reports/close-day renvoie un PDF binaire, pas du JSON : on ne peut
+    // pas réutiliser authFetch() ici (qui fait toujours response.json()).
+    const token = await auth.currentUser.getIdToken();
+    const response = await fetch(`${API_BASE}/reports/close-day`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Erreur ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rapport-${getTodayLocalISODate()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    salesToday = [];
+    renderSalesToday();
+  } catch (error) {
+    window.alert(error.message || "Erreur lors de la clôture de la journée.");
+  } finally {
+    btnCloseDay.disabled = false;
+    btnCloseDay.textContent = originalLabel;
+  }
+});
 
 // ============================================================
 // Rendu — Produits
 // ============================================================
 
 function renderProducts() {
-  if (products.size === 0) {
-    productsList.innerHTML = '<div class="state-message">Aucun produit pour le moment.</div>';
+  const query = (productSearch.value || "").trim().toLowerCase();
+  const filtered = [...products.values()].filter(
+    (p) => !query || p.name.toLowerCase().includes(query)
+  );
+
+  if (filtered.length === 0) {
+    productsList.innerHTML = '<div class="state-message">Aucun produit trouvé.</div>';
   } else {
     productsList.innerHTML = "";
-    for (const product of products.values()) {
+    for (const product of filtered) {
       productsList.appendChild(renderProductCard(product));
     }
   }
+
   renderLowStockSection();
+  renderSaleProductOptions();
 }
+
+productSearch.addEventListener("input", renderProducts);
 
 function renderProductCard(product) {
   const card = document.createElement("div");
@@ -298,7 +503,14 @@ function renderProductCard(product) {
   `;
 
   const sellBtn = card.querySelector('[data-action="sell"]');
-  if (!isOut) sellBtn.addEventListener("click", () => openSellModal(product));
+  if (!isOut) {
+    sellBtn.addEventListener("click", () => {
+      switchTab("ventes");
+      saleProductSearch.value = product.name;
+      updateSaleStockHint();
+      saleQuantity.focus();
+    });
+  }
 
   card.querySelector('[data-action="edit-product"]').addEventListener("click", () => {
     openEditProductModal(product);
@@ -307,24 +519,22 @@ function renderProductCard(product) {
   return card;
 }
 
-function renderLowStockSection() {
-  const lowStockProducts = [...products.values()].filter(
-    (p) => !p.archived && p.stockQuantity <= (p.lowStockThreshold ?? 5)
-  );
-
-  if (lowStockProducts.length === 0) {
-    lowStockSection.hidden = true;
-    return;
+function findProductByName(name) {
+  const normalized = (name || "").trim().toLowerCase();
+  if (!normalized) return null;
+  for (const product of products.values()) {
+    if (product.name.toLowerCase() === normalized) return product;
   }
+  return null;
+}
 
-  lowStockSection.hidden = false;
-  lowStockBadges.innerHTML = "";
-  for (const product of lowStockProducts) {
-    const isOut = product.stockQuantity <= 0;
-    const badge = document.createElement("span");
-    badge.className = "low-stock-badge " + (isOut ? "low-stock-badge--error" : "low-stock-badge--warning");
-    badge.innerHTML = `${escapeHtml(product.name)} — <span class="low-stock-badge__qty">${product.stockQuantity}</span>`;
-    lowStockBadges.appendChild(badge);
+function renderSaleProductOptions() {
+  saleProductOptions.innerHTML = "";
+  for (const product of products.values()) {
+    if (product.archived) continue;
+    const option = document.createElement("option");
+    option.value = product.name;
+    saleProductOptions.appendChild(option);
   }
 }
 
@@ -343,6 +553,7 @@ function renderSalesToday() {
   }
   renderDailySummary();
   renderDailyProfitCard();
+  renderTopLowProducts();
 }
 
 function renderSaleRow(sale) {
@@ -395,58 +606,8 @@ function renderDailySummary() {
   `;
 }
 
-function renderDailyProfitCard() {
-  const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
-  const expensesTotal = expensesToday.reduce((sum, e) => sum + (e.amount || 0), 0);
-  const netProfit = salesProfit - expensesTotal;
-
-  // dailyProfitCurrency et dailyProfitValue sont deux <span> distincts dans le
-  // DOM (symbole / valeur) : on ne peut pas y injecter directement la chaîne
-  // déjà formatée par formatAmount() (qui inclut le symbole), donc on
-  // recompose manuellement la même conversion pour garder les deux champs.
-  const viewCurrency = currentUserData.displayCurrency;
-  const displayedProfit = convertFromLocal(netProfit, viewCurrency, currentUserData);
-
-  dailyProfitCurrency.textContent = viewCurrency === "usd" ? "$" : getCurrencySymbol(currentUserData);
-  dailyProfitValue.textContent = Number(displayedProfit || 0).toLocaleString("fr-FR", {
-    maximumFractionDigits: 2,
-  });
-}
-
 // ============================================================
-// Rendu — Dépenses
-// ============================================================
-
-function renderExpensesToday() {
-  if (expensesToday.length === 0) {
-    expensesTodayList.innerHTML = '<div class="state-message">Aucune dépense aujourd\'hui.</div>';
-  } else {
-    expensesTodayList.innerHTML = "";
-    for (const expense of expensesToday) {
-      expensesTodayList.appendChild(renderExpenseRow(expense));
-    }
-  }
-  renderDailyProfitCard();
-}
-
-function renderExpenseRow(expense) {
-  const row = document.createElement("div");
-  row.className = "expense-row";
-  row.dataset.expenseId = expense.id;
-
-  row.innerHTML = `
-    <div>
-      <div class="expense-row__label">${escapeHtml(expense.label)}</div>
-      <div class="expense-row__category">${escapeHtml(expense.category || "")}${expense.pendingSync ? " · En attente de synchro" : ""}</div>
-    </div>
-    <span class="expense-row__amount">-${formatAmount(expense.amount, currentUserData, currentUserData.displayCurrency)}</span>
-  `;
-
-  return row;
-}
-
-// ============================================================
-// Modals — ouverture / fermeture (dialog natif)
+// Modal produit — ouverture / fermeture (dialog natif)
 // ============================================================
 
 function openModal(dialog) {
@@ -480,12 +641,12 @@ function showSavedMsg(form) {
 document.querySelectorAll('[data-action="close-product-modal"]').forEach((btn) =>
   btn.addEventListener("click", () => closeModal(modalProduct))
 );
-document.querySelectorAll('[data-action="close-sell-modal"]').forEach((btn) =>
-  btn.addEventListener("click", () => closeModal(modalSell))
-);
-document.querySelectorAll('[data-action="close-expense-modal"]').forEach((btn) =>
-  btn.addEventListener("click", () => closeModal(modalExpense))
-);
+
+function setProductCurrencyLabels() {
+  const symbol = getCurrencySymbol(currentUserData);
+  productPurchaseCurrency.textContent = symbol;
+  productSellingCurrency.textContent = symbol;
+}
 
 // ============================================================
 // Formulaire produit (ajout + modification)
@@ -495,6 +656,7 @@ btnAddProduct.addEventListener("click", () => {
   formProduct.reset();
   document.getElementById("product-id").value = "";
   document.getElementById("modal-product-title").textContent = "Ajouter un produit";
+  setProductCurrencyLabels();
   clearFormError(formProduct);
   openModal(modalProduct);
 });
@@ -508,6 +670,7 @@ function openEditProductModal(product) {
   document.getElementById("product-low-stock-threshold").value = product.lowStockThreshold ?? "";
   document.getElementById("product-unit").value = product.unit || "piece";
   document.getElementById("modal-product-title").textContent = "Modifier le produit";
+  setProductCurrencyLabels();
   clearFormError(formProduct);
   openModal(modalProduct);
 }
@@ -625,51 +788,66 @@ async function handleUpdateProduct(id, payload) {
 }
 
 // ============================================================
-// Formulaire vente rapide
+// Formulaire de vente (onglet Ventes — recherche + quantité)
 // ============================================================
 
-function openSellModal(product) {
-  formSell.reset();
-  document.getElementById("sell-product-id").value = product.id;
-  document.getElementById("modal-sell-product-name").textContent = product.name;
-  document.getElementById("sell-stock-hint").textContent =
-    `Stock disponible : ${product.stockQuantity} ${product.unit || ""}`;
-  clearFormError(formSell);
-  openModal(modalSell);
+function clearSaleFormError() {
+  saleFormError.hidden = true;
+  saleFormError.textContent = "";
 }
 
-formSell.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  clearFormError(formSell);
+function showSaleFormError(message) {
+  saleFormError.textContent = message;
+  saleFormError.hidden = false;
+}
 
-  const productId = document.getElementById("sell-product-id").value;
-  const quantity = Number(document.getElementById("sell-quantity").value);
-  const product = products.get(productId);
+function showSaleSavedMsg() {
+  saleSavedMsg.hidden = false;
+  setTimeout(() => {
+    saleSavedMsg.hidden = true;
+  }, 2000);
+}
+
+function updateSaleStockHint() {
+  clearSaleFormError();
+  const product = findProductByName(saleProductSearch.value);
+  saleStockHint.textContent = product
+    ? `Stock disponible : ${product.stockQuantity} ${product.unit || ""}`
+    : "";
+}
+
+saleProductSearch.addEventListener("input", updateSaleStockHint);
+
+btnConfirmSale.addEventListener("click", async () => {
+  clearSaleFormError();
+
+  const product = findProductByName(saleProductSearch.value);
+  const quantity = Number(saleQuantity.value);
 
   if (!product) {
-    showFormError(formSell, "Produit introuvable.");
+    showSaleFormError("Sélectionne un produit valide dans la liste.");
     return;
   }
   if (!Number.isInteger(quantity) || quantity <= 0) {
-    showFormError(formSell, "La quantité doit être un nombre entier positif.");
+    showSaleFormError("La quantité doit être un nombre entier positif.");
     return;
   }
   if (quantity > product.stockQuantity) {
-    showFormError(formSell, "Quantité supérieure au stock disponible.");
+    showSaleFormError("Quantité supérieure au stock disponible.");
     return;
   }
 
   const localId = crypto.randomUUID();
   const saleDate = new Date().toISOString();
-  const payload = { productId, quantity, saleDate, localId };
+  const payload = { productId: product.id, quantity, saleDate, localId };
   const newStock = product.stockQuantity - quantity;
 
-  // Optimistic UI : décrémente le stock local, ajoute la vente à la liste du jour
-  products.set(productId, { ...product, stockQuantity: newStock });
+  // Optimistic UI
+  products.set(product.id, { ...product, stockQuantity: newStock });
 
   const optimisticSale = {
     id: localId,
-    productId,
+    productId: product.id,
     productName: product.name,
     quantity,
     unitSellingPrice: product.sellingPrice,
@@ -684,11 +862,17 @@ formSell.addEventListener("submit", async (event) => {
   renderProducts();
   renderSalesToday();
 
+  const resetForm = () => {
+    saleProductSearch.value = "";
+    saleQuantity.value = "";
+    saleStockHint.textContent = "";
+    showSaleSavedMsg();
+  };
+
   if (!navigator.onLine) {
     await addPendingAction("sale", payload);
     await updateOnlineStatus();
-    showSavedMsg(formSell);
-    closeModal(modalSell);
+    resetForm();
     return;
   }
 
@@ -698,21 +882,19 @@ formSell.addEventListener("submit", async (event) => {
     salesToday.unshift({ ...created, pendingSync: false });
     renderProducts();
     renderSalesToday();
-    showSavedMsg(formSell);
-    closeModal(modalSell);
+    resetForm();
   } catch (error) {
     if (isNetworkError(error)) {
       await addPendingAction("sale", payload);
       await updateOnlineStatus();
-      showSavedMsg(formSell);
-      closeModal(modalSell);
+      resetForm();
     } else {
       // Rollback (ex: stock désynchronisé entre appareils, refusé par le serveur)
-      products.set(productId, product);
+      products.set(product.id, product);
       salesToday = salesToday.filter((s) => s.id !== localId);
       renderProducts();
       renderSalesToday();
-      showFormError(formSell, error.message || "Erreur lors de l'enregistrement de la vente.");
+      showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
     }
   }
 });
@@ -762,82 +944,17 @@ async function handleRemoveSale(sale) {
 }
 
 // ============================================================
-// Formulaire dépense
-// ============================================================
-
-btnAddExpense.addEventListener("click", () => {
-  formExpense.reset();
-  clearFormError(formExpense);
-  openModal(modalExpense);
-});
-
-formExpense.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  clearFormError(formExpense);
-
-  const label = document.getElementById("expense-label").value.trim();
-  const amount = Number(document.getElementById("expense-amount").value);
-  const category = document.getElementById("expense-category").value.trim();
-
-  if (!label || !Number.isFinite(amount) || amount < 0) {
-    showFormError(formExpense, "Merci de renseigner un libellé et un montant positif.");
-    return;
-  }
-
-  const localId = crypto.randomUUID();
-  const expenseDate = new Date().toISOString();
-  const payload = { label, amount, category, expenseDate, localId };
-
-  expensesToday.unshift({ id: localId, label, amount, category, expenseDate, pendingSync: !navigator.onLine });
-  renderExpensesToday();
-
-  const finish = () => {
-    showSavedMsg(formExpense);
-    closeModal(modalExpense);
-    formExpense.reset();
-  };
-
-  if (!navigator.onLine) {
-    await addPendingAction("expense", payload);
-    await updateOnlineStatus();
-    finish();
-    return;
-  }
-
-  try {
-    const created = await authFetch("/expenses", { method: "POST", body: JSON.stringify(payload) });
-    expensesToday = expensesToday.filter((e) => e.id !== localId);
-    expensesToday.unshift({ ...created, pendingSync: false });
-    renderExpensesToday();
-    finish();
-  } catch (error) {
-    if (isNetworkError(error)) {
-      await addPendingAction("expense", payload);
-      await updateOnlineStatus();
-      finish();
-    } else {
-      expensesToday = expensesToday.filter((e) => e.id !== localId);
-      renderExpensesToday();
-      showFormError(formExpense, error.message || "Erreur lors de l'ajout de la dépense.");
-    }
-  }
-});
-
-// ============================================================
 // Initialisation
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Affiche immédiatement le compteur si des actions étaient en attente
-  // d'une session précédente, avant même que l'auth soit résolue.
   await updateOnlineStatus();
 
   const access = await requireAppAccess();
 
   // requireAppAccess() résout `null` quand l'accès est refusé (paywall,
   // document Firestore absent, erreur fatale) : dans ces cas, elle a déjà
-  // remplacé document.body par l'écran correspondant. On arrête ici pour
-  // ne pas continuer à manipuler des éléments qui n'existent plus.
+  // remplacé document.body par l'écran correspondant.
   if (!access) return;
 
   const { user, userData: initialUserData } = access;
@@ -846,15 +963,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   listenToUserDoc(user.uid, (userData) => {
     currentUserData = userData;
+    renderBalanceCard();
     renderDailyProfitCard();
     renderProducts();
     renderSalesToday();
-    renderExpensesToday();
   });
 
   await refreshAllData();
+  renderBalanceCard();
 
   if (navigator.onLine) {
-    trySyncPending(user.uid);
+    trySyncPending();
   }
 });
