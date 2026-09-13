@@ -1,41 +1,3 @@
-// ============================================================
-// js/stock.js
-// Page Stock & Ventes — onglets Dashboard / Produits / Ventes,
-// support hors-ligne via offline-queue.js.
-//
-// Aligné sur le vrai stock.html (pas de modale de vente ni de
-// dépenses dans le balisage — voir ci-dessous) et sur le vrai
-// backend functions/src/stock.js (routes /products, /sales,
-// /reports/daily, /reports/close-day, /expenses).
-//
-// ⚠️ HYPOTHÈSES / LIMITES CONNUES :
-// - authFetch (pattern reconstitué, non vérifié contre finances.js) :
-//   suppose un backend qui renvoie du JSON pour toutes les routes
-//   SAUF /reports/close-day qui renvoie un PDF binaire — cette
-//   route utilise donc un fetch dédié, pas authFetch.
-// - `syncPendingActions(type, syncFn)` est supposé retirer lui-même
-//   les entrées de la queue au fur et à mesure de leur succès.
-// - Cette page n'a pas d'interface de création de dépenses (aucun
-//   élément dans le HTML), mais le total des dépenses du jour est
-//   quand même lu via GET /reports/daily pour calculer le bénéfice
-//   net correctement. La synchro des dépenses en attente (créées
-//   depuis une autre page, ex. Finances) reste gérée ici si la
-//   queue offline-queue.js est partagée entre pages.
-//
-// NOUVEAU (cette révision) :
-// - Système de toast (remplace tous les window.alert()).
-// - Modale "Ajouter du stock" (remplace les window.prompt()),
-//   construite dynamiquement en réutilisant les classes .modal /
-//   .modal-content déjà utilisées par la modale produit.
-// - Vérification "devise configurée" avant : ouverture des modales
-//   Ajouter/Modifier un produit, confirmation d'une vente, et clic
-//   sur les boutons 🔄 USD (qui nécessitent en plus un taux de
-//   change configuré). Si non configurée : toast rouge avec bouton
-//   "Aller dans Finances" qui redirige, action bloquée.
-//   ⚠️ Le chemin de redirection ("finances.html") est une hypothèse
-//   à ajuster si ta page Finances a un autre nom/route.
-// ============================================================
-
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
@@ -422,6 +384,13 @@ stockTabs.forEach((tab) => {
 // Bandeau hors-ligne
 // ============================================================
 
+// ⚠️ CORRECTIF : l'ancienne version affichait "Hors ligne — synchronisation
+// en attente (N)" dès qu'il y avait des actions en attente, SANS vérifier
+// navigator.onLine — donc le bandeau disait "Hors ligne" même connecté à
+// internet, tant que la queue n'était pas vide (ce qui arrivait tout le
+// temps à cause du bug de synchro corrigé plus haut). Le message reflète
+// maintenant le VRAI statut réseau, et signale séparément s'il reste des
+// éléments en attente de synchro.
 async function updateOnlineStatus() {
   const [pendingProducts, pendingSales, pendingExpenses] = await Promise.all([
     getPendingActions("product"),
@@ -430,12 +399,18 @@ async function updateOnlineStatus() {
   ]);
   const total = pendingProducts.length + pendingSales.length + pendingExpenses.length;
 
-  if (total > 0) {
-    offlineBanner.textContent = `Hors ligne — synchronisation en attente (${total})`;
+  if (!navigator.onLine) {
+    offlineBanner.textContent =
+      total > 0
+        ? `Hors ligne — ${total} en attente de synchronisation dès le retour du réseau`
+        : "Hors ligne";
+    offlineBanner.hidden = false;
+  } else if (total > 0) {
+    offlineBanner.textContent = `En ligne — synchronisation en cours (${total} en attente)`;
     offlineBanner.hidden = false;
   } else {
     offlineBanner.textContent = "";
-    offlineBanner.hidden = navigator.onLine;
+    offlineBanner.hidden = true;
   }
 }
 
@@ -444,6 +419,19 @@ window.addEventListener("online", () => {
   if (currentUser) trySyncPending();
 });
 window.addEventListener("offline", updateOnlineStatus);
+
+// Bandeau cliquable : permet de forcer une resynchro immédiate sans recharger
+// la page si des éléments restent en attente alors qu'on est en ligne.
+offlineBanner.style.cursor = "pointer";
+offlineBanner.title = "Cliquer pour forcer une nouvelle tentative de synchronisation";
+offlineBanner.addEventListener("click", () => {
+  if (!navigator.onLine) {
+    showWarningToast("Toujours hors ligne — la synchro reprendra automatiquement dès que le réseau reviendra.");
+    return;
+  }
+  showInfoToast("Nouvelle tentative de synchronisation…");
+  trySyncPending();
+});
 
 // ============================================================
 // Synchro des actions en attente (produits -> ventes -> dépenses)
@@ -1212,17 +1200,33 @@ btnConfirmSale.addEventListener("click", async () => {
   renderProducts();
   renderSalesToday();
 
-  const resetForm = () => {
+  // ⚠️ CORRECTIF : avant, resetForm() affichait TOUJOURS le même message
+  // "Vente enregistrée ✓", que la vente ait vraiment été confirmée par le
+  // serveur OU simplement mise en attente localement (hors ligne, ou après
+  // un échec réseau furtif). Résultat : tu voyais "enregistrée" et tu avais
+  // confiance, alors que la vente n'existait pas encore côté Firestore —
+  // et si elle restait coincée (comme avec le bug de synchro corrigé plus
+  // haut), elle "disparaissait" au rechargement sans que rien ne t'ait
+  // prévenu. Le message distingue maintenant clairement les deux cas.
+  const resetForm = ({ synced } = { synced: true }) => {
     saleProductSearch.value = "";
     saleQuantity.value = "";
     saleStockHint.textContent = "";
     showSaleSavedMsg();
+    if (synced) {
+      showSuccessToast("Vente enregistrée et confirmée sur le serveur ✓");
+    } else {
+      showWarningToast(
+        "Vente enregistrée localement — pas encore confirmée par le serveur (réseau instable). Elle se synchronisera automatiquement.",
+        { duration: 8000 }
+      );
+    }
   };
 
   if (!navigator.onLine) {
     await addPendingAction("sale", payload);
     await updateOnlineStatus();
-    resetForm();
+    resetForm({ synced: false });
     return;
   }
 
@@ -1232,12 +1236,12 @@ btnConfirmSale.addEventListener("click", async () => {
     salesToday.unshift({ ...created, pendingSync: false });
     renderProducts();
     renderSalesToday();
-    resetForm();
+    resetForm({ synced: true });
   } catch (error) {
     if (isNetworkError(error)) {
       await addPendingAction("sale", payload);
       await updateOnlineStatus();
-      resetForm();
+      resetForm({ synced: false });
     } else {
       // Rollback (ex: stock désynchronisé entre appareils, refusé par le serveur)
       products.set(product.id, product);
