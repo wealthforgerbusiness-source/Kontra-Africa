@@ -17,12 +17,8 @@
 
     <main class="app-main" id="main-content">
 
-      <!-- Bandeau hors-ligne commun (réutilisé, peuplé par le JS partagé) -->
       <div id="offline-banner" class="offline-banner" hidden></div>
 
-      <!-- ============================================================ -->
-      <!-- HEADER -->
-      <!-- ============================================================ -->
       <header class="page-header">
         <div>
           <h1 class="page-title">Stock & Ventes</h1>
@@ -30,9 +26,6 @@
         </div>
       </header>
 
-      <!-- ============================================================ -->
-      <!-- CARD BÉNÉFICE DU JOUR -->
-      <!-- ============================================================ -->
       <section class="balance-card" id="daily-profit-card">
         <p class="balance-card__label">Bénéfice du jour</p>
         <p class="balance-card__amount">
@@ -42,19 +35,11 @@
 
       <div class="finances-grid">
 
-        <!-- ============================================================ -->
-        <!-- ALERTES STOCK -->
-        <!-- ============================================================ -->
         <section id="low-stock-section" class="panel" hidden>
           <h2 class="panel-title">Alertes stock</h2>
-          <div id="low-stock-badges" class="low-stock-badges">
-            <!-- badges injectés par JS -->
-          </div>
+          <div id="low-stock-badges" class="low-stock-badges"></div>
         </section>
 
-        <!-- ============================================================ -->
-        <!-- PRODUITS -->
-        <!-- ============================================================ -->
         <section class="panel">
           <div class="panel-header-row">
             <h2 class="panel-title">Produits</h2>
@@ -68,9 +53,6 @@
           <button class="btn btn-secondary" id="btn-load-more-products" hidden>Charger plus</button>
         </section>
 
-        <!-- ============================================================ -->
-        <!-- VENTES DU JOUR -->
-        <!-- ============================================================ -->
         <section class="panel">
           <h2 class="panel-title">Ventes du jour</h2>
 
@@ -78,14 +60,11 @@
             <div class="state-message">Chargement…</div>
           </div>
 
-          <div id="daily-summary" class="daily-summary">
-            <!-- résumé injecté par JS -->
-          </div>
+          <div id="daily-summary" class="daily-summary"></div>
+
+          <button id="btn-close-day" class="btn btn-primary">Clôturer la journée</button>
         </section>
 
-        <!-- ============================================================ -->
-        <!-- DÉPENSES -->
-        <!-- ============================================================ -->
         <section class="panel">
           <div class="panel-header-row">
             <h2 class="panel-title">Dépenses</h2>
@@ -102,9 +81,6 @@
     </main>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- MODAL : AJOUTER / MODIFIER UN PRODUIT -->
-  <!-- ============================================================ -->
   <dialog id="modal-product" class="modal">
     <form id="form-product" class="modal-content" novalidate>
       <div class="modal-header">
@@ -161,9 +137,6 @@
     </form>
   </dialog>
 
-  <!-- ============================================================ -->
-  <!-- MODAL : VENDRE (QUANTITÉ) -->
-  <!-- ============================================================ -->
   <dialog id="modal-sell" class="modal">
     <form id="form-sell" class="modal-content" novalidate>
       <div class="modal-header">
@@ -192,9 +165,6 @@
     </form>
   </dialog>
 
-  <!-- ============================================================ -->
-  <!-- MODAL : AJOUTER UNE DÉPENSE -->
-  <!-- ============================================================ -->
   <dialog id="modal-expense" class="modal">
     <form id="form-expense" class="modal-content" novalidate>
       <div class="modal-header">
