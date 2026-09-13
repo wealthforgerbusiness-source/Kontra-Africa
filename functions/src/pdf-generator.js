@@ -701,5 +701,8 @@ doc.end();
 // ======================================================
 
 module.exports = {
-  generateContractPdf
+  generateContractPdf,
+  formatDate,
+  drawLine,
+  drawSeal
 };
