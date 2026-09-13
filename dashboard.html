@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light only">
   <meta name="supported-color-schemes" content="light">
+
   <title>Tableau de bord — Kontra-Africa</title>
+
   <meta name="theme-color" content="#5B3FE0">
 
   <link rel="icon" href="/icons/icon-192.png">
@@ -14,146 +16,596 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap"
+    rel="stylesheet"
+  >
 
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
+
 <body>
 
-  <!-- Écran de chargement affiché pendant la vérification auth + abonnement -->
+  <!-- =========================================================
+       ÉCRAN DE CHARGEMENT
+  ========================================================== -->
   <div class="app-loading" id="appLoading">
     <span class="spinner" aria-hidden="true"></span>
   </div>
 
+
+  <!-- =========================================================
+       APPLICATION
+  ========================================================== -->
   <div class="app-shell" id="appShell" hidden>
 
-    <!-- ============================= SIDEBAR (desktop) ============================= -->
+
+    <!-- =======================================================
+         SIDEBAR DESKTOP
+    ======================================================== -->
     <aside class="app-sidebar">
+
+      <!-- Logo / marque -->
       <a href="/" class="app-sidebar__brand">
-        <img src="/logo.webp" alt="Kontra-Africa" class="app-sidebar__logo">
-        <span class="app-sidebar__brand-text">Kontra-Africa</span>
+        <img
+          src="/logo.webp"
+          alt="Kontra-Africa"
+          class="app-sidebar__logo"
+        >
+
+        <span class="app-sidebar__brand-text">
+          Kontra-Africa
+        </span>
       </a>
 
-      <nav class="app-nav" aria-label="Navigation de l'application">
-        <a href="/dashboard.html" class="app-nav__link is-active" data-page="dashboard">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+
+      <!-- Navigation principale -->
+      <nav
+        class="app-nav"
+        aria-label="Navigation de l'application"
+      >
+
+        <!-- Tableau de bord -->
+        <a
+          href="/dashboard.html"
+          class="app-nav__link is-active"
+          data-page="dashboard"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="7" height="9" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="5" rx="1.5"/>
+            <rect x="14" y="12" width="7" height="9" rx="1.5"/>
+            <rect x="3" y="16" width="7" height="5" rx="1.5"/>
+          </svg>
+
           <span>Tableau de bord</span>
         </a>
-        <a href="/contracts.html" class="app-nav__link" data-page="contrats">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
-          <span>Contrats</span>
-        </a>
-        <a href="/finances.html" class="app-nav__link" data-page="finances">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
-          <span>Finances</span>
-        </a>
-        <a href="/profil.html" class="app-nav__link" data-page="profil">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
-          <span>Profil</span>
-        </a>
-      </nav>
 
-      <div class="app-sidebar__user" id="sidebarUser">
-        <img src="" alt="" class="app-sidebar__avatar" id="sidebarAvatar" hidden>
-        <div class="app-sidebar__user-info">
-          <p class="app-sidebar__user-name" id="sidebarUserName">—</p>
-          <button type="button" class="app-sidebar__logout" id="sidebarLogout">Se déconnecter</button>
-        </div>
-      </div>
-    </aside>
-
-    <!-- ============================= TOPBAR (mobile) ============================= -->
-    <header class="app-topbar">
-      <div class="app-topbar__brand">
-        <img src="/logo.webp" alt="Kontra-Africa" class="app-topbar__logo">
-        <span class="app-topbar__brand-text">Kontra-Africa</span>
-      </div>
-      <img src="" alt="" class="app-topbar__avatar" id="topbarAvatar" hidden>
-    </header>
-
-    <!-- ============================= CONTENU ============================= -->
-    <main class="app-main" id="appMain">
-      <div class="app-page-header">
-        <h1 id="dashboardGreeting">Bonjour</h1>
-        <p class="app-page-header__subtitle">Voici un aperçu de votre activité.</p>
-      </div>
-
-      <div class="dashboard-grid">
-
-        <!-- Solde actuel -->
-        <section class="dashboard-card dashboard-card--balance">
-          <div class="dashboard-card__label-row">
-            <p class="dashboard-card__label">Solde actuel</p>
-            <button type="button" class="dashboard-card__convert" id="btnConvertBalance" title="Convertir l'affichage">
-              ⇄ <span id="btnConvertBalanceLabel">Voir en $</span>
-            </button>
-          </div>
-          <p class="dashboard-card__value" id="balanceValue">—</p>
-        </section>
-
-        <!-- Objectif d'épargne -->
-        <section class="dashboard-card dashboard-card--savings">
-          <div class="dashboard-card__label-row">
-            <p class="dashboard-card__label">Objectif d'épargne</p>
-            <button type="button" class="dashboard-card__convert" id="btnConvertSavings" title="Convertir l'affichage">
-              ⇄ <span id="btnConvertSavingsLabel">Voir en $</span>
-            </button>
-          </div>
-          <p class="dashboard-card__amounts" id="savingsAmounts">—</p>
-          <div class="savings-progress">
-            <div class="savings-progress__fill" id="savingsProgressFill" style="width: 0%;"></div>
-          </div>
-          <p class="dashboard-card__hint" id="savingsHint">Chargement…</p>
-        </section>
 
         <!-- Contrats -->
-        <section class="dashboard-card dashboard-card--contracts">
-          <p class="dashboard-card__label">Contrats</p>
-          <div class="dashboard-card__stats">
-            <div class="dashboard-stat">
-              <span class="dashboard-stat__value" id="pendingContractsValue">—</span>
-              <span class="dashboard-stat__label">En attente</span>
-            </div>
-            <div class="dashboard-stat">
-              <span class="dashboard-stat__value" id="signedContractsValue">—</span>
-              <span class="dashboard-stat__label">Signés</span>
-            </div>
+        <a
+          href="/contracts.html"
+          class="app-nav__link"
+          data-page="contrats"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+            <path d="M14 3v5h5"/>
+            <path d="M9 13h6M9 17h6"/>
+          </svg>
+
+          <span>Contrats</span>
+        </a>
+
+
+        <!-- Finances -->
+        <a
+          href="/finances.html"
+          class="app-nav__link"
+          data-page="finances"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/>
+            <path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/>
+            <circle
+              cx="16.5"
+              cy="14"
+              r="1.2"
+              fill="currentColor"
+              stroke="none"
+            />
+          </svg>
+
+          <span>Finances</span>
+        </a>
+
+
+        <!-- ===================================================
+             STOCK
+             AJOUTÉ POUR CORRIGER L'INCOHÉRENCE
+        ==================================================== -->
+        <a
+          href="/stock.html"
+          class="app-nav__link"
+          data-page="stock"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+            <path d="m3.3 7 8.7 5 8.7-5"/>
+            <path d="M12 22V12"/>
+          </svg>
+
+          <span>Stock</span>
+        </a>
+
+
+        <!-- Profil -->
+        <a
+          href="/profil.html"
+          class="app-nav__link"
+          data-page="profil"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="8" r="3.5"/>
+            <path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+          </svg>
+
+          <span>Profil</span>
+        </a>
+
+      </nav>
+
+
+      <!-- Utilisateur -->
+      <div class="app-sidebar__user" id="sidebarUser">
+
+        <img
+          src=""
+          alt=""
+          class="app-sidebar__avatar"
+          id="sidebarAvatar"
+          hidden
+        >
+
+        <div class="app-sidebar__user-info">
+
+          <p
+            class="app-sidebar__user-name"
+            id="sidebarUserName"
+          >
+            —
+          </p>
+
+          <button
+            type="button"
+            class="app-sidebar__logout"
+            id="sidebarLogout"
+          >
+            Se déconnecter
+          </button>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+
+
+    <!-- =======================================================
+         TOPBAR MOBILE
+    ======================================================== -->
+    <header class="app-topbar">
+
+      <div class="app-topbar__brand">
+
+        <img
+          src="/logo.webp"
+          alt="Kontra-Africa"
+          class="app-topbar__logo"
+        >
+
+        <span class="app-topbar__brand-text">
+          Kontra-Africa
+        </span>
+
+      </div>
+
+      <img
+        src=""
+        alt=""
+        class="app-topbar__avatar"
+        id="topbarAvatar"
+        hidden
+      >
+
+    </header>
+
+
+
+    <!-- =======================================================
+         CONTENU PRINCIPAL
+    ======================================================== -->
+    <main class="app-main" id="appMain">
+
+      <div class="app-page-header">
+
+        <h1 id="dashboardGreeting">
+          Bonjour
+        </h1>
+
+        <p class="app-page-header__subtitle">
+          Voici un aperçu de votre activité.
+        </p>
+
+      </div>
+
+
+
+      <!-- =====================================================
+           CARTES DU DASHBOARD
+      ====================================================== -->
+      <div class="dashboard-grid">
+
+
+        <!-- ===================================================
+             SOLDE ACTUEL
+        ==================================================== -->
+        <section class="dashboard-card dashboard-card--balance">
+
+          <div class="dashboard-card__label-row">
+
+            <p class="dashboard-card__label">
+              Solde actuel
+            </p>
+
+            <button
+              type="button"
+              class="dashboard-card__convert"
+              id="btnConvertBalance"
+              title="Convertir l'affichage"
+            >
+              ⇄
+              <span id="btnConvertBalanceLabel">
+                Voir en $
+              </span>
+            </button>
+
           </div>
+
+          <p
+            class="dashboard-card__value"
+            id="balanceValue"
+          >
+            —
+          </p>
+
         </section>
 
-        <!-- Activité des 7 derniers jours -->
+
+
+        <!-- ===================================================
+             OBJECTIF D'ÉPARGNE
+        ==================================================== -->
+        <section class="dashboard-card dashboard-card--savings">
+
+          <div class="dashboard-card__label-row">
+
+            <p class="dashboard-card__label">
+              Objectif d'épargne
+            </p>
+
+            <button
+              type="button"
+              class="dashboard-card__convert"
+              id="btnConvertSavings"
+              title="Convertir l'affichage"
+            >
+              ⇄
+              <span id="btnConvertSavingsLabel">
+                Voir en $
+              </span>
+            </button>
+
+          </div>
+
+
+          <p
+            class="dashboard-card__amounts"
+            id="savingsAmounts"
+          >
+            —
+          </p>
+
+
+          <div class="savings-progress">
+
+            <div
+              class="savings-progress__fill"
+              id="savingsProgressFill"
+              style="width: 0%;"
+            ></div>
+
+          </div>
+
+
+          <p
+            class="dashboard-card__hint"
+            id="savingsHint"
+          >
+            Chargement…
+          </p>
+
+        </section>
+
+
+
+        <!-- ===================================================
+             CONTRATS
+        ==================================================== -->
+        <section class="dashboard-card dashboard-card--contracts">
+
+          <p class="dashboard-card__label">
+            Contrats
+          </p>
+
+
+          <div class="dashboard-card__stats">
+
+            <div class="dashboard-stat">
+
+              <span
+                class="dashboard-stat__value"
+                id="pendingContractsValue"
+              >
+                —
+              </span>
+
+              <span class="dashboard-stat__label">
+                En attente
+              </span>
+
+            </div>
+
+
+            <div class="dashboard-stat">
+
+              <span
+                class="dashboard-stat__value"
+                id="signedContractsValue"
+              >
+                —
+              </span>
+
+              <span class="dashboard-stat__label">
+                Signés
+              </span>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+
+        <!-- ===================================================
+             ACTIVITÉ DES 7 DERNIERS JOURS
+        ==================================================== -->
         <section class="dashboard-card dashboard-card--activity">
-          <p class="dashboard-card__label">Activité des 7 derniers jours</p>
-          <div class="balance-activity-chart" id="balanceActivityChart"></div>
-          <p class="dashboard-chart-empty" id="activityEmptyState" hidden>Pas encore de mouvement sur votre solde.</p>
+
+          <p class="dashboard-card__label">
+            Activité des 7 derniers jours
+          </p>
+
+
+          <div
+            class="balance-activity-chart"
+            id="balanceActivityChart"
+          ></div>
+
+
+          <p
+            class="dashboard-chart-empty"
+            id="activityEmptyState"
+            hidden
+          >
+            Pas encore de mouvement sur votre solde.
+          </p>
+
         </section>
 
       </div>
+
     </main>
 
-    <!-- ============================= BOTTOM NAV (mobile) ============================= -->
-    <nav class="app-bottomnav" aria-label="Navigation de l'application">
-      <a href="/dashboard.html" class="app-bottomnav__link is-active" data-page="dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+
+
+    <!-- =======================================================
+         NAVIGATION MOBILE
+    ======================================================== -->
+    <nav
+      class="app-bottomnav"
+      aria-label="Navigation de l'application"
+    >
+
+      <!-- Accueil -->
+      <a
+        href="/dashboard.html"
+        class="app-bottomnav__link is-active"
+        data-page="dashboard"
+      >
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
+          <rect x="3" y="3" width="7" height="9" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="5" rx="1.5"/>
+          <rect x="14" y="12" width="7" height="9" rx="1.5"/>
+          <rect x="3" y="16" width="7" height="5" rx="1.5"/>
+        </svg>
+
         <span>Accueil</span>
+
       </a>
-      <a href="/contracts.html" class="app-bottomnav__link" data-page="contrats">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+
+
+
+      <!-- Contrats -->
+      <a
+        href="/contracts.html"
+        class="app-bottomnav__link"
+        data-page="contrats"
+      >
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
+          <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+          <path d="M14 3v5h5"/>
+          <path d="M9 13h6M9 17h6"/>
+        </svg>
+
         <span>Contrats</span>
+
       </a>
-      <a href="/finances.html" class="app-bottomnav__link" data-page="finances">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/><path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/><circle cx="16.5" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+
+
+
+      <!-- Finances -->
+      <a
+        href="/finances.html"
+        class="app-bottomnav__link"
+        data-page="finances"
+      >
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
+          <path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H3Z"/>
+          <path d="M3 9v9a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H3Z"/>
+          <circle
+            cx="16.5"
+            cy="14"
+            r="1.2"
+            fill="currentColor"
+            stroke="none"
+          />
+        </svg>
+
         <span>Finances</span>
+
       </a>
-      <a href="/profil.html" class="app-bottomnav__link" data-page="profil">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+
+
+
+      <!-- =================================================
+           STOCK
+           AJOUTÉ DANS LA NAVIGATION MOBILE
+      ================================================== -->
+      <a
+        href="/stock.html"
+        class="app-bottomnav__link"
+        data-page="stock"
+      >
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+          <path d="m3.3 7 8.7 5 8.7-5"/>
+          <path d="M12 22V12"/>
+        </svg>
+
+        <span>Stock</span>
+
+      </a>
+
+
+
+      <!-- Profil -->
+      <a
+        href="/profil.html"
+        class="app-bottomnav__link"
+        data-page="profil"
+      >
+
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="8" r="3.5"/>
+          <path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+        </svg>
+
         <span>Profil</span>
+
       </a>
+
     </nav>
 
   </div>
 
-  <script type="module" src="/js/dashboard.js"></script>
+
+
+  <!-- =========================================================
+       JAVASCRIPT DU DASHBOARD
+  ========================================================== -->
+  <script
+    type="module"
+    src="/js/dashboard.js"
+  ></script>
+
 </body>
 </html>
