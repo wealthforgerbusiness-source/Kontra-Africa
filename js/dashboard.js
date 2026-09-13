@@ -217,9 +217,9 @@ async function loadContractsSummary(uid) {
    solde si le compte a moins de 7 jours d'historique (pas de jours "vides"
    avant la création du compte), sinon elle couvre les 7 derniers jours
    glissants. Le jour le plus récent (aujourd'hui) est affiché en dernier,
-   en bas de la liste. --------------------------------------------------- */
+   en bas. Depuis cette version : plus de liste chiffrée, uniquement un
+   graphique (courbe) — voir renderActivityChart plus bas. ------------------ */
 async function loadBalanceActivity(uid, userData) {
-  const listEl = document.getElementById('balanceActivityList');
   const emptyEl = document.getElementById('activityEmptyState');
 
   try {
@@ -232,7 +232,6 @@ async function loadBalanceActivity(uid, userData) {
     const firstTxSnap = await getDocs(firstTxQuery);
 
     if (firstTxSnap.empty) {
-      listEl.innerHTML = '';
       clearActivityChart();
       emptyEl.hidden = false;
       emptyEl.textContent = 'Pas encore de mouvement sur votre solde.';
@@ -270,7 +269,7 @@ async function loadBalanceActivity(uid, userData) {
       dailyNet.set(key, (dailyNet.get(key) || 0) + signedAmount);
     });
 
-    // 3) Construit la liste ordonnée du plus ancien (en haut) au plus récent (en bas).
+    // 3) Construit la liste ordonnée du plus ancien au plus récent.
     const days = [];
     const cursor = new Date(windowStart);
     while (dayKey(cursor) <= todayKey) {
@@ -280,20 +279,21 @@ async function loadBalanceActivity(uid, userData) {
 
     emptyEl.hidden = true;
     renderActivityChart(days, dailyNet, todayKey);
-    listEl.innerHTML = days
-      .map((key) => renderActivityRow(key, dailyNet.get(key) || 0, key === todayKey, userData))
-      .join('');
   } catch (err) {
     console.error("Erreur de chargement de l'activité récente :", err);
-    listEl.innerHTML = '';
     clearActivityChart();
     emptyEl.hidden = false;
     emptyEl.textContent = "Impossible de charger l'activité récente pour le moment.";
   }
 }
 
-/* --- Graphique (SVG léger, sans dépendance) qui monte/descend selon l'argent
-   ajouté ou retiré chaque jour, sur la même fenêtre que la liste ci-dessous. --- */
+/* --- Graphique (SVG léger, sans dépendance) -------------------------------
+   Courbe lissée (pas de barres, pas de chiffres) qui monte et descend selon
+   les mouvements de solde de chaque jour : rendu type app fintech pro
+   (ligne + dégradé sous la courbe), plutôt qu'une liste de montants. Chaque
+   point est coloré selon le sens du mouvement du jour (vert = hausse,
+   rouge = baisse, gris = aucun mouvement), et le point du jour en cours
+   est légèrement plus gros. --------------------------------------------- */
 function renderActivityChart(days, dailyNet, todayKey) {
   const chartEl = document.getElementById('balanceActivityChart');
   if (!chartEl) return;
@@ -306,71 +306,91 @@ function renderActivityChart(days, dailyNet, todayKey) {
   const values = days.map((key) => dailyNet.get(key) || 0);
   const maxAbs = Math.max(1, ...values.map((v) => Math.abs(v)));
 
-  const barWidth = 28;
-  const gap = 16;
-  const plotHeight = 96; // hauteur utilisable de part et d'autre de la ligne zéro
-  const midY = plotHeight / 2;
-  const svgWidth = days.length * (barWidth + gap) + gap;
-  const svgHeight = plotHeight + 28; // + espace pour les libellés de date
+  const width = 320;
+  const height = 140;
+  const paddingX = 20;
+  const paddingY = 22;
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingY * 2;
+  const midY = paddingY + plotHeight / 2;
+  const stepX = days.length > 1 ? plotWidth / (days.length - 1) : 0;
 
-  const bars = days.map((key, i) => {
-    const net = values[i];
-    const x = gap + i * (barWidth + gap);
-    const barHeight = Math.max(3, (Math.abs(net) / maxAbs) * (midY - 4));
-    const y = net >= 0 ? midY - barHeight : midY;
+  const points = values.map((v, i) => ({
+    x: paddingX + i * stepX,
+    y: midY - (v / maxAbs) * (plotHeight / 2 - 6),
+    v
+  }));
+
+  const linePath = buildSmoothPath(points);
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${midY} L ${points[0].x} ${midY} Z`;
+
+  const overallTrendUp = values.reduce((a, b) => a + b, 0) >= 0;
+  const lineColor = overallTrendUp ? '#1F8A4C' : '#D8402F';
+  const gradientId = 'balanceActivityGradient';
+
+  const dots = points.map((p, i) => {
+    const isToday = days[i] === todayKey;
+    const dotColor = p.v > 0 ? '#1F8A4C' : (p.v < 0 ? '#D8402F' : '#9B96A8');
+    const r = isToday ? 5 : 3.5;
+    return `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${dotColor}" stroke="#FFFFFF" stroke-width="1.5"></circle>`;
+  }).join('');
+
+  const dateLabels = points.map((p, i) => {
+    const key = days[i];
     const isToday = key === todayKey;
-    const fillClass = net > 0
-      ? 'balance-activity-chart__bar--up'
-      : (net < 0 ? 'balance-activity-chart__bar--down' : 'balance-activity-chart__bar--flat');
-
     const d = new Date(`${key}T00:00:00`);
     const label = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-
-    return `
-      <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="5"
-            class="balance-activity-chart__bar ${fillClass}"></rect>
-      <text x="${x + barWidth / 2}" y="${plotHeight + 20}" text-anchor="middle"
-            class="balance-activity-chart__label${isToday ? ' balance-activity-chart__label--today' : ''}">${label}</text>
-    `;
+    return `<text x="${p.x}" y="${height - 4}" text-anchor="middle" class="balance-activity-chart__label${isToday ? ' balance-activity-chart__label--today' : ''}">${label}</text>`;
   }).join('');
 
   chartEl.innerHTML = `
-    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" width="100%" height="${svgHeight}"
-         role="img" aria-label="Graphique des mouvements de solde des derniers jours" preserveAspectRatio="xMidYMid meet">
-      <line x1="0" y1="${midY}" x2="${svgWidth}" y2="${midY}" class="balance-activity-chart__zeroline"></line>
-      ${bars}
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}"
+         role="img" aria-label="Graphique des mouvements de solde des 7 derniers jours" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.28"></stop>
+          <stop offset="100%" stop-color="${lineColor}" stop-opacity="0"></stop>
+        </linearGradient>
+      </defs>
+      <line x1="${paddingX}" y1="${midY}" x2="${width - paddingX}" y2="${midY}" class="balance-activity-chart__zeroline"></line>
+      <path d="${areaPath}" fill="url(#${gradientId})" stroke="none"></path>
+      <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${dots}
+      ${dateLabels}
     </svg>
   `;
+}
+
+/* --- Construit un chemin SVG lissé (courbes de Bézier type Catmull-Rom)
+   à partir d'une liste de points {x, y}. --------------------------------- */
+function buildSmoothPath(points) {
+  if (points.length < 2) {
+    const p = points[0];
+    return p ? `M ${p.x} ${p.y}` : '';
+  }
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? i : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+
+  return d;
 }
 
 function clearActivityChart() {
   const chartEl = document.getElementById('balanceActivityChart');
   if (chartEl) chartEl.innerHTML = '';
-}
-
-function renderActivityRow(key, netLocal, isToday, userData) {
-  const d = new Date(`${key}T00:00:00`);
-  const dateLabel = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-  const label = isToday ? `${dateLabel} (aujourd'hui)` : dateLabel;
-  const symbol = displaySymbol(userData);
-
-  let changeClass = 'balance-activity-row__change--flat';
-  let changeText = 'Rien ajouté';
-
-  if (netLocal > 0) {
-    changeClass = 'balance-activity-row__change--up';
-    changeText = `▲ +${formatAmount(toDisplayAmount(netLocal, userData), symbol)}`;
-  } else if (netLocal < 0) {
-    changeClass = 'balance-activity-row__change--down';
-    changeText = `▼ -${formatAmount(toDisplayAmount(Math.abs(netLocal), userData), symbol)}`;
-  }
-
-  return `
-    <div class="balance-activity-row${isToday ? ' balance-activity-row--today' : ''}">
-      <span class="balance-activity-row__date">${label}</span>
-      <span class="balance-activity-row__change ${changeClass}">${changeText}</span>
-    </div>
-  `;
 }
 
 /* --- Utilitaires --- */
