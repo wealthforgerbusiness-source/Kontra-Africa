@@ -1,3 +1,41 @@
+// ============================================================
+// js/stock.js
+// Page Stock & Ventes — onglets Dashboard / Produits / Ventes,
+// support hors-ligne via offline-queue.js.
+//
+// Aligné sur le vrai stock.html (pas de modale de vente ni de
+// dépenses dans le balisage — voir ci-dessous) et sur le vrai
+// backend functions/src/stock.js (routes /products, /sales,
+// /reports/daily, /reports/close-day, /expenses).
+//
+// ⚠️ HYPOTHÈSES / LIMITES CONNUES :
+// - authFetch (pattern reconstitué, non vérifié contre finances.js) :
+//   suppose un backend qui renvoie du JSON pour toutes les routes
+//   SAUF /reports/close-day qui renvoie un PDF binaire — cette
+//   route utilise donc un fetch dédié, pas authFetch.
+// - `syncPendingActions(type, syncFn)` est supposé retirer lui-même
+//   les entrées de la queue au fur et à mesure de leur succès.
+// - Cette page n'a pas d'interface de création de dépenses (aucun
+//   élément dans le HTML), mais le total des dépenses du jour est
+//   quand même lu via GET /reports/daily pour calculer le bénéfice
+//   net correctement. La synchro des dépenses en attente (créées
+//   depuis une autre page, ex. Finances) reste gérée ici si la
+//   queue offline-queue.js est partagée entre pages.
+//
+// NOUVEAU (cette révision) :
+// - Système de toast (remplace tous les window.alert()).
+// - Modale "Ajouter du stock" (remplace les window.prompt()),
+//   construite dynamiquement en réutilisant les classes .modal /
+//   .modal-content déjà utilisées par la modale produit.
+// - Vérification "devise configurée" avant : ouverture des modales
+//   Ajouter/Modifier un produit, confirmation d'une vente, et clic
+//   sur les boutons 🔄 USD (qui nécessitent en plus un taux de
+//   change configuré). Si non configurée : toast rouge avec bouton
+//   "Aller dans Finances" qui redirige, action bloquée.
+//   ⚠️ Le chemin de redirection ("finances.html") est une hypothèse
+//   à ajuster si ta page Finances a un autre nom/route.
+// ============================================================
+
 import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
@@ -411,8 +449,20 @@ window.addEventListener("offline", updateOnlineStatus);
 // Synchro des actions en attente (produits -> ventes -> dépenses)
 // ============================================================
 
-async function syncProductAction(entry) {
-  const { payload } = entry;
+// ⚠️ CORRECTIF : syncPendingActions() (offline-queue.js) appelle
+// syncFn(entry.payload, entry) — le PREMIER argument est déjà le payload
+// brut, pas l'objet wrapper {localId, type, payload, createdAtLocal}.
+// (Vérifié dans js/finances.js qui l'utilise déjà correctement : la
+// fonction de synchro y est `async (payload) => { ... payload.type ... }`,
+// SANS `.payload`.)
+// L'ancien code faisait `entry.payload` ici alors que `entry` ÉTAIT déjà
+// le payload → `.payload` valait toujours undefined → JSON.stringify()
+// renvoyait undefined → le fetch partait sans corps → 400 côté serveur →
+// la vente restait coincée dans la queue IndexedDB pour toujours, sans
+// jamais être écrite dans Firestore. C'est ce qui faisait "disparaître"
+// les ventes notées pendant une coupure réseau, dès qu'on quittait puis
+// revenait sur la page.
+async function syncProductAction(payload) {
   if (payload._delete) {
     await authFetch(`/products/${payload.id}`, { method: "DELETE" });
   } else if (payload._update) {
@@ -425,14 +475,14 @@ async function syncProductAction(entry) {
   }
 }
 
-async function syncSaleAction(entry) {
-  await authFetch("/sales", { method: "POST", body: JSON.stringify(entry.payload) });
+async function syncSaleAction(payload) {
+  await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
 }
 
-async function syncExpenseAction(entry) {
+async function syncExpenseAction(payload) {
   // Pas d'UI de création de dépense sur cette page, mais on synchronise quand
   // même celles ajoutées ailleurs (ex. page Finances) via la même queue.
-  await authFetch("/expenses", { method: "POST", body: JSON.stringify(entry.payload) });
+  await authFetch("/expenses", { method: "POST", body: JSON.stringify(payload) });
 }
 
 async function trySyncPending() {
