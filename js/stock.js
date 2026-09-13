@@ -1,32 +1,15 @@
-// ============================================================
-// js/stock.js
-// Page Stock & Ventes — CRUD produits/ventes/dépenses,
-// support hors-ligne via offline-queue.js.
-//
-// ⚠️ HYPOTHÈSES À VÉRIFIER (je n'ai pas accès au vrai finances.js) :
-// - `requireAppAccess()` et `listenToUserDoc(uid, callback)` sont
-//   exportés depuis './auth-guard.js' — adapte l'import si leur
-//   emplacement réel est différent (ex: firebase-config.js).
-// - Le pattern d'attache du token Bearer est reconstitué (voir
-//   authFetch ci-dessous) en l'absence du code réel de finances.js/
-//   contracts.js. Si un helper `apiFetch`/`authFetch` existe déjà
-//   dans un module partagé, remplace authFetch par un import de
-//   ce module plutôt que de dupliquer la logique.
-// - `syncPendingActions(type, syncFn)` est supposé retirer lui-même
-//   les entrées de la queue au fur et à mesure de leur succès
-//   (removePendingAction géré en interne). Si ce n'est pas le cas,
-//   il faut appeler removePendingAction(entry.localId) explicitement
-//   dans chaque syncFn ci-dessous.
-// ============================================================
-
-import { auth } from "./firebase-config.js";
-import { requireAppAccess, listenToUserDoc } from "./auth-guard.js";
-import { getCurrencySymbol, formatAmount } from "./currency.js";
+import { auth, db } from "./firebase-config.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { requireAppAccess } from "./auth-guard.js";
+import { getCurrencySymbol, formatAmount, convertFromLocal } from "./currency.js";
 import {
   addPendingAction,
   getPendingActions,
   syncPendingActions,
 } from "./offline-queue.js";
+import { renderAppNav } from "./app-nav.js";
+
+renderAppNav("stock"); // sidebar desktop + bottom nav mobile
 
 const API_BASE = "/api/stock";
 
@@ -59,7 +42,7 @@ const formExpense = document.getElementById("form-expense");
 // ============================================================
 
 let currentUser = null;
-let currentCurrency = "USD";
+let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local" };
 let products = new Map(); // id -> product
 let salesToday = [];
 let expensesToday = [];
@@ -92,6 +75,29 @@ function isNetworkError(error) {
   // Un échec fetch (hors ligne, DNS, etc.) lève une erreur sans .status ;
   // une erreur HTTP renvoyée par authFetch a toujours .status défini.
   return error.status === undefined;
+}
+
+// ============================================================
+// Utilisateur (devise, solde) — écoute temps réel du doc Firestore
+// (dupliqué depuis finances.js, non exporté ailleurs)
+// ============================================================
+
+function listenToUserDoc(uid, onUpdate) {
+  onSnapshot(doc(db, "users", uid), (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const userData = {
+      balance: data.balance || 0,
+      currencySymbol: data.currencySymbol || "",
+      exchangeRate: data.exchangeRate || 0,
+      exchangeRateUpdatedAt: data.exchangeRateUpdatedAt || null,
+      displayCurrency: data.displayCurrency === "usd" ? "usd" : "local",
+      savingsGoalAmount: data.savingsGoalAmount || 0,
+      savingsCurrentAmount: data.savingsCurrentAmount || 0,
+      timezone: data.timezone || "Africa/Kinshasa",
+    };
+    onUpdate(userData);
+  });
 }
 
 // ============================================================
@@ -265,7 +271,7 @@ function renderProductCard(product) {
       <span class="product-card__meta">
         Stock :
         <span class="product-card__stock ${isOut ? "product-card__stock--out" : isLow ? "product-card__stock--low" : ""}">${product.stockQuantity} ${escapeHtml(product.unit || "")}</span>
-        · ${getCurrencySymbol(currentCurrency)}${formatAmount(product.sellingPrice, currentCurrency)}
+        · ${formatAmount(product.sellingPrice, currentUserData, currentUserData.displayCurrency)}
       </span>
       ${product.pendingSync ? '<span class="state-message">En attente de synchro</span>' : ""}
     </div>
@@ -336,8 +342,8 @@ function renderSaleRow(sale) {
     <div class="sale-row__info">
       <span class="sale-row__product">${escapeHtml(sale.productName)} × ${sale.quantity}</span>
       <span class="sale-row__meta">
-        ${getCurrencySymbol(currentCurrency)}${formatAmount(sale.totalRevenue, currentCurrency)}
-        · Bénéfice <span class="sale-row__profit">${getCurrencySymbol(currentCurrency)}${formatAmount(sale.totalProfit, currentCurrency)}</span>
+        ${formatAmount(sale.totalRevenue, currentUserData, currentUserData.displayCurrency)}
+        · Bénéfice <span class="sale-row__profit">${formatAmount(sale.totalProfit, currentUserData, currentUserData.displayCurrency)}</span>
         ${sale.pendingSync ? ' · <span class="state-message">En attente de synchro</span>' : ""}
       </span>
     </div>
@@ -360,11 +366,11 @@ function renderDailySummary() {
   dailySummary.innerHTML = `
     <div class="daily-summary__item">
       <span class="daily-summary__label">Chiffre d'affaires</span>
-      <span class="daily-summary__value">${getCurrencySymbol(currentCurrency)}${formatAmount(revenue, currentCurrency)}</span>
+      <span class="daily-summary__value">${formatAmount(revenue, currentUserData, currentUserData.displayCurrency)}</span>
     </div>
     <div class="daily-summary__item">
       <span class="daily-summary__label">Bénéfice</span>
-      <span class="daily-summary__value">${getCurrencySymbol(currentCurrency)}${formatAmount(profit, currentCurrency)}</span>
+      <span class="daily-summary__value">${formatAmount(profit, currentUserData, currentUserData.displayCurrency)}</span>
     </div>
     <div class="daily-summary__item">
       <span class="daily-summary__label">Ventes</span>
@@ -378,8 +384,17 @@ function renderDailyProfitCard() {
   const expensesTotal = expensesToday.reduce((sum, e) => sum + (e.amount || 0), 0);
   const netProfit = salesProfit - expensesTotal;
 
-  dailyProfitCurrency.textContent = getCurrencySymbol(currentCurrency);
-  dailyProfitValue.textContent = formatAmount(netProfit, currentCurrency);
+  // dailyProfitCurrency et dailyProfitValue sont deux <span> distincts dans le
+  // DOM (symbole / valeur) : on ne peut pas y injecter directement la chaîne
+  // déjà formatée par formatAmount() (qui inclut le symbole), donc on
+  // recompose manuellement la même conversion pour garder les deux champs.
+  const viewCurrency = currentUserData.displayCurrency;
+  const displayedProfit = convertFromLocal(netProfit, viewCurrency, currentUserData);
+
+  dailyProfitCurrency.textContent = viewCurrency === "usd" ? "$" : getCurrencySymbol(currentUserData);
+  dailyProfitValue.textContent = Number(displayedProfit || 0).toLocaleString("fr-FR", {
+    maximumFractionDigits: 2,
+  });
 }
 
 // ============================================================
@@ -408,7 +423,7 @@ function renderExpenseRow(expense) {
       <div class="expense-row__label">${escapeHtml(expense.label)}</div>
       <div class="expense-row__category">${escapeHtml(expense.category || "")}${expense.pendingSync ? " · En attente de synchro" : ""}</div>
     </div>
-    <span class="expense-row__amount">-${getCurrencySymbol(currentCurrency)}${formatAmount(expense.amount, currentCurrency)}</span>
+    <span class="expense-row__amount">-${formatAmount(expense.amount, currentUserData, currentUserData.displayCurrency)}</span>
   `;
 
   return row;
@@ -805,7 +820,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   currentUser = user;
 
   listenToUserDoc(user.uid, (userData) => {
-    currentCurrency = (userData && userData.currency) || currentCurrency;
+    currentUserData = userData;
     renderDailyProfitCard();
     renderProducts();
     renderSalesToday();
