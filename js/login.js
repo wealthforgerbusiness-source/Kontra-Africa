@@ -144,7 +144,7 @@ const REDIRECT_FALLBACK_TIMEOUT_MS = 8000;
 // l'utilisateur plusieurs dizaines de secondes (fenêtre de risque réduite
 // pour le problème des onglets déchargés en arrière-plan).
 
-const SERVER_WARMUP_TIMEOUT_MS = 45000; // 45s max d'attente pour le réveil
+const SERVER_WARMUP_TIMEOUT_MS = 100000; // jusqu'à 100s d'attente pour le réveil complet de Render
 
 let serverIsWarm = false;
 
@@ -684,10 +684,10 @@ async function startGoogleSignIn() {
 
     showLoading("Préparation du serveur…");
 
-    await Promise.race([
-      serverWarmupPromise,
-      sleep(SERVER_WARMUP_TIMEOUT_MS)
-    ]);
+    // On attend directement la vraie réponse du ping (son propre timeout
+    // interne de SERVER_WARMUP_TIMEOUT_MS protège déjà contre une attente
+    // infinie si le serveur ou le réseau ne répond jamais).
+    await serverWarmupPromise;
 
     debugLog('🔥 Fin de l\'attente de réveil, ouverture du popup Google');
   }
