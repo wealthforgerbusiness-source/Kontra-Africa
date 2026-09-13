@@ -138,11 +138,13 @@ const REDIRECT_FALLBACK_TIMEOUT_MS = 8000;
 // On envoie un ping vers /health DÈS LE CHARGEMENT de la page de connexion,
 // bien avant que l'utilisateur ne clique sur "Continuer avec Google". Le
 // temps que l'utilisateur lise l'écran et coche la case CGU, le serveur a
-// généralement déjà eu le temps de se réveiller en arrière-plan. Résultat :
-// au moment où initUserOnBackend() est appelé après la connexion Google,
-// le serveur répond quasi instantanément au lieu de faire attendre
-// l'utilisateur plusieurs dizaines de secondes (fenêtre de risque réduite
-// pour le problème des onglets déchargés en arrière-plan).
+// généralement déjà eu le temps de se réveiller en arrière-plan.
+//
+// CORRECTIF IMPORTANT : ce réveil reste désormais STRICTEMENT une tâche de
+// fond. Il ne doit plus jamais être attendu (`await`) avant d'ouvrir le
+// popup Google au clic — voir l'explication détaillée dans
+// startGoogleSignIn() plus bas. Il sert uniquement à ce que le serveur soit
+// déjà chaud quand on l'appelle après la connexion Google (initUserOnBackend).
 
 const SERVER_WARMUP_TIMEOUT_MS = 100000; // jusqu'à 100s d'attente pour le réveil complet de Render
 
@@ -172,6 +174,28 @@ const serverWarmupPromise = (async () => {
     debugLog('🔥 Échec du ping de réveil (le serveur tentera quand même via init-user):', err?.message || err);
   }
 })();
+
+// ============================================================
+// PERSISTENCE FIREBASE (configurée UNE SEULE FOIS, ici, au chargement du
+// script — plus jamais au moment du clic)
+// ============================================================
+// Avant, setPersistence() était appelé à l'intérieur de startGoogleSignIn(),
+// donc `await` juste avant signInWithPopup(). Un `await` — même court —
+// placé entre le clic de l'utilisateur et l'appel à signInWithPopup() peut
+// suffire à faire perdre le "geste utilisateur" aux yeux du navigateur, qui
+// bloque alors le popup Google SANS forcément renvoyer une erreur claire
+// (le popup n'apparaît juste jamais). En configurant la persistence une
+// seule fois ici, dès le chargement de la page, elle est quasi toujours déjà
+// terminée au moment du clic — on retire ainsi un délai inutile du chemin
+// critique menant à l'ouverture du popup.
+
+const persistenceReadyPromise = setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    debugLog('🔐 Persistence Firebase configurée (au chargement de la page)');
+  })
+  .catch((err) => {
+    debugLog('⚠️ Échec de configuration de la persistence Firebase:', err?.message || err);
+  });
 
 // ============================================================
 // DETECTION MOBILE / STANDALONE
@@ -671,26 +695,29 @@ async function startGoogleSignIn() {
   }
 
   // --------------------------------------------------------
-  // ATTENTE DU RÉVEIL SERVEUR (si le ping envoyé au chargement de
-  // la page n'a pas encore fini) — AVANT d'ouvrir le popup Google.
-  // Dans la grande majorité des cas, le ping envoyé au chargement de
-  // la page a déjà fini pendant que l'utilisateur lisait l'écran et
-  // cochait la case : cette étape est alors instantanée et invisible.
+  // CORRECTIF : on n'attend PLUS le réveil de Render ici.
+  //
+  // Avant, le code faisait `await serverWarmupPromise` avant d'ouvrir le
+  // popup Google. Le souci : la plupart des navigateurs n'autorisent
+  // l'ouverture d'une fenêtre pop-up que si elle est déclenchée quasi
+  // immédiatement après un geste utilisateur (le clic). Dès qu'on insère un
+  // `await` qui peut durer plusieurs secondes voire dizaines de secondes
+  // (le temps que Render démarre) avant d'appeler signInWithPopup(), le
+  // navigateur ne considère plus cela comme une réaction directe au clic et
+  // bloque silencieusement le popup — sans forcément renvoyer une erreur
+  // claire. C'était très probablement la cause du bug "le popup Google
+  // n'apparaît pas".
+  //
+  // Le réveil de Render continue de se faire, mais uniquement en tâche de
+  // fond depuis le chargement de la page (serverWarmupPromise, déclenché
+  // plus haut). Le temps que l'utilisateur choisisse son compte Google dans
+  // le popup (quelques secondes), le serveur a généralement fini de se
+  // réveiller. Et si jamais ce n'est pas encore le cas au moment d'appeler
+  // le backend juste après, initUserOnBackend() gère déjà des tentatives
+  // automatiques avec messages de progression.
   // --------------------------------------------------------
 
-  if (!serverIsWarm) {
-
-    debugLog('🔥 Serveur pas encore confirmé prêt, attente avant le popup Google...');
-
-    showLoading("Préparation du serveur…");
-
-    // On attend directement la vraie réponse du ping (son propre timeout
-    // interne de SERVER_WARMUP_TIMEOUT_MS protège déjà contre une attente
-    // infinie si le serveur ou le réseau ne répond jamais).
-    await serverWarmupPromise;
-
-    debugLog('🔥 Fin de l\'attente de réveil, ouverture du popup Google');
-  }
+  debugLog('🔥 Statut du serveur au moment du clic (réveil déjà en tâche de fond depuis le chargement de la page) — serverIsWarm:', serverIsWarm);
 
   showLoading(
     "Connexion à Google…"
@@ -707,18 +734,12 @@ async function startGoogleSignIn() {
     // --------------------------------------------------------
     // PERSISTENCE FIREBASE
     // --------------------------------------------------------
+    // Configurée une seule fois au chargement du script (voir
+    // persistenceReadyPromise plus haut) : ici on s'assure juste qu'elle
+    // est bien terminée, ce qui est quasi toujours déjà le cas et donc
+    // quasi instantané (ne retarde pas l'ouverture du popup en pratique).
 
-    debugLog('🔐 Appel de setPersistence()...');
-    setOperation('setPersistence');
-
-    await setPersistence(
-      auth,
-      browserLocalPersistence
-    );
-
-    debugLog(
-      '🔐 Persistence Firebase configurée'
-    );
+    await persistenceReadyPromise;
 
     // --------------------------------------------------------
     // POPUP EN PRIORITE (mobile ET desktop)
