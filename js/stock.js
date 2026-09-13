@@ -12,6 +12,7 @@ import { renderAppNav } from "./app-nav.js";
 renderAppNav("stock"); // sidebar desktop + bottom nav mobile
 
 const API_BASE = "/api/stock";
+const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
 
 // ============================================================
 // DOM refs
@@ -70,6 +71,212 @@ let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépense
 // Toggles indépendants des deux cartes du dashboard (🔄 USD)
 let balanceViewCurrency = "local";
 let profitViewCurrency = "local";
+
+// ============================================================
+// Toasts (remplace window.alert)
+// ============================================================
+
+let toastContainerEl = null;
+
+function getToastContainer() {
+  if (toastContainerEl) return toastContainerEl;
+  toastContainerEl = document.createElement("div");
+  toastContainerEl.className = "toast-container";
+  toastContainerEl.setAttribute("aria-live", "polite");
+  document.body.appendChild(toastContainerEl);
+  return toastContainerEl;
+}
+
+/**
+ * Affiche un toast.
+ * @param {string} message
+ * @param {{type?: 'info'|'success'|'error'|'warning', duration?: number, actionLabel?: string, onAction?: () => void}} [options]
+ * @returns {() => void} fonction pour fermer le toast manuellement
+ */
+function showToast(message, options = {}) {
+  const { type = "info", duration = 4000, actionLabel, onAction } = options;
+  const container = getToastContainer();
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${type}`;
+  toast.setAttribute("role", "status");
+
+  const text = document.createElement("span");
+  text.className = "toast__text";
+  text.textContent = message;
+  toast.appendChild(text);
+
+  let timeoutId = null;
+
+  function removeToast() {
+    if (timeoutId) clearTimeout(timeoutId);
+    toast.classList.add("toast--closing");
+    setTimeout(() => toast.remove(), 180);
+  }
+
+  if (actionLabel && onAction) {
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    actionBtn.className = "toast__action";
+    actionBtn.textContent = actionLabel;
+    actionBtn.addEventListener("click", () => {
+      onAction();
+      removeToast();
+    });
+    toast.appendChild(actionBtn);
+  }
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "toast__close";
+  closeBtn.setAttribute("aria-label", "Fermer");
+  closeBtn.textContent = "×";
+  closeBtn.addEventListener("click", removeToast);
+  toast.appendChild(closeBtn);
+
+  container.appendChild(toast);
+
+  if (duration > 0) {
+    timeoutId = setTimeout(removeToast, duration);
+  }
+
+  return removeToast;
+}
+
+function showInfoToast(message, options) {
+  return showToast(message, { ...options, type: "info" });
+}
+
+function showSuccessToast(message, options) {
+  return showToast(message, { ...options, type: "success" });
+}
+
+function showErrorToast(message, options) {
+  return showToast(message, { duration: 6000, ...options, type: "error" });
+}
+
+function showWarningToast(message, options) {
+  return showToast(message, { duration: 6000, ...options, type: "warning" });
+}
+
+// Styles minimaux injectés une seule fois : aucun fichier CSS à toucher.
+(function injectToastStyles() {
+  if (document.getElementById("stock-toast-styles")) return;
+  const style = document.createElement("style");
+  style.id = "stock-toast-styles";
+  style.textContent = `
+    .toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      left: 16px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.4;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+      animation: stock-toast-in 0.18s ease-out;
+    }
+    .toast--closing { animation: stock-toast-out 0.18s ease-in forwards; }
+    .toast--info { background: #2563eb; }
+    .toast--success { background: #16a34a; }
+    .toast--error { background: #dc2626; }
+    .toast--warning { background: #d97706; }
+    .toast__text { flex: 1; }
+    .toast__action {
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.22);
+      border: none;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .toast__action:hover { background: rgba(255,255,255,0.34); }
+    .toast__close {
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+      opacity: 0.85;
+    }
+    .toast__close:hover { opacity: 1; }
+    @keyframes stock-toast-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes stock-toast-out {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(-6px); }
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+// ============================================================
+// Vérification "devise configurée"
+// ============================================================
+
+function isCurrencyConfigured() {
+  return !!(currentUserData.currencySymbol && String(currentUserData.currencySymbol).trim());
+}
+
+function isExchangeRateConfigured() {
+  return Number(currentUserData.exchangeRate) > 0;
+}
+
+function goToFinancesPage() {
+  window.location.href = FINANCES_PAGE_URL;
+}
+
+/**
+ * Bloque l'action et affiche un toast si la devise (et, si demandé, le taux
+ * de change) n'est pas configurée. Retourne true si l'action peut continuer.
+ * @param {{needsExchangeRate?: boolean}} [options]
+ */
+function requireCurrencyConfigured(options = {}) {
+  const { needsExchangeRate = false } = options;
+
+  if (!isCurrencyConfigured()) {
+    showErrorToast(
+      "Configure d'abord ta devise dans Finances avant de continuer.",
+      { actionLabel: "Aller dans Finances", onAction: goToFinancesPage }
+    );
+    return false;
+  }
+
+  if (needsExchangeRate && !isExchangeRateConfigured()) {
+    showErrorToast(
+      "Configure d'abord le taux de change dans Finances pour convertir en USD.",
+      { actionLabel: "Aller dans Finances", onAction: goToFinancesPage }
+    );
+    return false;
+  }
+
+  return true;
+}
 
 // ============================================================
 // Auth + fetch helper (pattern à réconcilier avec finances.js)
@@ -290,6 +497,7 @@ function renderBalanceCard() {
 }
 
 btnConvertBalance.addEventListener("click", () => {
+  if (!requireCurrencyConfigured({ needsExchangeRate: true })) return;
   balanceViewCurrency = balanceViewCurrency === "local" ? "usd" : "local";
   renderBalanceCard();
 });
@@ -304,6 +512,7 @@ function renderDailyProfitCard() {
 }
 
 btnConvertProfit.addEventListener("click", () => {
+  if (!requireCurrencyConfigured({ needsExchangeRate: true })) return;
   profitViewCurrency = profitViewCurrency === "local" ? "usd" : "local";
   renderDailyProfitCard();
 });
@@ -355,44 +564,128 @@ function renderLowStockSection() {
   }
 }
 
-// "Ajouter du stock" — pas de modale dédiée dans le HTML fourni : flux
-// minimal par prompts en attendant un vrai composant.
-btnQuickAddStock.addEventListener("click", async () => {
-  const productNames = [...products.values()].map((p) => p.name);
-  if (productNames.length === 0) {
-    window.alert("Ajoute d'abord un produit avant de pouvoir réapprovisionner son stock.");
-    return;
-  }
+// ============================================================
+// Modale "Ajouter du stock" (remplace les window.prompt())
+// Construite dynamiquement, réutilise .modal / .modal-content
+// pour hériter du style de la modale produit existante.
+// ============================================================
 
-  const name = window.prompt(`Quel produit réapprovisionner ?\n${productNames.join(", ")}`);
-  if (name === null) return;
+let modalAddStock = null;
 
-  const product = findProductByName(name);
-  if (!product) {
-    window.alert("Produit introuvable.");
-    return;
-  }
+function ensureAddStockModal() {
+  if (modalAddStock) return modalAddStock;
 
-  const addedRaw = window.prompt(
-    `Quantité à ajouter au stock de "${product.name}" (stock actuel : ${product.stockQuantity}) :`
+  const dialog = document.createElement("dialog");
+  dialog.id = "modal-add-stock";
+  dialog.className = "modal";
+  dialog.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Ajouter du stock</h3>
+        <button type="button" class="modal-close" data-action="close-add-stock-modal" aria-label="Fermer">×</button>
+      </div>
+      <form id="form-add-stock" novalidate>
+        <div class="form-error" hidden></div>
+        <div class="form-field">
+          <label for="add-stock-product">Produit</label>
+          <select id="add-stock-product" name="product" required></select>
+        </div>
+        <div class="form-field">
+          <label for="add-stock-quantity">Quantité à ajouter</label>
+          <input id="add-stock-quantity" name="quantity" type="number" min="1" step="1" required />
+        </div>
+        <div class="saved-msg" hidden>Stock mis à jour ✓</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-action="close-add-stock-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Ajouter au stock</button>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(dialog);
+
+  dialog.querySelectorAll('[data-action="close-add-stock-modal"]').forEach((btn) =>
+    btn.addEventListener("click", () => closeModal(dialog))
   );
-  if (addedRaw === null) return;
+  dialog.addEventListener("click", (event) => {
+    // Ferme si on clique sur le fond du <dialog> (hors .modal-content)
+    if (event.target === dialog) closeModal(dialog);
+  });
 
-  const added = Number(addedRaw);
-  if (!Number.isInteger(added) || added <= 0) {
-    window.alert("Quantité invalide.");
+  const form = dialog.querySelector("#form-add-stock");
+  const select = dialog.querySelector("#add-stock-product");
+  const quantityInput = dialog.querySelector("#add-stock-quantity");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearFormError(form);
+
+    const product = products.get(select.value);
+    const quantity = Number(quantityInput.value);
+
+    if (!product) {
+      showFormError(form, "Sélectionne un produit.");
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      showFormError(form, "Quantité invalide.");
+      return;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+
+    try {
+      await handleUpdateProduct(product.id, {
+        name: product.name,
+        purchasePrice: product.purchasePrice,
+        sellingPrice: product.sellingPrice,
+        stockQuantity: product.stockQuantity + quantity,
+        lowStockThreshold: product.lowStockThreshold,
+        unit: product.unit,
+      });
+      showSavedMsg(form);
+      closeModal(dialog);
+      form.reset();
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  modalAddStock = dialog;
+  return dialog;
+}
+
+function openAddStockModal() {
+  const activeProducts = [...products.values()].filter((p) => !p.archived);
+
+  if (activeProducts.length === 0) {
+    showWarningToast("Ajoute d'abord un produit avant de pouvoir réapprovisionner son stock.");
     return;
   }
 
-  await handleUpdateProduct(product.id, {
-    name: product.name,
-    purchasePrice: product.purchasePrice,
-    sellingPrice: product.sellingPrice,
-    stockQuantity: product.stockQuantity + added,
-    lowStockThreshold: product.lowStockThreshold,
-    unit: product.unit,
-  });
-});
+  const dialog = ensureAddStockModal();
+  const form = dialog.querySelector("#form-add-stock");
+  const select = dialog.querySelector("#add-stock-product");
+  const quantityInput = dialog.querySelector("#add-stock-quantity");
+
+  form.reset();
+  clearFormError(form);
+
+  select.innerHTML = "";
+  for (const product of activeProducts) {
+    const option = document.createElement("option");
+    option.value = product.id;
+    option.textContent = `${product.name} (stock actuel : ${product.stockQuantity} ${product.unit || ""})`;
+    select.appendChild(option);
+  }
+  quantityInput.value = "";
+
+  openModal(dialog);
+  select.focus();
+}
+
+btnQuickAddStock.addEventListener("click", openAddStockModal);
 
 // ============================================================
 // Clôture de journée (génère le PDF, puis vide les ventes du jour)
@@ -408,7 +701,7 @@ btnCloseDay.addEventListener("click", async () => {
   }
 
   if (!navigator.onLine) {
-    window.alert("La clôture de journée nécessite une connexion internet.");
+    showErrorToast("La clôture de journée nécessite une connexion internet.");
     return;
   }
 
@@ -442,8 +735,9 @@ btnCloseDay.addEventListener("click", async () => {
 
     salesToday = [];
     renderSalesToday();
+    showSuccessToast("Journée clôturée, rapport téléchargé.");
   } catch (error) {
-    window.alert(error.message || "Erreur lors de la clôture de la journée.");
+    showErrorToast(error.message || "Erreur lors de la clôture de la journée.");
   } finally {
     btnCloseDay.disabled = false;
     btnCloseDay.textContent = originalLabel;
@@ -653,6 +947,8 @@ function setProductCurrencyLabels() {
 // ============================================================
 
 btnAddProduct.addEventListener("click", () => {
+  if (!requireCurrencyConfigured()) return;
+
   formProduct.reset();
   document.getElementById("product-id").value = "";
   document.getElementById("modal-product-title").textContent = "Ajouter un produit";
@@ -662,6 +958,8 @@ btnAddProduct.addEventListener("click", () => {
 });
 
 function openEditProductModal(product) {
+  if (!requireCurrencyConfigured()) return;
+
   document.getElementById("product-id").value = product.id;
   document.getElementById("product-name").value = product.name;
   document.getElementById("product-purchase-price").value = product.purchasePrice;
@@ -821,6 +1119,8 @@ saleProductSearch.addEventListener("input", updateSaleStockHint);
 btnConfirmSale.addEventListener("click", async () => {
   clearSaleFormError();
 
+  if (!requireCurrencyConfigured()) return;
+
   const product = findProductByName(saleProductSearch.value);
   const quantity = Number(saleQuantity.value);
 
@@ -927,19 +1227,20 @@ async function handleRemoveSale(sale) {
     if (product && previousStock !== null) products.set(sale.productId, { ...product, stockQuantity: previousStock });
     renderProducts();
     renderSalesToday();
-    window.alert("Le retrait d'une vente nécessite une connexion internet.");
+    showErrorToast("Le retrait d'une vente nécessite une connexion internet.");
     return;
   }
 
   try {
     await authFetch(`/sales/${sale.id}`, { method: "DELETE" });
+    showSuccessToast("Vente retirée, stock réintégré.");
   } catch (error) {
     // Rollback
     salesToday.unshift(sale);
     if (product && previousStock !== null) products.set(sale.productId, { ...product, stockQuantity: previousStock });
     renderProducts();
     renderSalesToday();
-    window.alert(error.message || "Erreur lors du retrait de la vente.");
+    showErrorToast(error.message || "Erreur lors du retrait de la vente.");
   }
 }
 
