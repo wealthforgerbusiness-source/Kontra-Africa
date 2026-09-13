@@ -292,12 +292,24 @@ function showLoading(label) {
   loadingLabel.textContent = label;
 }
 
-function showError(message) {
-  // Le bouton "Continuer avec Google" est remplacé, au même endroit, par le
-  // bouton "Réessayer" rouge : cliquer dessus relance direct la connexion
-  // Google (la 2e tentative fonctionne systématiquement).
-  googleBtn.hidden = true;
-  retryBtn.hidden = false;
+function showError(message, { directRetry = true } = {}) {
+
+  if (directRetry) {
+    // Erreur survenue pendant la session en cours (case CGU déjà cochée en
+    // mémoire) : on peut relancer Google directement via le bouton rouge.
+    googleBtn.hidden = true;
+    retryBtn.hidden = false;
+  } else {
+    // Erreur détectée au chargement de la page (ex: connexion précédente
+    // interrompue) : la case CGU est forcément décochée sur ce nouveau
+    // chargement, donc impossible de relancer Google directement. On
+    // réaffiche l'écran normal (case à cocher + bouton Google) plutôt que
+    // le bouton "Réessayer", qui ne ferait rien tant que la case n'est pas
+    // recochée.
+    googleBtn.hidden = false;
+    googleBtn.disabled = !termsCheckbox.checked;
+    retryBtn.hidden = true;
+  }
 
   loadingState.hidden = true;
   if (openBrowserFallback) openBrowserFallback.hidden = true;
@@ -660,7 +672,8 @@ async function checkRedirectResult() {
       debugLog('⚠️ Connexion attendue mais aucun résultat exploitable reçu — la page a probablement été interrompue/rechargée pendant le processus');
       localStorage.removeItem(AUTH_PENDING_KEY);
       showError(
-        "Supprimez vos onglets en arrière-plan : cela peut bloquer la connexion."
+        "Supprimez vos onglets en arrière-plan : cela peut bloquer la connexion.",
+        { directRetry: false }
       );
     }
 
@@ -680,7 +693,7 @@ async function checkRedirectResult() {
       'stack:', err?.stack || 'pas de stack'
     );
 
-    showError(translateAuthError(err));
+    showError(translateAuthError(err), { directRetry: false });
   }
 }
 
