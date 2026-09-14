@@ -7,15 +7,6 @@
 
 /* ---------------------------------- Bandeau hors-ligne ---------------------------------- */
 
-.offline-banner /* ==========================================================================
-   Kontra-Africa — Stock & Ventes
-   Styles spécifiques à stock.html. Réutilise les tokens (tokens.css) et les
-   composants partagés (.btn, .dashboard-card, .dashboard-grid, .app-page-header,
-   déjà définis dans app.css) pour rester cohérent avec le reste de la PWA.
-   ========================================================================== */
-
-/* ---------------------------------- Bandeau hors-ligne ---------------------------------- */
-
 .offline-banner {
   background: var(--color-warning-bg);
   color: var(--color-warning);
@@ -386,6 +377,45 @@
   position: relative;
 }
 
+.product-autocomplete__input-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.product-autocomplete__input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 44px; /* laisse la place au bouton triangle */
+}
+
+.product-autocomplete__toggle {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 38px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
+  transition: background var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.product-autocomplete__toggle:hover,
+.product-autocomplete__toggle:focus-visible {
+  background: var(--color-primary-light);
+  outline: none;
+}
+
+.product-autocomplete__toggle--open {
+  transform: rotate(180deg);
+}
+
 .product-autocomplete__list {
   position: absolute;
   z-index: 30;
@@ -609,551 +639,59 @@
 }
 
 .profit-hero-card__footer {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
   margin: 0;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.25);
-  font-size: 0.875rem;
-  font-weight: 600;
-  opacity: 0.95;
 }
 
-.profit-hero-card__footer span {
-  font-weight: 700;
-}
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  margin-bottom: var(--space-5);
-}
-
-/* ---------------------------------- Onglets ---------------------------------- */
-
-.stock-tabs {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--color-border);
-  overflow-x: auto;
-}
-
-.stock-tab {
-  background: none;
-  border: none;
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  transition: color var(--duration-fast) var(--ease-standard),
-              border-color var(--duration-fast) var(--ease-standard);
-}
-
-.stock-tab:hover {
-  color: var(--color-text);
-}
-
-.stock-tab.is-active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.stock-panel[hidden] {
-  display: none;
-}
-
-/* ---------------------------------- Panels génériques ---------------------------------- */
-
-.panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
-  margin-bottom: var(--space-5);
-}
-
-.panel-title {
-  font-size: var(--fs-md);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.panel-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
-}
-
-.panel-header-row .panel-title {
-  margin-bottom: 0;
-}
-
-.panel > .panel-title {
-  margin-bottom: var(--space-4);
-  display: block;
-}
-
-.panel-hint {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-4);
-}
-
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.state-message {
-  padding: var(--space-5) var(--space-3);
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.state-message--error {
-  color: var(--color-error);
-}
-
-/* ---------------------------------- Boutons additionnels ---------------------------------- */
-
-.btn-sm {
-  min-height: 38px;
-  padding: 0 var(--space-4);
-  font-size: var(--fs-sm);
-}
-
-.btn-credit {
-  background: var(--color-success);
-  color: #FFFFFF;
-}
-
-.btn-credit:hover {
-  background: #187E56;
-}
-
-.btn-debit {
-  background: var(--color-surface);
-  color: var(--color-error);
-  border: 1.5px solid var(--color-error-bg);
-}
-
-.btn-debit:hover {
-  background: var(--color-error-bg);
-}
-
-/* ---------------------------------- Recherche produit ---------------------------------- */
-
-.stock-search {
-  margin-bottom: var(--space-4);
-}
-
-.stock-search input {
-  width: 100%;
-  min-height: 46px;
-  border: 1.5px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  padding: 0 var(--space-4);
-  font-size: var(--fs-base);
-  color: var(--color-text);
-  transition: border-color var(--duration-fast) var(--ease-standard),
-              box-shadow var(--duration-fast) var(--ease-standard);
-}
-
-.stock-search input:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
-}
-
-/* ---------------------------------- Liste produits ---------------------------------- */
-
-.products-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.product-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-alt);
-}
-
-.product-card--low-stock {
-  border-color: var(--color-warning);
-  background: var(--color-warning-bg);
-}
-
-.product-card--out-of-stock {
-  border-color: var(--color-error);
-  background: var(--color-error-bg);
-}
-
-.product-card__info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+.profit-hero-card__stat {
+  flex: 1 1 0;
   min-width: 0;
-}
-
-.product-card__name {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.product-card__meta {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-}
-
-.product-card__stock {
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.product-card__stock--low {
-  color: var(--color-warning);
-}
-
-.product-card__stock--out {
-  color: var(--color-error);
-}
-
-.product-card__actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-/* ---------------------------------- Alertes stock ---------------------------------- */
-
-.low-stock-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.low-stock-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-full);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-}
-
-.low-stock-badge--warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-}
-
-.low-stock-badge--error {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-.low-stock-badge__qty {
-  font-family: var(--font-mono);
-}
-
-/* ---------------------------------- Ventes du jour ---------------------------------- */
-
-.sales-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.sale-row {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-alt);
+  gap: 2px;
 }
 
-.sale-row--locked {
-  opacity: 0.7;
-}
-
-.sale-row__info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.sale-row__product {
+.profit-hero-card__stat-label {
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-text);
-}
-
-.sale-row__meta {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-}
-
-.sale-row__profit {
-  color: var(--color-success);
-  font-weight: 600;
-}
-
-.daily-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px dashed var(--color-border);
-}
-
-.daily-summary__item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.daily-summary__label {
-  font-size: var(--fs-xs);
-  color: var(--color-text-muted);
-}
-
-.daily-summary__value {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-/* ---------------------------------- Formulaires (champs) ---------------------------------- */
-
-.form-field {
-  margin-bottom: var(--space-4);
-}
-
-.form-field label {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-2);
-}
-
-.form-field input,
-.form-field select {
-  width: 100%;
-  min-height: 46px;
-  border: 1.5px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  padding: 0 var(--space-4);
-  font-size: var(--fs-base);
-  color: var(--color-text);
-  transition: border-color var(--duration-fast) var(--ease-standard),
-              box-shadow var(--duration-fast) var(--ease-standard);
-}
-
-.form-field input:focus-visible,
-.form-field select:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
-}
-
-.form-field__currency-row {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-}
-
-.form-field__currency-row input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.form-field__currency {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-  font-weight: 600;
-  font-size: var(--fs-sm);
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.form-error {
-  color: var(--color-error);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  margin: 0 0 var(--space-3);
-}
-
-.saved-msg {
-  color: var(--color-success);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  margin: 0 0 var(--space-3);
-}
-
-/* ---------------------------------- Modal produit (dialog natif) ---------------------------------- */
-
-.modal {
-  border: none;
-  border-radius: var(--radius-lg);
-  padding: 0;
-  width: min(480px, calc(100vw - var(--space-6)));
-  box-shadow: var(--shadow-lg);
-}
-
-.modal::backdrop {
-  background: rgba(26, 19, 48, 0.45);
-  backdrop-filter: blur(2px);
-}
-
-.modal-content {
-  display: flex;
-  flex-direction: column;
-  max-height: 85vh;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h2 {
-  font-size: var(--fs-md);
-  font-weight: 600;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--color-text-faint);
-  padding: var(--space-1);
-}
-
-.modal-close:hover {
-  color: var(--color-text);
-}
-
-.modal-body {
-  padding: var(--space-6);
-  overflow-y: auto;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-6);
-  border-top: 1px solid var(--color-border);
-}
-
-/* ---------------------------------- Responsive ---------------------------------- */
-
-@media (max-width: 480px) {
-  .daily-summary {
-    grid-template-columns: 1fr 1fr;
-  }
-  .product-card,
-  .sale-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .product-card__actions {
-    width: 100%;
-  }
-  .product-card__actions .btn {
-    flex: 1;
-  }
-}
-
-/* ==========================================================================
-   Carte héro — Bénéfice actuel
-   Même esprit visuel que .balance-card de finances.css (dégradé, texte
-   centré, gros montant), mais en orange (couleur de marque du module stock,
-   --color-accent) plutôt qu'en violet — et sans boutons Créditer/Débiter,
-   qui n'ont pas de sens ici. La ligne du bas remplace ces boutons par le
-   nombre total de ventes du jour.
-   ========================================================================== */
-
-.profit-hero-card {
-  background: linear-gradient(135deg, #FF8A3D, #FFB067);
-  color: #fff;
-  border-radius: var(--radius-lg, 16px);
-  padding: 24px;
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-.profit-hero-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  position: relative;
-}
-
-.profit-hero-card__label {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  opacity: 0.9;
-}
-
-.profit-hero-card__convert {
-  position: absolute;
-  right: 0;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
-
-.profit-hero-card__amount {
-  font-size: 2.25rem;
+.profit-hero-card__stat-value {
+  font-size: 1rem;
   font-weight: 700;
-  margin: 10px 0 16px;
   word-break: break-word;
 }
 
-.profit-hero-card__footer {
-  margin: 0;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
-  font-size: 0.875rem;
-  font-weight: 600;
-  opacity: 0.95;
+.profit-hero-card__stat-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.3);
 }
 
-.profit-hero-card__footer span {
-  font-weight: 700;
+/* Mobile : le libellé "Chiffre d'affaires" est trop long pour tenir sur une
+   seule ligne à côté de "Total vendu" sans s'écraser — on repasse en
+   uppercase plus petit + on autorise le retour à la ligne du libellé
+   uniquement, jamais du montant. */
+@media (max-width: 420px) {
+  .profit-hero-card__footer {
+    gap: 8px;
+  }
+
+  .profit-hero-card__stat-label {
+    white-space: normal;
+    font-size: 0.7rem;
+  }
+
+  .profit-hero-card__stat-value {
+    font-size: 0.9rem;
+  }
 }
