@@ -181,7 +181,11 @@
   transform: scale(0.98);
 }
 
-/* --- État de chargement --- */
+/* --- État de chargement : overlay PLEIN ÉCRAN, impossible à manquer ---
+   Recouvre toute la page (au-dessus de la carte, du toast, de tout) pendant
+   la connexion Google ET le réveil du serveur Render, pour que l'utilisateur
+   comprenne clairement que quelque chose est en cours, plutôt qu'un petit
+   indicateur discret facile à ignorer ou à confondre avec un blocage. */
 
 .login-state {
   width: 100%;
@@ -191,9 +195,39 @@
   gap: var(--space-4);
 }
 
+.login-state--loading {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--color-bg, #FAFAFB);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  text-align: center;
+}
+
 .login-state--loading p {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+.login-state--loading .spinner {
+  width: 56px;
+  height: 56px;
+  border-width: 5px;
+}
+
+.login-state--loading__hint {
   color: var(--color-text-muted);
-  font-size: var(--fs-sm);
+  font-size: 13px;
+  max-width: 300px;
+  line-height: 1.4;
 }
 
 .spinner {
