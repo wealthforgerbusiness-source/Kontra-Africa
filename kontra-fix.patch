@@ -1,8 +1,8 @@
 diff --git a/css/stock.css b/css/stock.css
-index 98bd734..3a39100 100644
+index 98bd734..1aa826b 100644
 --- a/css/stock.css
 +++ b/css/stock.css
-@@ -368,6 +368,72 @@
+@@ -368,6 +368,111 @@
    box-shadow: 0 0 0 3px var(--color-primary-light);
  }
  
@@ -13,6 +13,45 @@ index 98bd734..3a39100 100644
 +
 +.product-autocomplete {
 +  position: relative;
++}
++
++.product-autocomplete__input-row {
++  position: relative;
++  display: flex;
++  align-items: stretch;
++}
++
++.product-autocomplete__input-row input {
++  flex: 1 1 auto;
++  min-width: 0;
++  padding-right: 44px; /* laisse la place au bouton triangle */
++}
++
++.product-autocomplete__toggle {
++  position: absolute;
++  right: 4px;
++  top: 4px;
++  bottom: 4px;
++  width: 38px;
++  border: none;
++  background: none;
++  color: var(--color-text-muted);
++  font-size: 18px;
++  line-height: 1;
++  cursor: pointer;
++  border-radius: var(--radius-sm, 6px);
++  transition: background var(--duration-fast) var(--ease-standard),
++              transform var(--duration-fast) var(--ease-standard);
++}
++
++.product-autocomplete__toggle:hover,
++.product-autocomplete__toggle:focus-visible {
++  background: var(--color-primary-light);
++  outline: none;
++}
++
++.product-autocomplete__toggle--open {
++  transform: rotate(180deg);
 +}
 +
 +.product-autocomplete__list {
@@ -75,6 +114,69 @@ index 98bd734..3a39100 100644
  .form-field__currency-row {
    display: flex;
    align-items: stretch;
+@@ -534,14 +639,59 @@
+ }
+ 
+ .profit-hero-card__footer {
++  display: flex;
++  align-items: stretch;
++  justify-content: center;
++  gap: 16px;
+   margin: 0;
+   padding-top: 14px;
+   border-top: 1px solid rgba(255, 255, 255, 0.25);
+-  font-size: 0.875rem;
++}
++
++.profit-hero-card__stat {
++  flex: 1 1 0;
++  min-width: 0;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 2px;
++}
++
++.profit-hero-card__stat-label {
++  font-size: 0.75rem;
+   font-weight: 600;
+-  opacity: 0.95;
++  opacity: 0.85;
++  text-transform: uppercase;
++  letter-spacing: 0.02em;
++  white-space: nowrap;
+ }
+ 
+-.profit-hero-card__footer span {
++.profit-hero-card__stat-value {
++  font-size: 1rem;
+   font-weight: 700;
++  word-break: break-word;
++}
++
++.profit-hero-card__stat-divider {
++  width: 1px;
++  background: rgba(255, 255, 255, 0.3);
++}
++
++/* Mobile : le libellé "Chiffre d'affaires" est trop long pour tenir sur une
++   seule ligne à côté de "Total vendu" sans s'écraser — on repasse en
++   uppercase plus petit + on autorise le retour à la ligne du libellé
++   uniquement, jamais du montant. */
++@media (max-width: 420px) {
++  .profit-hero-card__footer {
++    gap: 8px;
++  }
++
++  .profit-hero-card__stat-label {
++    white-space: normal;
++    font-size: 0.7rem;
++  }
++
++  .profit-hero-card__stat-value {
++    font-size: 0.9rem;
++  }
+ }
 diff --git a/js/contracts.js b/js/contracts.js
 index f12fe27..bc751c2 100644
 --- a/js/contracts.js
@@ -89,19 +191,29 @@ index f12fe27..bc751c2 100644
  
    try {
 diff --git a/js/stock.js b/js/stock.js
-index d05c6d9..970abf5 100644
+index d05c6d9..59506d2 100644
 --- a/js/stock.js
 +++ b/js/stock.js
-@@ -50,7 +50,7 @@ const productSellingCurrency = document.getElementById("product-selling-currency
+@@ -30,6 +30,8 @@ const stockBalanceValue = document.getElementById("stock-balance-value");
+ const btnConvertBalance = document.getElementById("btn-convert-balance");
+ const dailyProfitValue = document.getElementById("daily-profit-value");
+ const btnConvertProfit = document.getElementById("btn-convert-profit");
++const stockTotalRevenueValue = document.getElementById("stock-total-revenue-value");
++const stockTotalSalesCount = document.getElementById("stock-total-sales-count");
+ const topProductName = document.getElementById("top-product-name");
+ const topProductQty = document.getElementById("top-product-qty");
+ const lowProductName = document.getElementById("low-product-name");
+@@ -50,7 +52,8 @@ const productSellingCurrency = document.getElementById("product-selling-currency
  
  // Ventes
  const saleProductSearch = document.getElementById("sale-product-search");
 -const saleProductOptions = document.getElementById("sale-product-options");
 +const saleProductSuggestions = document.getElementById("sale-product-suggestions");
++const saleProductToggle = document.getElementById("sale-product-toggle");
  const saleQuantity = document.getElementById("sale-quantity");
  const saleStockHint = document.getElementById("sale-stock-hint");
  const saleFormError = document.getElementById("sale-form-error");
-@@ -319,6 +319,14 @@ function requireCurrencyConfigured(options = {}) {
+@@ -319,6 +322,14 @@ function requireCurrencyConfigured(options = {}) {
  // Auth + fetch helper (pattern à réconcilier avec finances.js)
  // ============================================================
  
@@ -116,7 +228,7 @@ index d05c6d9..970abf5 100644
  async function authFetch(path, options = {}) {
    const token = await auth.currentUser.getIdToken();
    const headers = {
-@@ -327,7 +335,29 @@ async function authFetch(path, options = {}) {
+@@ -327,7 +338,29 @@ async function authFetch(path, options = {}) {
      ...(options.headers || {}),
    };
  
@@ -147,7 +259,7 @@ index d05c6d9..970abf5 100644
  
    if (!response.ok) {
      const body = await response.json().catch(() => ({}));
-@@ -583,9 +613,15 @@ function loadStockDataFromCache(uid, scope = "all") {
+@@ -583,9 +616,15 @@ function loadStockDataFromCache(uid, scope = "all") {
  }
  
  function warnCacheFallbackOnce(hasCache) {
@@ -166,7 +278,26 @@ index d05c6d9..970abf5 100644
    }
  }
  
-@@ -935,7 +971,9 @@ function renderProducts() {
+@@ -662,10 +701,18 @@ btnConvertBalance.addEventListener("click", () => {
+ function renderDailyProfitCard() {
+   const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+   const netProfit = salesProfit - totalExpensesToday;
++  const revenue = salesToday.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
+ 
+   dailyProfitValue.textContent = formatAmount(netProfit, currentUserData, profitViewCurrency);
+   btnConvertProfit.textContent =
+     profitViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
++
++  // Chiffre d'affaires + nombre de ventes, sur la même carte hero que le
++  // bénéfice (auparavant seul "Total vendu" était affiché, et n'était même
++  // jamais mis à jour depuis le JS — texte figé à "0 vente").
++  stockTotalRevenueValue.textContent = formatAmount(revenue, currentUserData, profitViewCurrency);
++  const count = salesToday.length;
++  stockTotalSalesCount.textContent = `${count} vente${count > 1 ? "s" : ""}`;
+ }
+ 
+ btnConvertProfit.addEventListener("click", () => {
+@@ -935,7 +982,9 @@ function renderProducts() {
    }
  
    renderLowStockSection();
@@ -177,7 +308,7 @@ index d05c6d9..970abf5 100644
  }
  
  productSearch.addEventListener("input", renderProducts);
-@@ -993,16 +1031,130 @@ function findProductByName(name) {
+@@ -993,16 +1042,145 @@ function findProductByName(name) {
    return null;
  }
  
@@ -218,6 +349,7 @@ index d05c6d9..970abf5 100644
 +  saleProductSuggestions.hidden = true;
 +  saleProductSuggestions.innerHTML = "";
 +  saleProductSearch.setAttribute("aria-expanded", "false");
++  saleProductToggle.classList.remove("product-autocomplete__toggle--open");
 +}
 +
 +function highlightSaleSuggestion(index) {
@@ -242,6 +374,7 @@ index d05c6d9..970abf5 100644
 +      '<div class="product-autocomplete__empty">Aucun produit correspondant.</div>';
 +    saleProductSuggestions.hidden = false;
 +    saleProductSearch.setAttribute("aria-expanded", "true");
++    saleProductToggle.classList.add("product-autocomplete__toggle--open");
 +    saleSuggestionItems = [];
 +    saleSuggestionActiveIndex = -1;
 +    return;
@@ -273,6 +406,7 @@ index d05c6d9..970abf5 100644
 +
 +  saleProductSuggestions.hidden = false;
 +  saleProductSearch.setAttribute("aria-expanded", "true");
++  saleProductToggle.classList.add("product-autocomplete__toggle--open");
  }
  
 +saleProductSearch.addEventListener("focus", renderSaleProductSuggestions);
@@ -306,6 +440,18 @@ index d05c6d9..970abf5 100644
 +  setTimeout(closeSaleSuggestions, 100);
 +});
 +
++// Bouton triangle : ouvre/ferme la liste complète même sans taper de texte,
++// comme un <select> classique. mousedown pour agir avant le blur du champ.
++saleProductToggle.addEventListener("mousedown", (event) => {
++  event.preventDefault();
++  if (saleProductSuggestions.hidden) {
++    saleProductSearch.focus();
++    renderSaleProductSuggestions();
++  } else {
++    closeSaleSuggestions();
++  }
++});
++
 +document.addEventListener("click", (event) => {
 +  if (!event.target.closest(".product-autocomplete")) {
 +    closeSaleSuggestions();
@@ -316,10 +462,29 @@ index d05c6d9..970abf5 100644
  // Rendu — Ventes du jour
  // ============================================================
 diff --git a/stock.html b/stock.html
-index 664fc0c..1856b46 100644
+index 664fc0c..9f094ec 100644
 --- a/stock.html
 +++ b/stock.html
-@@ -129,10 +129,10 @@
+@@ -50,7 +50,17 @@
+             <button type="button" class="dashboard-card__convert profit-hero-card__convert" id="btn-convert-profit">🔄 USD</button>
+           </div>
+           <p class="profit-hero-card__amount" id="daily-profit-value">—</p>
+-          <p class="profit-hero-card__footer">Total vendu : <span id="stock-total-sales-count">0 vente</span></p>
++          <div class="profit-hero-card__footer">
++            <div class="profit-hero-card__stat">
++              <span class="profit-hero-card__stat-label">Chiffre d'affaires</span>
++              <span class="profit-hero-card__stat-value" id="stock-total-revenue-value">—</span>
++            </div>
++            <div class="profit-hero-card__stat-divider" aria-hidden="true"></div>
++            <div class="profit-hero-card__stat">
++              <span class="profit-hero-card__stat-label">Total vendu</span>
++              <span class="profit-hero-card__stat-value" id="stock-total-sales-count">0 vente</span>
++            </div>
++          </div>
+         </section>
+ 
+         <div class="dashboard-grid">
+@@ -129,10 +139,13 @@
          <section class="panel">
            <h2 class="panel-title">Nouvelle vente</h2>
  
@@ -328,7 +493,10 @@ index 664fc0c..1856b46 100644
              <label for="sale-product-search">Produit</label>
 -            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
 -            <datalist id="sale-product-options"></datalist>
-+            <input type="text" id="sale-product-search" placeholder="Rechercher ou choisir un produit…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sale-product-suggestions" />
++            <div class="product-autocomplete__input-row">
++              <input type="text" id="sale-product-search" placeholder="Rechercher ou choisir un produit…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sale-product-suggestions" />
++              <button type="button" id="sale-product-toggle" class="product-autocomplete__toggle" aria-label="Afficher la liste des produits">▾</button>
++            </div>
 +            <div id="sale-product-suggestions" class="product-autocomplete__list" role="listbox" hidden></div>
            </div>
  
