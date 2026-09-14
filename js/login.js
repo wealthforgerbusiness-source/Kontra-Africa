@@ -892,11 +892,18 @@ if (retryBtn) {
     'click',
     () => {
 
-      debugLog('🔁 Clic bouton Réessayer — relance directe de la connexion Google');
+      debugLog('🔁 Clic bouton Réessayer — rechargement complet de la page de connexion (état SDK propre) avant de relancer Google');
 
-      errorState.hidden = true;
-
-      startGoogleSignIn();
+      // CORRECTIF : on ne relance plus signInWithPopup() directement dans la
+      // même page. Un premier échec (popup fermée trop vite, état interne
+      // du SDK Firebase Auth resté partiellement initialisé, jeton de geste
+      // utilisateur déjà consommé, etc.) laisse parfois la page dans un état
+      // qui fait échouer une deuxième tentative immédiate au même endroit,
+      // même si tout semble correct. Un rechargement complet de login.html
+      // repart d'un état totalement propre (nouveau script, nouvelle
+      // instance Auth), ce qui correspond au comportement observé : la
+      // deuxième tentative réussit presque toujours après un vrai rechargement.
+      window.location.href = '/login.html';
 
     }
   );
