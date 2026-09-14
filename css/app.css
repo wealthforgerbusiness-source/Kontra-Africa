@@ -889,3 +889,65 @@
   width: 26px;
   height: 26px;
 }
+
+/* ==========================================================================
+   Bannière d'installation PWA (dashboard.html, potentiellement d'autres
+   pages plus tard). Même esprit visuel que .offline-banner (voir stock.css,
+   finances.css, contracts.css) mais en accent primaire plutôt qu'orange,
+   puisqu'il ne s'agit pas d'un avertissement mais d'une invitation.
+   ========================================================================== */
+
+.install-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  margin-bottom: var(--space-5);
+}
+
+.install-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.install-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.install-banner__close {
+  background: transparent;
+  border: none;
+  color: var(--color-primary-dark);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  opacity: 0.7;
+}
+
+.install-banner__close:hover,
+.install-banner__close:active {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .install-banner {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .install-banner__actions {
+    justify-content: center;
+  }
+}
