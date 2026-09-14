@@ -479,8 +479,8 @@ function renderPaywall(user) {
 
         <p class="paywall__text">
           Abonnez-vous pour continuer à créer des
-          contrats, les faire signer et suivre vos
-          finances sur Kontra-Africa.
+          contrats, les faire signer, gérer votre
+          stock et suivre vos finances sur Kontra-Africa.
         </p>
 
         <div class="paywall__price">
