@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'kontra-v3';
+const CACHE_VERSION = 'kontra-v4'; // ⚠️ Incrémente ce numéro à CHAQUE déploiement qui touche un fichier JS/CSS/HTML.
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -48,6 +48,17 @@ const APP_SHELL_URLS = [
   '/js/sign.js'
 ];
 
+// Extensions dont on veut TOUJOURS vérifier le réseau en priorité, car
+// c'est justement le code applicatif (JS/CSS) qui a causé le bug : une
+// nouvelle version déployée sur Render doit être servie dès que possible,
+// pas seulement "à la prochaine visite". Le HTML de navigation utilisait
+// déjà ce principe (network-first) ; on l'étend ici à .js et .css.
+const NETWORK_FIRST_EXTENSIONS = ['.js', '.css'];
+
+function isNetworkFirstAsset(url) {
+  return NETWORK_FIRST_EXTENSIONS.some((ext) => url.pathname.endsWith(ext));
+}
+
 // -----------------------------------------------------------------------------
 // INSTALL — pré-cache l'app shell
 // -----------------------------------------------------------------------------
@@ -93,7 +104,16 @@ self.addEventListener('activate', (event) => {
 //   fallback sur le cache si hors-ligne, fallback final sur index.html.
 // - Requêtes Firebase / API (kontra-africa.onrender.com, googleapis, gstatic) :
 //   on laisse passer directement au réseau, PAS de cache (données live).
-// - Autres assets (css/js/icônes) : cache-first, avec mise à jour en arrière-plan.
+// - Fichiers .js / .css : network-first, fallback cache si hors-ligne.
+//   ⚠️ CORRECTIF : ces fichiers étaient avant en cache-first, donc une
+//   ancienne version restait servie tant que CACHE_VERSION n'était pas
+//   changé manuellement — c'est exactement ce qui a causé le bug
+//   "renderSaleProductOptions" (ancien stock.js servi malgré un nouveau
+//   déploiement). Avec network-first, la dernière version déployée sur
+//   Render est utilisée dès qu'elle est disponible, sans dépendre d'un
+//   changement de numéro de version.
+// - Autres assets (images, icônes, manifest) : cache-first, avec mise à
+//   jour en arrière-plan (changent rarement, la vitesse prime ici).
 // -----------------------------------------------------------------------------
 
 const NO_CACHE_HOSTS = [
@@ -135,7 +155,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets statiques (css, js, images, manifest) : cache-first.
+  // Fichiers JS / CSS : network-first (voir explication ci-dessus).
+  if (isNetworkFirstAsset(url)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Autres assets statiques (images, icônes, manifest) : cache-first.
   event.respondWith(
     caches.match(request).then((cached) => {
       const networkFetch = fetch(request)
