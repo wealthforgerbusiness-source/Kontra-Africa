@@ -1,7 +1,7 @@
 {
   "name": "Kontra-Africa",
   "short_name": "Kontra",
-  "description": "Kontra-Africa — Gestion des contrats et des finances",
+  "description": "Kontra-Africa — Gestion des contrats, du stock et des finances",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
