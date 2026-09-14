@@ -129,10 +129,10 @@
         <section class="panel">
           <h2 class="panel-title">Nouvelle vente</h2>
 
-          <div class="form-field">
+          <div class="form-field product-autocomplete">
             <label for="sale-product-search">Produit</label>
-            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
-            <datalist id="sale-product-options"></datalist>
+            <input type="text" id="sale-product-search" placeholder="Rechercher ou choisir un produit…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sale-product-suggestions" />
+            <div id="sale-product-suggestions" class="product-autocomplete__list" role="listbox" hidden></div>
           </div>
 
           <div class="form-field">
