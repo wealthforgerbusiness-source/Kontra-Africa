@@ -177,6 +177,54 @@ index 98bd734..1aa826b 100644
 +    font-size: 0.9rem;
 +  }
  }
+diff --git a/index.html b/index.html
+index b25c00a..59bc2f7 100644
+--- a/index.html
++++ b/index.html
+@@ -7,8 +7,8 @@
+   <meta name="google-site-verification" content="-_aNDFj2tGqemqJy4bAPqVS9438FSGOIACF2So6ZFVo" />
+   <meta name="color-scheme" content="light only">
+   <meta name="supported-color-schemes" content="light">
+-  <title>Kontra-Africa — Contrats, signatures et finances, simplifiés</title>
+-  <meta name="description" content="Créez des contrats, faites-les signer par WhatsApp, et suivez vos finances. Une seule app, installable sur tout appareil.">
++  <title>Kontra-Africa — Contrats, signatures, stock et finances, simplifiés</title>
++  <meta name="description" content="Créez des contrats, faites-les signer par WhatsApp, gérez votre stock et suivez vos finances. Une seule app, installable sur tout appareil.">
+   <meta name="theme-color" content="#5B3FE0">
+   <meta name="color-scheme" content="light">
+ 
+@@ -156,7 +156,7 @@
+     <section class="hero">
+       <div class="container hero__inner">
+         <div class="hero__copy reveal">
+-          <p class="eyebrow">Contrats · Signatures · Finances</p>
++          <p class="eyebrow">Contrats · Signatures · Stock · Finances</p>
+           <h1 class="hero__title">
+             Vos contrats signés,
+             <span class="signature-wrap">
+@@ -441,7 +441,7 @@
+           <p class="eyebrow">Rejoignez-nous</p>
+           <h2 class="section__title">Prêt à signer votre premier contrat aujourd'hui ?</h2>
+           <p class="feature-split__text">
+-            Rejoignez les utilisateurs qui gèrent déjà leurs contrats et leurs finances sur Kontra-Africa.
++            Rejoignez les utilisateurs qui gèrent déjà leurs contrats, leur stock et leurs finances sur Kontra-Africa.
+             3 jours d'essai gratuit, sans carte bancaire.
+           </p>
+           <a href="/login.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
+diff --git a/js/auth-guard.js b/js/auth-guard.js
+index 266c67a..f03dc6c 100644
+--- a/js/auth-guard.js
++++ b/js/auth-guard.js
+@@ -479,8 +479,8 @@ function renderPaywall(user) {
+ 
+         <p class="paywall__text">
+           Abonnez-vous pour continuer à créer des
+-          contrats, les faire signer et suivre vos
+-          finances sur Kontra-Africa.
++          contrats, les faire signer, gérer votre
++          stock et suivre vos finances sur Kontra-Africa.
+         </p>
+ 
+         <div class="paywall__price">
 diff --git a/js/contracts.js b/js/contracts.js
 index f12fe27..bc751c2 100644
 --- a/js/contracts.js
@@ -461,6 +509,32 @@ index d05c6d9..59506d2 100644
  // ============================================================
  // Rendu — Ventes du jour
  // ============================================================
+diff --git a/login.html b/login.html
+index a0d1c1c..f649d65 100644
+--- a/login.html
++++ b/login.html
+@@ -25,7 +25,7 @@
+       </a>
+       <div class="login-card__intro">
+         <h1 class="login-card__title">Bienvenue sur Kontra-Africa</h1>
+-        <p class="login-card__subtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
++        <p class="login-card__subtitle">Connectez-vous pour créer vos contrats, gérer votre stock et suivre vos finances.</p>
+       </div>
+       <!-- Case à cocher obligatoire : CGU + Politique de confidentialité -->
+       <label class="login-card__terms" for="termsCheckbox">
+diff --git a/manifest.json b/manifest.json
+index 9c29a99..375b1d0 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "Kontra-Africa",
+   "short_name": "Kontra",
+-  "description": "Kontra-Africa — Gestion des contrats et des finances",
++  "description": "Kontra-Africa — Gestion des contrats, du stock et des finances",
+   "start_url": "/",
+   "scope": "/",
+   "display": "standalone",
 diff --git a/stock.html b/stock.html
 index 664fc0c..9f094ec 100644
 --- a/stock.html
@@ -501,3 +575,18 @@ index 664fc0c..9f094ec 100644
            </div>
  
            <div class="form-field">
+diff --git a/terms.html b/terms.html
+index 9c732f0..e9ed109 100644
+--- a/terms.html
++++ b/terms.html
+@@ -92,8 +92,8 @@
+     <h2>1. Description du service</h2>
+     <p>
+       Kontra-Africa est une application permettant de créer des contrats, de les faire signer par
+-      les parties (y compris via WhatsApp pour les signataires ne disposant pas de compte), et de
+-      suivre des finances personnelles ou professionnelles.
++      les parties (y compris via WhatsApp pour les signataires ne disposant pas de compte), de gérer
++      leur stock, et de suivre des finances personnelles ou professionnelles.
+     </p>
+     <p>
+       Kontra-Africa n'est pas un cabinet d'avocats et ne fournit aucun conseil juridique. Les modèles
