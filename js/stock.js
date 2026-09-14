@@ -30,6 +30,8 @@ const stockBalanceValue = document.getElementById("stock-balance-value");
 const btnConvertBalance = document.getElementById("btn-convert-balance");
 const dailyProfitValue = document.getElementById("daily-profit-value");
 const btnConvertProfit = document.getElementById("btn-convert-profit");
+const stockTotalRevenueValue = document.getElementById("stock-total-revenue-value");
+const stockTotalSalesCount = document.getElementById("stock-total-sales-count");
 const topProductName = document.getElementById("top-product-name");
 const topProductQty = document.getElementById("top-product-qty");
 const lowProductName = document.getElementById("low-product-name");
@@ -51,6 +53,7 @@ const productSellingCurrency = document.getElementById("product-selling-currency
 // Ventes
 const saleProductSearch = document.getElementById("sale-product-search");
 const saleProductSuggestions = document.getElementById("sale-product-suggestions");
+const saleProductToggle = document.getElementById("sale-product-toggle");
 const saleQuantity = document.getElementById("sale-quantity");
 const saleStockHint = document.getElementById("sale-stock-hint");
 const saleFormError = document.getElementById("sale-form-error");
@@ -698,10 +701,18 @@ btnConvertBalance.addEventListener("click", () => {
 function renderDailyProfitCard() {
   const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
   const netProfit = salesProfit - totalExpensesToday;
+  const revenue = salesToday.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
 
   dailyProfitValue.textContent = formatAmount(netProfit, currentUserData, profitViewCurrency);
   btnConvertProfit.textContent =
     profitViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
+
+  // Chiffre d'affaires + nombre de ventes, sur la même carte hero que le
+  // bénéfice (auparavant seul "Total vendu" était affiché, et n'était même
+  // jamais mis à jour depuis le JS — texte figé à "0 vente").
+  stockTotalRevenueValue.textContent = formatAmount(revenue, currentUserData, profitViewCurrency);
+  const count = salesToday.length;
+  stockTotalSalesCount.textContent = `${count} vente${count > 1 ? "s" : ""}`;
 }
 
 btnConvertProfit.addEventListener("click", () => {
@@ -1061,6 +1072,7 @@ function closeSaleSuggestions() {
   saleProductSuggestions.hidden = true;
   saleProductSuggestions.innerHTML = "";
   saleProductSearch.setAttribute("aria-expanded", "false");
+  saleProductToggle.classList.remove("product-autocomplete__toggle--open");
 }
 
 function highlightSaleSuggestion(index) {
@@ -1085,6 +1097,7 @@ function renderSaleProductSuggestions() {
       '<div class="product-autocomplete__empty">Aucun produit correspondant.</div>';
     saleProductSuggestions.hidden = false;
     saleProductSearch.setAttribute("aria-expanded", "true");
+    saleProductToggle.classList.add("product-autocomplete__toggle--open");
     saleSuggestionItems = [];
     saleSuggestionActiveIndex = -1;
     return;
@@ -1116,6 +1129,7 @@ function renderSaleProductSuggestions() {
 
   saleProductSuggestions.hidden = false;
   saleProductSearch.setAttribute("aria-expanded", "true");
+  saleProductToggle.classList.add("product-autocomplete__toggle--open");
 }
 
 saleProductSearch.addEventListener("focus", renderSaleProductSuggestions);
@@ -1147,6 +1161,18 @@ saleProductSearch.addEventListener("keydown", (event) => {
 saleProductSearch.addEventListener("blur", () => {
   // Léger délai pour laisser le mousedown de l'item s'exécuter en premier.
   setTimeout(closeSaleSuggestions, 100);
+});
+
+// Bouton triangle : ouvre/ferme la liste complète même sans taper de texte,
+// comme un <select> classique. mousedown pour agir avant le blur du champ.
+saleProductToggle.addEventListener("mousedown", (event) => {
+  event.preventDefault();
+  if (saleProductSuggestions.hidden) {
+    saleProductSearch.focus();
+    renderSaleProductSuggestions();
+  } else {
+    closeSaleSuggestions();
+  }
 });
 
 document.addEventListener("click", (event) => {
