@@ -260,6 +260,20 @@
     ======================================================== -->
     <main class="app-main" id="appMain">
 
+      <!-- =====================================================
+           BANNIÈRE D'INSTALLATION PWA
+           Affichée uniquement si le navigateur propose l'installation
+           (événement beforeinstallprompt) ET que l'app n'est pas déjà
+           installée. Gérée entièrement par js/install-prompt.js.
+      ====================================================== -->
+      <div class="install-banner" id="install-banner" hidden>
+        <p>Installe l'application pour un accès plus rapide et l'utilisation hors ligne.</p>
+        <div class="install-banner__actions">
+          <button type="button" class="btn btn-primary" id="install-banner-btn">Installer</button>
+          <button type="button" class="install-banner__close" id="install-banner-close" aria-label="Fermer">&times;</button>
+        </div>
+      </div>
+
       <div class="app-page-header">
 
         <h1 id="dashboardGreeting">
@@ -598,6 +612,14 @@
   </div>
 
 
+
+  <!-- =========================================================
+       INVITE D'INSTALLATION PWA
+  ========================================================== -->
+  <script
+    type="module"
+    src="/js/install-prompt.js"
+  ></script>
 
   <!-- =========================================================
        JAVASCRIPT DU DASHBOARD
