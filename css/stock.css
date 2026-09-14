@@ -484,3 +484,64 @@
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   Carte héro — Bénéfice actuel
+   Même esprit visuel que .balance-card de finances.css (dégradé, texte
+   centré, gros montant), mais en orange (couleur de marque du module stock,
+   --color-accent) plutôt qu'en violet — et sans boutons Créditer/Débiter,
+   qui n'ont pas de sens ici. La ligne du bas remplace ces boutons par le
+   nombre total de ventes du jour.
+   ========================================================================== */
+
+.profit-hero-card {
+  background: linear-gradient(135deg, #FF8A3D, #FFB067);
+  color: #fff;
+  border-radius: var(--radius-lg, 16px);
+  padding: 24px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.profit-hero-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+}
+
+.profit-hero-card__label {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.profit-hero-card__convert {
+  position: absolute;
+  right: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.profit-hero-card__amount {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 10px 0 16px;
+  word-break: break-word;
+}
+
+.profit-hero-card__footer {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.875rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.profit-hero-card__footer span {
+  font-weight: 700;
+}
