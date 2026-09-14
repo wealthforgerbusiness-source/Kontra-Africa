@@ -713,7 +713,7 @@ async function startCreatorPdfDownload(
     true;
 
   button.textContent =
-    'Préparation du PDF…';
+    'Préparation du PDF… (jusqu\'à 30s si le serveur se réveille)';
 
 
   try {
