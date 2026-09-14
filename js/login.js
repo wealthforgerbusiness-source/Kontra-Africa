@@ -1,1504 +1,967 @@
-import { auth, db } from "./firebase-config.js";
-import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { requireAppAccess } from "./auth-guard.js";
-import { getCurrencySymbol, formatAmount } from "./currency.js";
+// ============================================================
+// SYSTÈME DE CAPTURE UNIVERSEL DES ERREURS (AVANT TOUT IMPORT)
+// ============================================================
+// Aucune console développeur n'est disponible côté mobile : tout est donc
+// affiché directement à l'écran dans l'encadré #debug-log.
+//
+// IMPORTANT : signInWithRedirect() fait quitter complètement la page vers
+// Google puis revenir — c'est un vrai rechargement de page, qui efface tout
+// ce qui est en mémoire. Le journal est donc aussi persisté dans
+// localStorage pour survivre à ce rechargement et rester lisible au retour.
+
+const DEBUG_LOG_STORAGE_KEY = 'kontra_debug_log_v1';
+const DEBUG_LOG_MAX_CHARS = 20000; // évite une croissance illimitée
+
+const debugLogEl = document.getElementById('debug-log');
+
+function loadPersistedDebugLog() {
+  try {
+    return localStorage.getItem(DEBUG_LOG_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function persistDebugLog(fullText) {
+  try {
+    const trimmed = fullText.length > DEBUG_LOG_MAX_CHARS
+      ? fullText.slice(fullText.length - DEBUG_LOG_MAX_CHARS)
+      : fullText;
+    localStorage.setItem(DEBUG_LOG_STORAGE_KEY, trimmed);
+  } catch (e) {
+    // localStorage indisponible ou plein : on continue sans persister,
+    // le journal reste au moins visible en mémoire pour la session en cours.
+  }
+}
+
+function debugLog(...args) {
+  const time = new Date().toLocaleTimeString('fr-FR', { hour12: false });
+  const message = args.map(a => {
+    if (a instanceof Error) return `${a.name}: ${a.message}`;
+    return typeof a === 'object' ? JSON.stringify(a) : String(a);
+  }).join(' ');
+  const line = `[${time}] ${message}`;
+  if (debugLogEl) {
+    debugLogEl.textContent += line + '\n';
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+    persistDebugLog(debugLogEl.textContent);
+  } else {
+    persistDebugLog(loadPersistedDebugLog() + line + '\n');
+  }
+}
+
+// Au chargement du script, on réaffiche d'abord le journal des sessions
+// précédentes (avant la redirection Google, par exemple), avec un séparateur
+// visuel pour bien distinguer chaque chargement de page.
+if (debugLogEl) {
+  const previousLog = loadPersistedDebugLog();
+  if (previousLog) {
+    debugLogEl.textContent = previousLog;
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+  }
+}
+
+// Capture toute erreur JS non attrapée (y compris hors de nos try/catch,
+// dans des scripts tiers, etc.)
+window.addEventListener('error', (event) => {
+  debugLog('💥 ERREUR JS NON CAPTURÉE:', event.message, 'à', event.filename + ':' + event.lineno);
+});
+
+// Capture toute Promise rejetée sans .catch()
+window.addEventListener('unhandledrejection', (event) => {
+  debugLog('💥 PROMESSE REJETÉE NON CAPTURÉE:', event.reason?.message || event.reason);
+});
+
+debugLog('———— Nouveau chargement de page ————');
+debugLog('✅ Script login.js démarré');
+
+// ------------------------------------------------------------
+// TRACEUR D'OPÉRATION EN COURS
+// ------------------------------------------------------------
+// Sert à savoir précisément ce que le script était en train de faire si la
+// page se décharge/recharge de façon inattendue en plein milieu d'un flux
+// de connexion (ex : Chrome qui décharge l'onglet pour libérer de la
+// mémoire pendant que l'utilisateur est sur l'écran Google).
+
+let currentOperation = 'aucune opération en cours';
+
+function setOperation(op) {
+  currentOperation = op;
+}
+
+window.addEventListener('pagehide', (event) => {
+  debugLog('👋 pagehide déclenché — opération en cours au moment du déchargement:', currentOperation, 'persisted:', event.persisted);
+});
+
+window.addEventListener('visibilitychange', () => {
+  debugLog('👁️ Visibilité changée:', document.visibilityState, '— opération en cours:', currentOperation);
+});
+
+// ============================================================
+// IMPORTS
+// ============================================================
+
+import { auth, googleProvider } from '/js/firebase-config.js';
+
 import {
-  addPendingAction,
-  getPendingActions,
-  removePendingAction,
-  syncPendingActions,
-} from "./offline-queue.js";
-import { renderAppNav } from "./app-nav.js";
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  setPersistence,
+  browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
-renderAppNav("stock"); // sidebar desktop + bottom nav mobile
-
-const API_BASE = "https://kontra-africa.onrender.com/api/stock";
-const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
+const API_BASE_URL = 'https://kontra-africa.onrender.com';
 
 // ============================================================
-// DOM refs
+// CONFIGURATION
 // ============================================================
 
-const offlineBanner = document.getElementById("offline-banner");
+const INIT_USER_TIMEOUT_MS = 120000; // 2 minutes
+const INIT_USER_MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 5000;
 
-// Onglets
-const stockTabs = document.querySelectorAll(".stock-tab");
-const stockPanels = document.querySelectorAll(".stock-panel[data-tab-panel]");
+// Clé localStorage posée juste avant signInWithRedirect(), et lue au
+// rechargement de la page après le retour de Google, pour savoir qu'un
+// résultat de redirection est attendu.
+const AUTH_PENDING_KEY = 'kontra_auth_pending';
 
-// Dashboard
-const stockBalanceValue = document.getElementById("stock-balance-value");
-const btnConvertBalance = document.getElementById("btn-convert-balance");
-const dailyProfitValue = document.getElementById("daily-profit-value");
-const btnConvertProfit = document.getElementById("btn-convert-profit");
-const topProductName = document.getElementById("top-product-name");
-const topProductQty = document.getElementById("top-product-qty");
-const lowProductName = document.getElementById("low-product-name");
-const lowProductQty = document.getElementById("low-product-qty");
-const lowStockSection = document.getElementById("low-stock-section");
-const lowStockBadges = document.getElementById("low-stock-badges");
-const btnQuickAddStock = document.getElementById("btn-quick-add-stock");
-const btnCloseDay = document.getElementById("btn-close-day");
-
-// Produits
-const btnAddProduct = document.getElementById("btn-add-product");
-const productSearch = document.getElementById("product-search");
-const productsList = document.getElementById("products-list");
-const modalProduct = document.getElementById("modal-product");
-const formProduct = document.getElementById("form-product");
-const productPurchaseCurrency = document.getElementById("product-purchase-currency");
-const productSellingCurrency = document.getElementById("product-selling-currency");
-
-// Ventes
-const saleProductSearch = document.getElementById("sale-product-search");
-const saleProductOptions = document.getElementById("sale-product-options");
-const saleQuantity = document.getElementById("sale-quantity");
-const saleStockHint = document.getElementById("sale-stock-hint");
-const saleFormError = document.getElementById("sale-form-error");
-const saleSavedMsg = document.getElementById("sale-saved-msg");
-const btnConfirmSale = document.getElementById("btn-confirm-sale");
-const salesTodayList = document.getElementById("sales-today-list");
-const dailySummary = document.getElementById("daily-summary");
+// Si getRedirectResult() ne s'est toujours pas résolu après ce délai suite à
+// un retour de redirection, on propose le secours "Ouvrir dans le
+// navigateur" (bug connu : le stockage de session utilisé par le redirect
+// n'est parfois pas partagé avec la webview d'une PWA installée).
+const REDIRECT_FALLBACK_TIMEOUT_MS = 8000;
 
 // ============================================================
-// State
+// RÉVEIL ANTICIPÉ DU SERVEUR (Render se met en veille après inactivité)
 // ============================================================
+// On envoie un ping vers /health DÈS LE CHARGEMENT de la page de connexion,
+// bien avant que l'utilisateur ne clique sur "Continuer avec Google". Le
+// temps que l'utilisateur lise l'écran et coche la case CGU, le serveur a
+// généralement déjà eu le temps de se réveiller en arrière-plan.
+//
+// CORRECTIF IMPORTANT : ce réveil reste désormais STRICTEMENT une tâche de
+// fond. Il ne doit plus jamais être attendu (`await`) avant d'ouvrir le
+// popup Google au clic — voir l'explication détaillée dans
+// startGoogleSignIn() plus bas. Il sert uniquement à ce que le serveur soit
+// déjà chaud quand on l'appelle après la connexion Google (initUserOnBackend).
 
-let currentUser = null;
-let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local", balance: 0 };
-let products = new Map(); // id -> product
-let salesToday = [];
-let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
+const SERVER_WARMUP_TIMEOUT_MS = 100000; // jusqu'à 100s d'attente pour le réveil complet de Render
 
-// Vrai jusqu'à la toute première tentative de chargement (produits/ventes)
-// de la session en cours. Sert au fallback cache hors ligne à froid (tâche 6).
-let isFirstDataLoad = true;
-let cacheFallbackWarningShown = false;
+let serverIsWarm = false;
 
-// Toggles indépendants des deux cartes du dashboard (🔄 USD)
-let balanceViewCurrency = "local";
-let profitViewCurrency = "local";
+const serverWarmupPromise = (async () => {
+  try {
+    debugLog('🔥 Ping de réveil envoyé vers', `${API_BASE_URL}/health`);
 
-// ============================================================
-// Toasts (remplace window.alert)
-// ============================================================
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SERVER_WARMUP_TIMEOUT_MS);
 
-let toastContainerEl = null;
-
-function getToastContainer() {
-  if (toastContainerEl) return toastContainerEl;
-  toastContainerEl = document.createElement("div");
-  toastContainerEl.className = "toast-container";
-  toastContainerEl.setAttribute("aria-live", "polite");
-  document.body.appendChild(toastContainerEl);
-  return toastContainerEl;
-}
-
-/**
- * Affiche un toast.
- * @param {string} message
- * @param {{type?: 'info'|'success'|'error'|'warning', duration?: number, actionLabel?: string, onAction?: () => void}} [options]
- * @returns {() => void} fonction pour fermer le toast manuellement
- */
-function showToast(message, options = {}) {
-  const { type = "info", duration = 4000, actionLabel, onAction } = options;
-  const container = getToastContainer();
-
-  const toast = document.createElement("div");
-  toast.className = `toast toast--${type}`;
-  toast.setAttribute("role", "status");
-
-  const text = document.createElement("span");
-  text.className = "toast__text";
-  text.textContent = message;
-  toast.appendChild(text);
-
-  let timeoutId = null;
-
-  function removeToast() {
-    if (timeoutId) clearTimeout(timeoutId);
-    toast.classList.add("toast--closing");
-    setTimeout(() => toast.remove(), 180);
-  }
-
-  if (actionLabel && onAction) {
-    const actionBtn = document.createElement("button");
-    actionBtn.type = "button";
-    actionBtn.className = "toast__action";
-    actionBtn.textContent = actionLabel;
-    actionBtn.addEventListener("click", () => {
-      onAction();
-      removeToast();
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal
     });
-    toast.appendChild(actionBtn);
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      serverIsWarm = true;
+      debugLog('🔥 Serveur réveillé et prêt (ping /health OK)');
+    } else {
+      debugLog('🔥 Ping /health a répondu mais avec un statut', response.status);
+    }
+  } catch (err) {
+    debugLog('🔥 Échec du ping de réveil (le serveur tentera quand même via init-user):', err?.message || err);
   }
-
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "toast__close";
-  closeBtn.setAttribute("aria-label", "Fermer");
-  closeBtn.textContent = "×";
-  closeBtn.addEventListener("click", removeToast);
-  toast.appendChild(closeBtn);
-
-  container.appendChild(toast);
-
-  if (duration > 0) {
-    timeoutId = setTimeout(removeToast, duration);
-  }
-
-  return removeToast;
-}
-
-function showInfoToast(message, options) {
-  return showToast(message, { ...options, type: "info" });
-}
-
-function showSuccessToast(message, options) {
-  return showToast(message, { ...options, type: "success" });
-}
-
-function showErrorToast(message, options) {
-  return showToast(message, { duration: 6000, ...options, type: "error" });
-}
-
-function showWarningToast(message, options) {
-  return showToast(message, { duration: 6000, ...options, type: "warning" });
-}
-
-// Styles minimaux injectés une seule fois : aucun fichier CSS à toucher.
-(function injectToastStyles() {
-  if (document.getElementById("stock-toast-styles")) return;
-  const style = document.createElement("style");
-  style.id = "stock-toast-styles";
-  style.textContent = `
-    .toast-container {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      left: 16px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-      pointer-events: none;
-    }
-    .toast {
-      pointer-events: auto;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      max-width: 360px;
-      padding: 12px 14px;
-      border-radius: 10px;
-      color: #fff;
-      font-size: 14px;
-      line-height: 1.4;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.18);
-      animation: stock-toast-in 0.18s ease-out;
-    }
-    .toast--closing { animation: stock-toast-out 0.18s ease-in forwards; }
-    .toast--info { background: #2563eb; }
-    .toast--success { background: #16a34a; }
-    .toast--error { background: #dc2626; }
-    .toast--warning { background: #d97706; }
-    .toast__text { flex: 1; }
-    .toast__action {
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.22);
-      border: none;
-      color: #fff;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .toast__action:hover { background: rgba(255,255,255,0.34); }
-    .toast__close {
-      flex-shrink: 0;
-      background: transparent;
-      border: none;
-      color: #fff;
-      font-size: 18px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0 2px;
-      opacity: 0.85;
-    }
-    .toast__close:hover { opacity: 1; }
-    @keyframes stock-toast-in {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes stock-toast-out {
-      from { opacity: 1; transform: translateY(0); }
-      to { opacity: 0; transform: translateY(-6px); }
-    }
-  `;
-  document.head.appendChild(style);
 })();
 
 // ============================================================
-// Confirmation (remplace window.confirm) — dialog#confirm-dialog dans stock.html
+// PERSISTENCE FIREBASE (configurée UNE SEULE FOIS, ici, au chargement du
+// script — plus jamais au moment du clic)
 // ============================================================
+// Avant, setPersistence() était appelé à l'intérieur de startGoogleSignIn(),
+// donc `await` juste avant signInWithPopup(). Un `await` — même court —
+// placé entre le clic de l'utilisateur et l'appel à signInWithPopup() peut
+// suffire à faire perdre le "geste utilisateur" aux yeux du navigateur, qui
+// bloque alors le popup Google SANS forcément renvoyer une erreur claire
+// (le popup n'apparaît juste jamais). En configurant la persistence une
+// seule fois ici, dès le chargement de la page, elle est quasi toujours déjà
+// terminée au moment du clic — on retire ainsi un délai inutile du chemin
+// critique menant à l'ouverture du popup.
 
-function showConfirm(message, title = "Confirmer") {
-  return new Promise((resolve) => {
-    const dialog = document.getElementById("confirm-dialog");
-    dialog.querySelector("#confirm-dialog-title").textContent = title;
-    dialog.querySelector("#confirm-dialog-message").textContent = message;
-    const okBtn = dialog.querySelector("#confirm-dialog-ok");
-    const cancelBtn = dialog.querySelector("#confirm-dialog-cancel");
-
-    function cleanup(result) {
-      okBtn.removeEventListener("click", onOk);
-      cancelBtn.removeEventListener("click", onCancel);
-      dialog.close();
-      resolve(result);
-    }
-    function onOk() {
-      cleanup(true);
-    }
-    function onCancel() {
-      cleanup(false);
-    }
-
-    okBtn.addEventListener("click", onOk);
-    cancelBtn.addEventListener("click", onCancel);
-    dialog.showModal();
+const persistenceReadyPromise = setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    debugLog('🔐 Persistence Firebase configurée (au chargement de la page)');
+  })
+  .catch((err) => {
+    debugLog('⚠️ Échec de configuration de la persistence Firebase:', err?.message || err);
   });
-}
 
 // ============================================================
-// Vérification "devise configurée"
+// DETECTION MOBILE / STANDALONE
 // ============================================================
+// signInWithPopup() a été testé et confirmé fonctionnel sur mobile
+// (navigateur classique, non installé) — voir logs de diagnostic du
+// 13/09. On l'utilise donc désormais PARTOUT, y compris en PWA installée,
+// car signInWithRedirect() est plus fragile : la page quitte complètement
+// l'app pour Google puis revient sur un nouveau chargement, et si le
+// téléphone a beaucoup d'onglets/apps ouverts, l'ancienne instance de la
+// PWA peut être déchargée par le système avant d'avoir pu récupérer le
+// résultat (getRedirectResult() revient alors vide, même si la connexion
+// Google a réussi). Avec Popup, la page d'origine ne quitte jamais son
+// contexte, ce qui évite ce problème.
+//
+// signInWithRedirect() reste utilisé uniquement en solution de secours
+// automatique si le navigateur bloque la fenêtre popup (voir
+// startGoogleSignIn ci-dessous).
 
-function isCurrencyConfigured() {
-  return !!(currentUserData.currencySymbol && String(currentUserData.currencySymbol).trim());
-}
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true;
 
-function isExchangeRateConfigured() {
-  return Number(currentUserData.exchangeRate) > 0;
-}
+const isMobileDevice =
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+  (window.matchMedia('(pointer: coarse)').matches &&
+    window.matchMedia('(hover: none)').matches);
 
-function goToFinancesPage() {
-  window.location.href = FINANCES_PAGE_URL;
-}
+debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, '(popup utilisé en priorité dans tous les cas)');
 
-/**
- * Bloque l'action et affiche un toast si la devise (et, si demandé, le taux
- * de change) n'est pas configurée. Retourne true si l'action peut continuer.
- * @param {{needsExchangeRate?: boolean}} [options]
- */
-function requireCurrencyConfigured(options = {}) {
-  const { needsExchangeRate = false } = options;
+// ------------------------------------------------------------
+// DIAGNOSTIC DOMAINE (cause fréquente d'un getRedirectResult() qui
+// revient toujours null : le domaine réel de la page n'est pas dans
+// la liste des domaines autorisés de Firebase, ou ne correspond pas
+// à authDomain).
+// ------------------------------------------------------------
 
-  if (!isCurrencyConfigured()) {
-    showErrorToast(
-      "Configure d'abord ta devise dans Finances avant de continuer.",
-      { actionLabel: "Aller dans Finances", onAction: goToFinancesPage }
-    );
-    return false;
-  }
+debugLog('🌐 Domaine actuel (hostname):', window.location.hostname);
+debugLog('🌐 Origine actuelle (origin):', window.location.origin);
+debugLog('🌐 authDomain configuré dans Firebase:', auth?.config?.authDomain || 'inconnu');
+debugLog('🍪 Cookies activés:', navigator.cookieEnabled);
 
-  if (needsExchangeRate && !isExchangeRateConfigured()) {
-    showErrorToast(
-      "Configure d'abord le taux de change dans Finances pour convertir en USD.",
-      { actionLabel: "Aller dans Finances", onAction: goToFinancesPage }
-    );
-    return false;
-  }
-
-  return true;
-}
-
-// ============================================================
-// Auth + fetch helper (pattern à réconcilier avec finances.js)
-// ============================================================
-
-async function authFetch(path, options = {}) {
-  const token = await auth.currentUser.getIdToken();
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    ...(options.headers || {}),
-  };
-
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const error = new Error(body.error || `Erreur ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
-
-  return response.json();
-}
-
-function isNetworkError(error) {
-  // Un échec fetch (hors ligne, DNS, etc.) lève une erreur sans .status ;
-  // une erreur HTTP renvoyée par authFetch a toujours .status défini.
-  return error.status === undefined;
-}
-
-// ============================================================
-// Utilisateur (devise, solde) — écoute temps réel du doc Firestore
-// (dupliqué depuis finances.js, non exporté ailleurs)
-// ============================================================
-
-function listenToUserDoc(uid, onUpdate) {
-  onSnapshot(doc(db, "users", uid), (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    const userData = {
-      balance: data.balance || 0,
-      currencySymbol: data.currencySymbol || "",
-      exchangeRate: data.exchangeRate || 0,
-      exchangeRateUpdatedAt: data.exchangeRateUpdatedAt || null,
-      displayCurrency: data.displayCurrency === "usd" ? "usd" : "local",
-      savingsGoalAmount: data.savingsGoalAmount || 0,
-      savingsCurrentAmount: data.savingsCurrentAmount || 0,
-      timezone: data.timezone || "Africa/Kinshasa",
-    };
-    onUpdate(userData);
-  });
-}
-
-// ============================================================
-// Dates (fuseau horaire LOCAL du navigateur)
-// ============================================================
-
-function getTodayLocalISODate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function isSaleFromToday(saleDateValue) {
-  const saleDate = new Date(saleDateValue);
-  const year = saleDate.getFullYear();
-  const month = String(saleDate.getMonth() + 1).padStart(2, "0");
-  const day = String(saleDate.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}` === getTodayLocalISODate();
-}
-
-// ============================================================
-// Utilitaire d'échappement HTML
-// ============================================================
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str ?? "";
-  return div.innerHTML;
-}
-
-// ============================================================
-// Onglets (Dashboard / Produits / Ventes)
-// ============================================================
-
-function switchTab(tabName) {
-  stockTabs.forEach((tab) => {
-    const isActive = tab.dataset.tab === tabName;
-    tab.classList.toggle("is-active", isActive);
-    tab.setAttribute("aria-selected", String(isActive));
-  });
-  stockPanels.forEach((panel) => {
-    panel.hidden = panel.dataset.tabPanel !== tabName;
-  });
-}
-
-stockTabs.forEach((tab) => {
-  tab.addEventListener("click", () => switchTab(tab.dataset.tab));
-});
-
-// ============================================================
-// Bandeau hors-ligne
-// ============================================================
-
-// ⚠️ CORRECTIF : l'ancienne version affichait "Hors ligne — synchronisation
-// en attente (N)" dès qu'il y avait des actions en attente, SANS vérifier
-// navigator.onLine — donc le bandeau disait "Hors ligne" même connecté à
-// internet, tant que la queue n'était pas vide (ce qui arrivait tout le
-// temps à cause du bug de synchro corrigé plus haut). Le message reflète
-// maintenant le VRAI statut réseau, et signale séparément s'il reste des
-// éléments en attente de synchro.
-async function updateOnlineStatus() {
-  const [pendingProducts, pendingSales, pendingDeleteSales, pendingExpenses] = await Promise.all([
-    getPendingActions("product"),
-    getPendingActions("sale"),
-    getPendingActions("delete-sale"),
-    getPendingActions("expense"),
-  ]);
-  const total =
-    pendingProducts.length + pendingSales.length + pendingDeleteSales.length + pendingExpenses.length;
-
-  if (!navigator.onLine) {
-    offlineBanner.textContent =
-      total > 0
-        ? `Hors ligne — ${total} en attente de synchronisation dès le retour du réseau`
-        : "Hors ligne";
-    offlineBanner.hidden = false;
-  } else if (total > 0) {
-    offlineBanner.textContent = `En ligne — synchronisation en cours (${total} en attente)`;
-    offlineBanner.hidden = false;
+try {
+  if (window.indexedDB) {
+    debugLog('💾 IndexedDB disponible: oui');
   } else {
-    offlineBanner.textContent = "";
-    offlineBanner.hidden = true;
+    debugLog('💾 IndexedDB disponible: NON — la redirection Google ne peut pas fonctionner sans IndexedDB');
   }
+} catch (err) {
+  debugLog('💾 Erreur test IndexedDB:', err, 'stack:', err?.stack || 'pas de stack');
 }
 
-window.addEventListener("online", () => {
-  updateOnlineStatus();
-  if (currentUser) trySyncPending();
-});
-window.addEventListener("offline", updateOnlineStatus);
-
-// Bandeau cliquable : permet de forcer une resynchro immédiate sans recharger
-// la page si des éléments restent en attente alors qu'on est en ligne.
-offlineBanner.style.cursor = "pointer";
-offlineBanner.title = "Cliquer pour forcer une nouvelle tentative de synchronisation";
-offlineBanner.addEventListener("click", () => {
-  if (!navigator.onLine) {
-    showWarningToast("Toujours hors ligne — la synchro reprendra automatiquement dès que le réseau reviendra.");
-    return;
-  }
-  showInfoToast("Nouvelle tentative de synchronisation…");
-  trySyncPending();
-});
-
 // ============================================================
-// Synchro des actions en attente (produits -> ventes -> dépenses)
+// ELEMENTS
 // ============================================================
 
-// ⚠️ CORRECTIF : syncPendingActions() (offline-queue.js) appelle
-// syncFn(entry.payload, entry) — le PREMIER argument est déjà le payload
-// brut, pas l'objet wrapper {localId, type, payload, createdAtLocal}.
-// (Vérifié dans js/finances.js qui l'utilise déjà correctement : la
-// fonction de synchro y est `async (payload) => { ... payload.type ... }`,
-// SANS `.payload`.)
-// L'ancien code faisait `entry.payload` ici alors que `entry` ÉTAIT déjà
-// le payload → `.payload` valait toujours undefined → JSON.stringify()
-// renvoyait undefined → le fetch partait sans corps → 400 côté serveur →
-// la vente restait coincée dans la queue IndexedDB pour toujours, sans
-// jamais être écrite dans Firestore. C'est ce qui faisait "disparaître"
-// les ventes notées pendant une coupure réseau, dès qu'on quittait puis
-// revenait sur la page.
-async function syncProductAction(payload) {
-  if (payload._delete) {
-    await authFetch(`/products/${payload.id}`, { method: "DELETE" });
-  } else if (payload._update) {
-    await authFetch(`/products/${payload.id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
+const googleBtn = document.getElementById('googleBtn');
+const termsCheckbox = document.getElementById('termsCheckbox');
+
+const loadingState = document.getElementById('loadingState');
+const loadingLabel = document.getElementById('loadingLabel');
+
+const errorState = document.getElementById('errorState');
+const errorMessage = document.getElementById('errorMessage');
+
+const retryBtn = document.getElementById('retryBtn');
+
+const openBrowserFallback = document.getElementById('openBrowserFallback');
+const openBrowserBtn = document.getElementById('openBrowserBtn');
+
+
+// ============================================================
+// UI
+// ============================================================
+
+function showButton() {
+  googleBtn.hidden = false;
+  googleBtn.disabled = !termsCheckbox.checked;
+  retryBtn.hidden = true;
+
+  loadingState.hidden = true;
+  errorState.hidden = true;
+  if (openBrowserFallback) openBrowserFallback.hidden = true;
+}
+
+function showLoading(label) {
+  googleBtn.hidden = true;
+  retryBtn.hidden = true;
+
+  loadingState.hidden = false;
+  errorState.hidden = true;
+  if (openBrowserFallback) openBrowserFallback.hidden = true;
+
+  loadingLabel.textContent = label;
+}
+
+function showError(message, { directRetry = true } = {}) {
+
+  if (directRetry) {
+    // Erreur survenue pendant la session en cours (case CGU déjà cochée en
+    // mémoire) : on peut relancer Google directement via le bouton rouge.
+    googleBtn.hidden = true;
+    retryBtn.hidden = false;
   } else {
-    await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
+    // Erreur détectée au chargement de la page (ex: connexion précédente
+    // interrompue) : la case CGU est forcément décochée sur ce nouveau
+    // chargement, donc impossible de relancer Google directement. On
+    // réaffiche l'écran normal (case à cocher + bouton Google) plutôt que
+    // le bouton "Réessayer", qui ne ferait rien tant que la case n'est pas
+    // recochée.
+    googleBtn.hidden = false;
+    googleBtn.disabled = !termsCheckbox.checked;
+    retryBtn.hidden = true;
   }
+
+  loadingState.hidden = true;
+  if (openBrowserFallback) openBrowserFallback.hidden = true;
+
+  errorState.hidden = false;
+  errorMessage.textContent = message;
 }
 
-async function syncSaleAction(payload) {
-  await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
+// Secours affiché si le retour de redirection reste bloqué trop longtemps
+// (typiquement en PWA installée — voir REDIRECT_FALLBACK_TIMEOUT_MS).
+function showOpenBrowserFallback() {
+  if (!openBrowserFallback) return;
+
+  googleBtn.hidden = true;
+  retryBtn.hidden = true;
+  loadingState.hidden = true;
+  errorState.hidden = true;
+  openBrowserFallback.hidden = false;
 }
 
-async function syncExpenseAction(payload) {
-  // Pas d'UI de création de dépense sur cette page, mais on synchronise quand
-  // même celles ajoutées ailleurs (ex. page Finances) via la même queue.
-  await authFetch("/expenses", { method: "POST", body: JSON.stringify(payload) });
+// ============================================================
+// UTILITAIRE
+// ============================================================
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function syncDeleteSaleAction(payload) {
-  await authFetch(`/sales/${payload.saleId}`, { method: "DELETE" });
-}
+// ============================================================
+// ERREURS FIREBASE
+// ============================================================
 
-async function trySyncPending() {
-  if (!navigator.onLine) return;
+function translateAuthError(error) {
+  debugLog('❌ Firebase Auth error:', error, error?.code || 'pas de code', 'stack:', error?.stack || 'pas de stack');
 
-  try {
-    await syncPendingActions("product", syncProductAction);
-    await syncPendingActions("sale", syncSaleAction);
-    await syncPendingActions("delete-sale", syncDeleteSaleAction);
-    await syncPendingActions("expense", syncExpenseAction);
-  } catch (error) {
-    console.error("Synchro interrompue, sera retentée au prochain retour en ligne :", error);
-  } finally {
-    await refreshAllData();
-    await updateOnlineStatus();
+  const code = error?.code;
+
+  switch (code) {
+
+    case 'auth/popup-closed-by-user':
+      return "La fenêtre Google a été fermée. Réessayez.";
+
+    case 'auth/cancelled-popup-request':
+      return "La connexion a été annulée. Réessayez.";
+
+    case 'auth/popup-blocked':
+      return "Le navigateur a bloqué la fenêtre Google. Autorisez les fenêtres pop-up puis réessayez.";
+
+    case 'auth/network-request-failed':
+      return "Problème de connexion Internet. Vérifiez votre connexion.";
+
+    case 'auth/unauthorized-domain':
+      return "Ce domaine n'est pas autorisé dans Firebase Authentication.";
+
+    case 'auth/operation-not-allowed':
+      return "La connexion Google n'est pas activée dans Firebase.";
+
+    case 'auth/invalid-credential':
+      return "Les informations Google reçues sont invalides. Réessayez.";
+
+    case 'auth/internal-error':
+      return "Google a rencontré une erreur interne. Réessayez.";
+
+    default:
+      return "La connexion avec Google a échoué. Réessayez.";
   }
 }
 
 // ============================================================
-// Chargement des données
+// INITIALISATION UTILISATEUR COTE BACKEND
 // ============================================================
 
-async function refreshAllData() {
-  try {
-    await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
-  } catch (error) {
-    console.error("Erreur lors du chargement des données stock :", error);
-  }
-}
+async function initUserOnBackend(firebaseUser) {
 
-// Cache local pour permettre de vendre même au tout premier chargement de
-// l'app sans réseau (ex: PWA jamais ouverte en ligne dans cette session).
-// scope permet de ne restaurer que la moitié concernée (produits OU ventes) :
-// sinon, si l'une des deux requêtes réussit pendant que l'autre échoue, le
-// fallback écraserait les données fraîchement chargées par des données
-// potentiellement périmées.
-function cacheStockDataLocally(uid) {
-  try {
-    localStorage.setItem(`kontra-stock-cache-products-${uid}`, JSON.stringify([...products.values()]));
-    localStorage.setItem(`kontra-stock-cache-sales-${uid}`, JSON.stringify(salesToday));
-  } catch (e) {
-    console.error("Erreur cache local stock :", e);
-  }
-}
+  debugLog('🚀 initUserOnBackend() démarré pour', firebaseUser?.email || 'email inconnu');
+  setOperation('initUserOnBackend');
 
-function loadStockDataFromCache(uid, scope = "all") {
-  try {
-    let hasData = false;
-
-    if (scope === "all" || scope === "products") {
-      const cachedProducts = JSON.parse(localStorage.getItem(`kontra-stock-cache-products-${uid}`) || "[]");
-      products = new Map(cachedProducts.map((p) => [p.id, p]));
-      hasData = hasData || cachedProducts.length > 0;
-    }
-
-    if (scope === "all" || scope === "sales") {
-      const cachedSales = JSON.parse(localStorage.getItem(`kontra-stock-cache-sales-${uid}`) || "[]");
-      salesToday = cachedSales;
-      hasData = hasData || cachedSales.length > 0;
-    }
-
-    return hasData;
-  } catch (e) {
-    console.error("Erreur lecture cache local stock :", e);
-    return false;
-  }
-}
-
-function warnCacheFallbackOnce(hasCache) {
-  if (hasCache && !cacheFallbackWarningShown) {
-    cacheFallbackWarningShown = true;
-    showWarningToast("Données affichées depuis la dernière synchronisation connue.");
-  }
-}
-
-async function loadProducts() {
-  const wasFirstLoad = isFirstDataLoad;
-
-  try {
-    const data = await authFetch("/products");
-    products = new Map(data.products.map((p) => [p.id, p]));
-    renderProducts();
-    if (currentUser) cacheStockDataLocally(currentUser.uid);
-  } catch (error) {
-    if (wasFirstLoad && isNetworkError(error) && currentUser) {
-      const hasCache = loadStockDataFromCache(currentUser.uid, "products");
-      renderProducts();
-      warnCacheFallbackOnce(hasCache);
-    } else {
-      throw error;
-    }
-  } finally {
-    isFirstDataLoad = false;
-  }
-}
-
-async function loadSalesToday() {
-  const wasFirstLoad = isFirstDataLoad;
-
-  try {
-    const data = await authFetch("/sales");
-    salesToday = data.sales;
-    renderSalesToday();
-    if (currentUser) cacheStockDataLocally(currentUser.uid);
-  } catch (error) {
-    if (wasFirstLoad && isNetworkError(error) && currentUser) {
-      const hasCache = loadStockDataFromCache(currentUser.uid, "sales");
-      renderSalesToday();
-      warnCacheFallbackOnce(hasCache);
-    } else {
-      throw error;
-    }
-  } finally {
-    isFirstDataLoad = false;
-  }
-}
-
-async function loadDailyReport() {
-  const today = getTodayLocalISODate();
-  try {
-    const data = await authFetch(`/reports/daily?date=${today}`);
-    totalExpensesToday = data.totalExpenses || 0;
-  } catch (error) {
-    console.error("Erreur lors du chargement du rapport du jour :", error);
-    totalExpensesToday = 0;
-  }
-  renderDailyProfitCard();
-}
-
-// ============================================================
-// Rendu — Dashboard (solde, bénéfice, top/low produit)
-// ============================================================
-
-function renderBalanceCard() {
-  stockBalanceValue.textContent = formatAmount(currentUserData.balance || 0, currentUserData, balanceViewCurrency);
-  btnConvertBalance.textContent =
-    balanceViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
-}
-
-btnConvertBalance.addEventListener("click", () => {
-  if (!requireCurrencyConfigured({ needsExchangeRate: true })) return;
-  balanceViewCurrency = balanceViewCurrency === "local" ? "usd" : "local";
-  renderBalanceCard();
-});
-
-function renderDailyProfitCard() {
-  const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
-  const netProfit = salesProfit - totalExpensesToday;
-
-  dailyProfitValue.textContent = formatAmount(netProfit, currentUserData, profitViewCurrency);
-  btnConvertProfit.textContent =
-    profitViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
-}
-
-btnConvertProfit.addEventListener("click", () => {
-  if (!requireCurrencyConfigured({ needsExchangeRate: true })) return;
-  profitViewCurrency = profitViewCurrency === "local" ? "usd" : "local";
-  renderDailyProfitCard();
-});
-
-function renderTopLowProducts() {
-  if (salesToday.length === 0) {
-    topProductName.textContent = "—";
-    topProductQty.textContent = "";
-    lowProductName.textContent = "—";
-    lowProductQty.textContent = "";
-    return;
-  }
-
-  const qtyByProduct = new Map();
-  for (const sale of salesToday) {
-    const entry = qtyByProduct.get(sale.productId) || { name: sale.productName, qty: 0 };
-    entry.qty += sale.quantity;
-    qtyByProduct.set(sale.productId, entry);
-  }
-
-  const entries = [...qtyByProduct.values()].sort((a, b) => b.qty - a.qty);
-  const top = entries[0];
-  const low = entries[entries.length - 1];
-
-  topProductName.textContent = top.name;
-  topProductQty.textContent = `${top.qty} vendu(s)`;
-  lowProductName.textContent = low.name;
-  lowProductQty.textContent = `${low.qty} vendu(s)`;
-}
-
-function renderLowStockSection() {
-  const lowStockProducts = [...products.values()].filter(
-    (p) => !p.archived && p.stockQuantity <= (p.lowStockThreshold ?? 5)
-  );
-
-  if (lowStockProducts.length === 0) {
-    lowStockSection.hidden = true;
-    return;
-  }
-
-  lowStockSection.hidden = false;
-  lowStockBadges.innerHTML = "";
-  for (const product of lowStockProducts) {
-    const isOut = product.stockQuantity <= 0;
-    const badge = document.createElement("span");
-    badge.className = "low-stock-badge " + (isOut ? "low-stock-badge--error" : "low-stock-badge--warning");
-    badge.innerHTML = `${escapeHtml(product.name)} — <span class="low-stock-badge__qty">${product.stockQuantity}</span>`;
-    lowStockBadges.appendChild(badge);
-  }
-}
-
-// ============================================================
-// Modale "Ajouter du stock" (remplace les window.prompt())
-// Construite dynamiquement, réutilise .modal / .modal-content
-// pour hériter du style de la modale produit existante.
-// ============================================================
-
-let modalAddStock = null;
-
-function ensureAddStockModal() {
-  if (modalAddStock) return modalAddStock;
-
-  const dialog = document.createElement("dialog");
-  dialog.id = "modal-add-stock";
-  dialog.className = "modal";
-  dialog.innerHTML = `
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Ajouter du stock</h3>
-        <button type="button" class="modal-close" data-action="close-add-stock-modal" aria-label="Fermer">×</button>
-      </div>
-      <form id="form-add-stock" novalidate>
-        <div class="form-error" hidden></div>
-        <div class="form-field">
-          <label for="add-stock-product">Produit</label>
-          <select id="add-stock-product" name="product" required></select>
-        </div>
-        <div class="form-field">
-          <label for="add-stock-quantity">Quantité à ajouter</label>
-          <input id="add-stock-quantity" name="quantity" type="number" min="1" step="1" required />
-        </div>
-        <div class="saved-msg" hidden>Stock mis à jour ✓</div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" data-action="close-add-stock-modal">Annuler</button>
-          <button type="submit" class="btn btn-primary">Ajouter au stock</button>
-        </div>
-      </form>
-    </div>
-  `;
-  document.body.appendChild(dialog);
-
-  dialog.querySelectorAll('[data-action="close-add-stock-modal"]').forEach((btn) =>
-    btn.addEventListener("click", () => closeModal(dialog))
-  );
-  dialog.addEventListener("click", (event) => {
-    // Ferme si on clique sur le fond du <dialog> (hors .modal-content)
-    if (event.target === dialog) closeModal(dialog);
-  });
-
-  const form = dialog.querySelector("#form-add-stock");
-  const select = dialog.querySelector("#add-stock-product");
-  const quantityInput = dialog.querySelector("#add-stock-quantity");
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearFormError(form);
-
-    const product = products.get(select.value);
-    const quantity = Number(quantityInput.value);
-
-    if (!product) {
-      showFormError(form, "Sélectionne un produit.");
-      return;
-    }
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      showFormError(form, "Quantité invalide.");
-      return;
-    }
-
-    const submitBtn = form.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-
-    try {
-      await handleUpdateProduct(product.id, {
-        name: product.name,
-        purchasePrice: product.purchasePrice,
-        sellingPrice: product.sellingPrice,
-        stockQuantity: product.stockQuantity + quantity,
-        lowStockThreshold: product.lowStockThreshold,
-        unit: product.unit,
-      });
-      showSavedMsg(form);
-      closeModal(dialog);
-      form.reset();
-    } finally {
-      submitBtn.disabled = false;
-    }
-  });
-
-  modalAddStock = dialog;
-  return dialog;
-}
-
-function openAddStockModal() {
-  const activeProducts = [...products.values()].filter((p) => !p.archived);
-
-  if (activeProducts.length === 0) {
-    showWarningToast("Ajoute d'abord un produit avant de pouvoir réapprovisionner son stock.");
-    return;
-  }
-
-  const dialog = ensureAddStockModal();
-  const form = dialog.querySelector("#form-add-stock");
-  const select = dialog.querySelector("#add-stock-product");
-  const quantityInput = dialog.querySelector("#add-stock-quantity");
-
-  form.reset();
-  clearFormError(form);
-
-  select.innerHTML = "";
-  for (const product of activeProducts) {
-    const option = document.createElement("option");
-    option.value = product.id;
-    option.textContent = `${product.name} (stock actuel : ${product.stockQuantity} ${product.unit || ""})`;
-    select.appendChild(option);
-  }
-  quantityInput.value = "";
-
-  openModal(dialog);
-  select.focus();
-}
-
-btnQuickAddStock.addEventListener("click", openAddStockModal);
-
-// ============================================================
-// Clôture de journée (génère le PDF, puis vide les ventes du jour)
-// ============================================================
-
-btnCloseDay.addEventListener("click", async () => {
-  if (
-    !(await showConfirm(
-      "Le PDF sera téléchargé puis les ventes du jour seront définitivement supprimées. Continuer ?",
-      "Clôturer la journée"
-    ))
-  ) {
-    return;
-  }
-
-  if (!navigator.onLine) {
-    showErrorToast("La clôture de journée nécessite une connexion internet.");
-    return;
-  }
-
-  const originalLabel = btnCloseDay.textContent;
-  btnCloseDay.disabled = true;
-  btnCloseDay.textContent = "Génération du rapport…";
-
-  try {
-    // /reports/close-day renvoie un PDF binaire, pas du JSON : on ne peut
-    // pas réutiliser authFetch() ici (qui fait toujours response.json()).
-    const token = await auth.currentUser.getIdToken();
-    const response = await fetch(`${API_BASE}/reports/close-day`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.error || `Erreur ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `rapport-${getTodayLocalISODate()}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-
-    // Seulement maintenant : le PDF est bien téléchargé côté client, on
-    // confirme au serveur qu'il peut supprimer réellement les ventes du jour.
-    const confirmResponse = await fetch(`${API_BASE}/reports/close-day/confirm`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!confirmResponse.ok) {
-      showWarningToast(
-        "Rapport téléchargé, mais la suppression a échoué — réessaie la clôture plus tard, rien n'a été perdu."
-      );
-    } else {
-      showSuccessToast("Journée clôturée, rapport téléchargé.");
-    }
-
-    await refreshAllData(); // recharge l'état réel depuis le serveur dans tous les cas
-  } catch (error) {
-    showErrorToast(error.message || "Erreur lors de la clôture de la journée.");
-  } finally {
-    btnCloseDay.disabled = false;
-    btnCloseDay.textContent = originalLabel;
-  }
-});
-
-// ============================================================
-// Rendu — Produits
-// ============================================================
-
-function renderProducts() {
-  const query = (productSearch.value || "").trim().toLowerCase();
-  const filtered = [...products.values()].filter(
-    (p) => !query || p.name.toLowerCase().includes(query)
-  );
-
-  if (filtered.length === 0) {
-    productsList.innerHTML = '<div class="state-message">Aucun produit trouvé.</div>';
-  } else {
-    productsList.innerHTML = "";
-    for (const product of filtered) {
-      productsList.appendChild(renderProductCard(product));
-    }
-  }
-
-  renderLowStockSection();
-  renderSaleProductOptions();
-}
-
-productSearch.addEventListener("input", renderProducts);
-
-function renderProductCard(product) {
-  const card = document.createElement("div");
-  const threshold = product.lowStockThreshold ?? 5;
-  const isOut = product.stockQuantity <= 0;
-  const isLow = !isOut && product.stockQuantity <= threshold;
-
-  card.className =
-    "product-card" +
-    (isOut ? " product-card--out-of-stock" : isLow ? " product-card--low-stock" : "");
-  card.dataset.productId = product.id;
-
-  card.innerHTML = `
-    <div class="product-card__info">
-      <span class="product-card__name">${escapeHtml(product.name)}</span>
-      <span class="product-card__meta">
-        Stock :
-        <span class="product-card__stock ${isOut ? "product-card__stock--out" : isLow ? "product-card__stock--low" : ""}">${product.stockQuantity} ${escapeHtml(product.unit || "")}</span>
-        · ${formatAmount(product.sellingPrice, currentUserData, currentUserData.displayCurrency)}
-      </span>
-      ${product.pendingSync ? '<span class="state-message">En attente de synchro</span>' : ""}
-    </div>
-    <div class="product-card__actions">
-      <button class="btn btn-credit btn-sm" data-action="sell" ${isOut ? 'disabled title="Rupture de stock"' : ""}>Vendre</button>
-      <button class="btn btn-secondary btn-sm" data-action="edit-product">Modifier</button>
-    </div>
-  `;
-
-  const sellBtn = card.querySelector('[data-action="sell"]');
-  if (!isOut) {
-    sellBtn.addEventListener("click", () => {
-      switchTab("ventes");
-      saleProductSearch.value = product.name;
-      updateSaleStockHint();
-      saleQuantity.focus();
-    });
-  }
-
-  card.querySelector('[data-action="edit-product"]').addEventListener("click", () => {
-    openEditProductModal(product);
-  });
-
-  return card;
-}
-
-function findProductByName(name) {
-  const normalized = (name || "").trim().toLowerCase();
-  if (!normalized) return null;
-  for (const product of products.values()) {
-    if (product.name.toLowerCase() === normalized) return product;
-  }
-  return null;
-}
-
-function renderSaleProductOptions() {
-  saleProductOptions.innerHTML = "";
-  for (const product of products.values()) {
-    if (product.archived) continue;
-    const option = document.createElement("option");
-    option.value = product.name;
-    saleProductOptions.appendChild(option);
-  }
-}
-
-// ============================================================
-// Rendu — Ventes du jour
-// ============================================================
-
-function renderSalesToday() {
-  if (salesToday.length === 0) {
-    salesTodayList.innerHTML = '<div class="state-message">Aucune vente aujourd\'hui.</div>';
-  } else {
-    salesTodayList.innerHTML = "";
-    for (const sale of salesToday) {
-      salesTodayList.appendChild(renderSaleRow(sale));
-    }
-  }
-  renderDailySummary();
-  renderDailyProfitCard();
-  renderTopLowProducts();
-}
-
-function renderSaleRow(sale) {
-  const row = document.createElement("div");
-  const isToday = isSaleFromToday(sale.saleDate);
-
-  row.className = "sale-row" + (isToday ? "" : " sale-row--locked");
-  row.dataset.saleId = sale.id;
-  row.dataset.saleDate =
-    typeof sale.saleDate === "string" ? sale.saleDate : new Date(sale.saleDate).toISOString();
-
-  row.innerHTML = `
-    <div class="sale-row__info">
-      <span class="sale-row__product">${escapeHtml(sale.productName)} × ${sale.quantity}</span>
-      <span class="sale-row__meta">
-        ${formatAmount(sale.totalRevenue, currentUserData, currentUserData.displayCurrency)}
-        · Bénéfice <span class="sale-row__profit">${formatAmount(sale.totalProfit, currentUserData, currentUserData.displayCurrency)}</span>
-        ${sale.pendingSync ? ' · <span class="state-message">En attente de synchro</span>' : ""}
-      </span>
-    </div>
-    <button class="btn btn-debit btn-sm" data-action="remove-sale" ${!isToday ? 'disabled title="Non modifiable après la journée"' : ""}>Retirer</button>
-  `;
-
-  if (isToday) {
-    row.querySelector('[data-action="remove-sale"]').addEventListener("click", () => {
-      handleRemoveSale(sale);
-    });
-  }
-
-  return row;
-}
-
-function renderDailySummary() {
-  const revenue = salesToday.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
-  const profit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
-
-  dailySummary.innerHTML = `
-    <div class="daily-summary__item">
-      <span class="daily-summary__label">Chiffre d'affaires</span>
-      <span class="daily-summary__value">${formatAmount(revenue, currentUserData, currentUserData.displayCurrency)}</span>
-    </div>
-    <div class="daily-summary__item">
-      <span class="daily-summary__label">Bénéfice</span>
-      <span class="daily-summary__value">${formatAmount(profit, currentUserData, currentUserData.displayCurrency)}</span>
-    </div>
-    <div class="daily-summary__item">
-      <span class="daily-summary__label">Ventes</span>
-      <span class="daily-summary__value">${salesToday.length}</span>
-    </div>
-  `;
-
-  // Carte héro "Bénéfice actuel" en haut de page — total vendu (nombre de
-  // ventes du jour), affiché sous le montant du bénéfice.
-  const totalSalesCountEl = document.getElementById("stock-total-sales-count");
-  if (totalSalesCountEl) {
-    totalSalesCountEl.textContent = `${salesToday.length} vente${salesToday.length > 1 ? "s" : ""}`;
-  }
-}
-
-// ============================================================
-// Modal produit — ouverture / fermeture (dialog natif)
-// ============================================================
-
-function openModal(dialog) {
-  dialog.showModal();
-}
-
-function closeModal(dialog) {
-  dialog.close();
-}
-
-function showFormError(form, message) {
-  const el = form.querySelector(".form-error");
-  el.textContent = message;
-  el.hidden = false;
-}
-
-function clearFormError(form) {
-  const el = form.querySelector(".form-error");
-  el.hidden = true;
-  el.textContent = "";
-}
-
-function showSavedMsg(form) {
-  const el = form.querySelector(".saved-msg");
-  el.hidden = false;
-  setTimeout(() => {
-    el.hidden = true;
-  }, 2000);
-}
-
-document.querySelectorAll('[data-action="close-product-modal"]').forEach((btn) =>
-  btn.addEventListener("click", () => closeModal(modalProduct))
-);
-
-function setProductCurrencyLabels() {
-  const symbol = getCurrencySymbol(currentUserData);
-  productPurchaseCurrency.textContent = symbol;
-  productSellingCurrency.textContent = symbol;
-}
-
-// ============================================================
-// Formulaire produit (ajout + modification)
-// ============================================================
-
-btnAddProduct.addEventListener("click", () => {
-  if (!requireCurrencyConfigured()) return;
-
-  formProduct.reset();
-  document.getElementById("product-id").value = "";
-  document.getElementById("modal-product-title").textContent = "Ajouter un produit";
-  setProductCurrencyLabels();
-  clearFormError(formProduct);
-  openModal(modalProduct);
-});
-
-function openEditProductModal(product) {
-  if (!requireCurrencyConfigured()) return;
-
-  document.getElementById("product-id").value = product.id;
-  document.getElementById("product-name").value = product.name;
-  document.getElementById("product-purchase-price").value = product.purchasePrice;
-  document.getElementById("product-selling-price").value = product.sellingPrice;
-  document.getElementById("product-stock-quantity").value = product.stockQuantity;
-  document.getElementById("product-low-stock-threshold").value = product.lowStockThreshold ?? "";
-  document.getElementById("product-unit").value = product.unit || "piece";
-  document.getElementById("modal-product-title").textContent = "Modifier le produit";
-  setProductCurrencyLabels();
-  clearFormError(formProduct);
-  openModal(modalProduct);
-}
-
-function finishProductForm() {
-  showSavedMsg(formProduct);
-  closeModal(modalProduct);
-  formProduct.reset();
-}
-
-formProduct.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  clearFormError(formProduct);
-
-  const existingId = document.getElementById("product-id").value || null;
-  const formData = new FormData(formProduct);
+  const idToken = await firebaseUser.getIdToken();
 
   const payload = {
-    name: formData.get("name").trim(),
-    purchasePrice: Number(formData.get("purchasePrice")),
-    sellingPrice: Number(formData.get("sellingPrice")),
-    stockQuantity: Number(formData.get("stockQuantity")),
-    lowStockThreshold: formData.get("lowStockThreshold")
-      ? Number(formData.get("lowStockThreshold"))
-      : undefined,
-    unit: formData.get("unit"),
+    email: firebaseUser.email || '',
+
+    displayName:
+      firebaseUser.displayName || '',
+
+    photoURL:
+      firebaseUser.photoURL || ''
   };
 
-  if (
-    !payload.name ||
-    !Number.isFinite(payload.purchasePrice) ||
-    payload.purchasePrice < 0 ||
-    !Number.isFinite(payload.sellingPrice) ||
-    payload.sellingPrice < 0 ||
-    !Number.isInteger(payload.stockQuantity) ||
-    payload.stockQuantity < 0
+  let lastError = null;
+
+  // ----------------------------------------------------------
+  // PLUSIEURS TENTATIVES AUTOMATIQUES
+  // ----------------------------------------------------------
+
+  for (
+    let attempt = 1;
+    attempt <= INIT_USER_MAX_ATTEMPTS;
+    attempt++
   ) {
-    showFormError(formProduct, "Merci de renseigner des valeurs valides et positives.");
-    return;
-  }
 
-  if (existingId) {
-    await handleUpdateProduct(existingId, payload);
-  } else {
-    await handleCreateProduct(payload);
-  }
-});
+    showLoading(
+      attempt === 1
+        ? "Préparation de votre espace…"
+        : `Le serveur démarre… nouvelle tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
+    );
 
-async function handleCreateProduct(payload) {
-  const localId = crypto.randomUUID();
-  products.set(localId, { id: localId, ...payload, archived: false, pendingSync: !navigator.onLine });
-  renderProducts();
+    debugLog(
+      `🚀 init-user : tentative ${attempt}/${INIT_USER_MAX_ATTEMPTS}`
+    );
 
-  const queuedPayload = { ...payload, localId };
+    const controller = new AbortController();
 
-  if (!navigator.onLine) {
-    await addPendingAction("product", queuedPayload);
-    await updateOnlineStatus();
-    finishProductForm();
-    return;
-  }
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, INIT_USER_TIMEOUT_MS);
 
-  try {
-    const created = await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
-    products.delete(localId);
-    products.set(created.id, created);
-    renderProducts();
-    finishProductForm();
-  } catch (error) {
-    if (isNetworkError(error)) {
-      await addPendingAction("product", queuedPayload);
-      await updateOnlineStatus();
-      finishProductForm();
-    } else {
-      products.delete(localId);
-      renderProducts();
-      showFormError(formProduct, error.message || "Erreur lors de la création du produit.");
+    try {
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/init-user`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+
+          body: JSON.stringify(payload),
+
+          signal: controller.signal
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      // ------------------------------------------------------
+      // SUCCÈS
+      // ------------------------------------------------------
+
+      if (response.ok) {
+
+        const data = await response
+          .json()
+          .catch((jsonErr) => {
+            debugLog('⚠️ Réponse init-user OK mais JSON invalide:', jsonErr?.message, 'stack:', jsonErr?.stack || 'pas de stack');
+            return {};
+          });
+
+        debugLog(
+          '✅ Compte initialisé côté serveur',
+          data
+        );
+
+        return data;
+      }
+
+      // ------------------------------------------------------
+      // ERREUR SERVEUR
+      // ------------------------------------------------------
+
+      const error = new Error(
+        `init-user a répondu avec le statut ${response.status}`
+      );
+
+      debugLog(
+        `❌ Tentative ${attempt} échouée :`,
+        error,
+        'stack:', error?.stack || 'pas de stack'
+      );
+
+      lastError = error;
+
+      // Les erreurs 4xx définitives ne nécessitent
+      // généralement pas de nouvelle tentative.
+      if (
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 408 &&
+        response.status !== 429
+      ) {
+        throw error;
+      }
+
+    } catch (err) {
+
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError') {
+
+        debugLog(
+          `⏱️ Timeout init-user à la tentative ${attempt}`
+        );
+
+        lastError = new Error(
+          'TIMEOUT_INIT_USER'
+        );
+
+      } else {
+
+        debugLog(
+          `❌ Erreur init-user tentative ${attempt}:`,
+          err,
+          'stack:', err?.stack || 'pas de stack'
+        );
+
+        lastError = err;
+      }
+    }
+
+    // --------------------------------------------------------
+    // ATTENTE AVANT NOUVEL ESSAI
+    // --------------------------------------------------------
+
+    if (attempt < INIT_USER_MAX_ATTEMPTS) {
+
+      showLoading(
+        "Le serveur démarre… veuillez patienter."
+      );
+
+      debugLog(
+        `⏳ Nouvelle tentative dans ${RETRY_DELAY_MS / 1000} secondes`
+      );
+
+      await sleep(RETRY_DELAY_MS);
     }
   }
-}
 
-async function handleUpdateProduct(id, payload) {
-  const previous = products.get(id);
-  products.set(id, { ...previous, ...payload, pendingSync: !navigator.onLine });
-  renderProducts();
+  // ----------------------------------------------------------
+  // TOUTES LES TENTATIVES ONT ÉCHOUÉ
+  // ----------------------------------------------------------
 
-  const queuedPayload = { ...payload, id, _update: true, localId: crypto.randomUUID() };
+  debugLog('❌ init-user : toutes les tentatives ont échoué. Dernière erreur:', lastError, 'stack:', lastError?.stack || 'pas de stack');
 
-  if (!navigator.onLine) {
-    await addPendingAction("product", queuedPayload);
-    await updateOnlineStatus();
-    finishProductForm();
-    return;
-  }
-
-  try {
-    const updated = await authFetch(`/products/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-    products.set(id, { ...updated, pendingSync: false });
-    renderProducts();
-    finishProductForm();
-  } catch (error) {
-    if (isNetworkError(error)) {
-      await addPendingAction("product", queuedPayload);
-      await updateOnlineStatus();
-      finishProductForm();
-    } else {
-      products.set(id, previous);
-      renderProducts();
-      showFormError(formProduct, error.message || "Erreur lors de la modification du produit.");
-    }
-  }
+  throw lastError || new Error(
+    'INIT_USER_FAILED'
+  );
 }
 
 // ============================================================
-// Formulaire de vente (onglet Ventes — recherche + quantité)
+// CONNEXION TERMINEE
 // ============================================================
 
-function clearSaleFormError() {
-  saleFormError.hidden = true;
-  saleFormError.textContent = "";
-}
+async function completeSignIn(firebaseUser) {
 
-function showSaleFormError(message) {
-  saleFormError.textContent = message;
-  saleFormError.hidden = false;
-}
+  try {
 
-function showSaleSavedMsg() {
-  saleSavedMsg.hidden = false;
-  setTimeout(() => {
-    saleSavedMsg.hidden = true;
-  }, 2000);
-}
+    debugLog(
+      '✅ Firebase connecté :',
+      firebaseUser.email
+    );
 
-function updateSaleStockHint() {
-  clearSaleFormError();
-  const product = findProductByName(saleProductSearch.value);
-  saleStockHint.textContent = product
-    ? `Stock disponible : ${product.stockQuantity} ${product.unit || ""}`
-    : "";
-}
+    // --------------------------------------------------------
+    // PREPARATION DU COMPTE
+    // --------------------------------------------------------
 
-saleProductSearch.addEventListener("input", updateSaleStockHint);
+    await initUserOnBackend(firebaseUser);
 
-btnConfirmSale.addEventListener("click", async () => {
-  clearSaleFormError();
+    debugLog(
+      '✅ Utilisateur prêt côté serveur'
+    );
 
-  if (!requireCurrencyConfigured()) return;
+    // --------------------------------------------------------
+    // DASHBOARD
+    // --------------------------------------------------------
 
-  const product = findProductByName(saleProductSearch.value);
-  const quantity = Number(saleQuantity.value);
+    debugLog('➡️ Redirection vers /dashboard.html');
 
-  if (!product) {
-    showSaleFormError("Sélectionne un produit valide dans la liste.");
-    return;
-  }
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    showSaleFormError("La quantité doit être un nombre entier positif.");
-    return;
-  }
-  if (quantity > product.stockQuantity) {
-    showSaleFormError("Quantité supérieure au stock disponible.");
-    return;
-  }
+    window.location.href =
+      '/dashboard.html';
 
-  const localId = crypto.randomUUID();
-  const saleDate = new Date().toISOString();
-  const payload = { productId: product.id, quantity, saleDate, localId };
-  const newStock = product.stockQuantity - quantity;
+  } catch (err) {
 
-  // Optimistic UI
-  products.set(product.id, { ...product, stockQuantity: newStock });
+    debugLog(
+      '❌ Impossible de préparer le compte :',
+      err,
+      'message:', err?.message || 'pas de message',
+      'stack:', err?.stack || 'pas de stack'
+    );
 
-  const optimisticSale = {
-    id: localId,
-    productId: product.id,
-    productName: product.name,
-    quantity,
-    unitSellingPrice: product.sellingPrice,
-    unitPurchasePrice: product.purchasePrice,
-    totalRevenue: quantity * product.sellingPrice,
-    totalProfit: quantity * (product.sellingPrice - product.purchasePrice),
-    saleDate,
-    pendingSync: !navigator.onLine,
-  };
-  salesToday.unshift(optimisticSale);
+    if (
+      err.message === 'TIMEOUT_INIT_USER'
+    ) {
 
-  renderProducts();
-  renderSalesToday();
+      showError(
+        "Le serveur met trop de temps à démarrer. Vérifiez votre connexion puis réessayez."
+      );
 
-  // ⚠️ CORRECTIF : avant, resetForm() affichait TOUJOURS le même message
-  // "Vente enregistrée ✓", que la vente ait vraiment été confirmée par le
-  // serveur OU simplement mise en attente localement (hors ligne, ou après
-  // un échec réseau furtif). Résultat : tu voyais "enregistrée" et tu avais
-  // confiance, alors que la vente n'existait pas encore côté Firestore —
-  // et si elle restait coincée (comme avec le bug de synchro corrigé plus
-  // haut), elle "disparaissait" au rechargement sans que rien ne t'ait
-  // prévenu. Le message distingue maintenant clairement les deux cas.
-  const resetForm = ({ synced } = { synced: true }) => {
-    saleProductSearch.value = "";
-    saleQuantity.value = "";
-    saleStockHint.textContent = "";
-    showSaleSavedMsg();
-    if (synced) {
-      showSuccessToast("Vente enregistrée et confirmée sur le serveur ✓");
     } else {
-      showWarningToast(
-        "Vente enregistrée localement — pas encore confirmée par le serveur (réseau instable). Elle se synchronisera automatiquement.",
-        { duration: 8000 }
+
+      showError(
+        "Google vous a connecté, mais votre espace n'a pas pu être préparé. Réessayez."
       );
     }
-  };
-
-  if (!navigator.onLine) {
-    await addPendingAction("sale", payload);
-    await updateOnlineStatus();
-    resetForm({ synced: false });
-    return;
-  }
-
-  try {
-    const created = await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
-    salesToday = salesToday.filter((s) => s.id !== localId);
-    salesToday.unshift({ ...created, pendingSync: false });
-    renderProducts();
-    renderSalesToday();
-    resetForm({ synced: true });
-  } catch (error) {
-    if (isNetworkError(error)) {
-      await addPendingAction("sale", payload);
-      await updateOnlineStatus();
-      resetForm({ synced: false });
-    } else {
-      // Rollback (ex: stock désynchronisé entre appareils, refusé par le serveur)
-      products.set(product.id, product);
-      salesToday = salesToday.filter((s) => s.id !== localId);
-      renderProducts();
-      renderSalesToday();
-      showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
-    }
-  }
-});
-
-// ============================================================
-// Retrait d'une vente
-// ============================================================
-
-async function handleRemoveSale(sale) {
-  if (!isSaleFromToday(sale.saleDate)) return; // garde-fou, le bouton est déjà désactivé sinon
-
-  if (!(await showConfirm("Retirer cette vente et réintégrer le stock ?", "Retirer la vente"))) return;
-
-  const product = products.get(sale.productId);
-  const previousStock = product ? product.stockQuantity : null;
-
-  // Optimistic UI
-  salesToday = salesToday.filter((s) => s.id !== sale.id);
-  if (product) {
-    products.set(sale.productId, { ...product, stockQuantity: product.stockQuantity + sale.quantity });
-  }
-  renderProducts();
-  renderSalesToday();
-
-  // Cas A : la vente n'a jamais été confirmée par le serveur (créée hors
-  // ligne, ou juste avant une coupure réseau) — elle n'existe QUE dans la
-  // file d'attente "sale" (offline-queue.js), pas encore dans Firestore.
-  // On annule simplement sa création plutôt que d'appeler DELETE /sales/:id,
-  // qui échouerait (la vente n'existe pas côté serveur).
-  //
-  // NB : sale.id est ici l'UUID généré côté client au moment de la vente
-  // (voir btnConfirmSale : localId = crypto.randomUUID()), qui N'A PAS le
-  // préfixe "local_" — celui-ci n'est utilisé QUE pour la clé interne de la
-  // file d'attente elle-même (voir generateLocalId() dans offline-queue.js).
-  // Il faut donc retrouver l'entrée de la file dont payload.localId
-  // correspond à sale.id, puis la supprimer via SA propre clé (entry.localId).
-  if (sale.pendingSync) {
-    try {
-      const pendingSales = await getPendingActions("sale");
-      const match = pendingSales.find((entry) => entry.payload && entry.payload.localId === sale.id);
-      if (match) {
-        await removePendingAction(match.localId);
-      }
-    } catch (error) {
-      console.error("Impossible d'annuler la vente en attente :", error);
-    }
-    await updateOnlineStatus();
-    showSuccessToast("Vente annulée (n'avait pas encore été synchronisée).");
-    return;
-  }
-
-  // Cas B : la vente existe déjà côté serveur.
-  if (!navigator.onLine) {
-    // Comme pour les créations, on met en file une suppression différée,
-    // rejouée par trySyncPending() au retour du réseau (tâche 3).
-    await addPendingAction("delete-sale", { saleId: sale.id });
-    await updateOnlineStatus();
-    showSuccessToast("Retrait enregistré, sera synchronisé au retour du réseau.");
-    return;
-  }
-
-  try {
-    await authFetch(`/sales/${sale.id}`, { method: "DELETE" });
-    showSuccessToast("Vente retirée, stock réintégré.");
-  } catch (error) {
-    if (isNetworkError(error)) {
-      await addPendingAction("delete-sale", { saleId: sale.id });
-      await updateOnlineStatus();
-      showSuccessToast("Retrait enregistré, sera synchronisé au retour du réseau.");
-    } else {
-      // Rollback (erreur serveur réelle, ex: vente déjà supprimée ailleurs)
-      salesToday.unshift(sale);
-      if (product && previousStock !== null) products.set(sale.productId, { ...product, stockQuantity: previousStock });
-      renderProducts();
-      renderSalesToday();
-      showErrorToast(error.message || "Erreur lors du retrait de la vente.");
-    }
   }
 }
 
 // ============================================================
-// Initialisation
+// RESULTAT DE REDIRECTION (retour de Google après signInWithRedirect)
 // ============================================================
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await updateOnlineStatus();
+async function checkRedirectResult() {
 
-  const access = await requireAppAccess();
+  debugLog('🔎 checkRedirectResult() démarré');
 
-  // requireAppAccess() résout `null` quand l'accès est refusé (paywall,
-  // document Firestore absent, erreur fatale) : dans ces cas, elle a déjà
-  // remplacé document.body par l'écran correspondant.
-  if (!access) return;
+  const wasPending = localStorage.getItem(AUTH_PENDING_KEY) === '1';
 
-  const { user, userData: initialUserData } = access;
-  currentUser = user;
-  if (initialUserData) currentUserData = initialUserData;
+  debugLog('🔎 wasPending:', wasPending);
 
-  listenToUserDoc(user.uid, (userData) => {
-    currentUserData = userData;
-    renderBalanceCard();
-    renderDailyProfitCard();
-    renderProducts();
-    renderSalesToday();
-  });
+  let fallbackTimer = null;
 
-  await refreshAllData();
-  renderBalanceCard();
+  if (wasPending) {
+    // On sait qu'une redirection Google était en cours : on affiche un état
+    // de chargement dédié, avec un filet de sécurité si ça traîne trop.
+    showLoading("Finalisation de la connexion…");
 
-  if (navigator.onLine) {
-    trySyncPending();
+    fallbackTimer = setTimeout(
+      showOpenBrowserFallback,
+      REDIRECT_FALLBACK_TIMEOUT_MS
+    );
+  } else {
+    // Rien en attente : écran normal tout de suite, la vérification se fait
+    // silencieusement en arrière-plan.
+    showButton();
   }
-});
+
+  try {
+
+    debugLog('🔎 Appel de getRedirectResult(auth)...');
+    setOperation('getRedirectResult (checkRedirectResult)');
+
+    const result = await getRedirectResult(auth);
+
+    debugLog('🔎 getRedirectResult() résolu, result:', result ? 'objet reçu' : 'null/undefined');
+    setOperation('aucune opération en cours');
+
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+
+    if (result && result.user) {
+
+      localStorage.removeItem(AUTH_PENDING_KEY);
+
+      debugLog(
+        '✅ Google connecté (redirect) :',
+        result.user.email
+      );
+
+      await completeSignIn(result.user);
+      return;
+    }
+
+    // Aucun résultat exploitable. Si on attendait un retour de connexion
+    // (redirect OU popup interrompu par un rechargement de page — ex :
+    // l'onglet a été déchargé par le navigateur en arrière-plan, ce qui
+    // arrive souvent avec beaucoup d'onglets ouverts), on ne doit JAMAIS
+    // laisser l'utilisateur revenir silencieusement à l'écran de départ
+    // sans explication : il faut un message clair + un bouton Réessayer.
+    if (wasPending) {
+      debugLog('⚠️ Connexion attendue mais aucun résultat exploitable reçu — la page a probablement été interrompue/rechargée pendant le processus');
+      localStorage.removeItem(AUTH_PENDING_KEY);
+      showError(
+        "Supprimez vos onglets en arrière-plan : cela peut bloquer la connexion.",
+        { directRetry: false }
+      );
+    }
+
+  } catch (err) {
+
+    setOperation('aucune opération en cours');
+
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+
+    localStorage.removeItem(AUTH_PENDING_KEY);
+
+    debugLog(
+      '❌ Erreur redirect Google :',
+      err,
+      'message:', err?.message || 'pas de message',
+      'code:', err?.code || 'pas de code',
+      'stack:', err?.stack || 'pas de stack'
+    );
+
+    showError(translateAuthError(err), { directRetry: false });
+  }
+}
+
+// ============================================================
+// CONNEXION GOOGLE
+// ============================================================
+
+async function startGoogleSignIn() {
+
+  // CRITIQUE : ce log doit apparaître dès le clic, avant toute autre
+  // vérification, pour savoir si le clic est bien détecté par le JS.
+  debugLog('👆 Clic bouton Google détecté, checkbox coché:', termsCheckbox.checked);
+  setOperation('startGoogleSignIn (juste après le clic)');
+
+  if (!termsCheckbox.checked) {
+    debugLog('⛔ Checkbox non cochée, connexion annulée');
+    return;
+  }
+
+  // --------------------------------------------------------
+  // CORRECTIF : on n'attend PLUS le réveil de Render ici.
+  //
+  // Avant, le code faisait `await serverWarmupPromise` avant d'ouvrir le
+  // popup Google. Le souci : la plupart des navigateurs n'autorisent
+  // l'ouverture d'une fenêtre pop-up que si elle est déclenchée quasi
+  // immédiatement après un geste utilisateur (le clic). Dès qu'on insère un
+  // `await` qui peut durer plusieurs secondes voire dizaines de secondes
+  // (le temps que Render démarre) avant d'appeler signInWithPopup(), le
+  // navigateur ne considère plus cela comme une réaction directe au clic et
+  // bloque silencieusement le popup — sans forcément renvoyer une erreur
+  // claire. C'était très probablement la cause du bug "le popup Google
+  // n'apparaît pas".
+  //
+  // Le réveil de Render continue de se faire, mais uniquement en tâche de
+  // fond depuis le chargement de la page (serverWarmupPromise, déclenché
+  // plus haut). Le temps que l'utilisateur choisisse son compte Google dans
+  // le popup (quelques secondes), le serveur a généralement fini de se
+  // réveiller. Et si jamais ce n'est pas encore le cas au moment d'appeler
+  // le backend juste après, initUserOnBackend() gère déjà des tentatives
+  // automatiques avec messages de progression.
+  // --------------------------------------------------------
+
+  debugLog('🔥 Statut du serveur au moment du clic (réveil déjà en tâche de fond depuis le chargement de la page) — serverIsWarm:', serverIsWarm);
+
+  showLoading(
+    "Connexion à Google…"
+  );
+
+  // Posé pour les DEUX flux (Popup ET Redirect) : sert à détecter, au
+  // prochain chargement de page, qu'une connexion était en cours et a été
+  // interrompue avant d'aboutir (rechargement forcé du navigateur, onglet
+  // déchargé en arrière-plan, etc.) — voir checkRedirectResult().
+  localStorage.setItem(AUTH_PENDING_KEY, '1');
+
+  try {
+
+    // --------------------------------------------------------
+    // PERSISTENCE FIREBASE
+    // --------------------------------------------------------
+    // Configurée une seule fois au chargement du script (voir
+    // persistenceReadyPromise plus haut) : ici on s'assure juste qu'elle
+    // est bien terminée, ce qui est quasi toujours déjà le cas et donc
+    // quasi instantané (ne retarde pas l'ouverture du popup en pratique).
+
+    await persistenceReadyPromise;
+
+    // --------------------------------------------------------
+    // POPUP EN PRIORITE (mobile ET desktop)
+    // --------------------------------------------------------
+    // Le popup garde la page d'origine active en permanence : elle ne
+    // quitte jamais son contexte, donc pas de risque que le système
+    // décharge l'app en arrière-plan pendant l'échange avec Google.
+
+    debugLog('🌐 Connexion Google avec Popup');
+    debugLog('🌐 Appel de signInWithPopup()...');
+    setOperation('signInWithPopup');
+
+    let result;
+
+    try {
+
+      result = await signInWithPopup(
+        auth,
+        googleProvider
+      );
+
+    } catch (popupErr) {
+
+      // Repli automatique sur Redirect UNIQUEMENT si le navigateur a
+      // concrètement bloqué l'ouverture de la fenêtre popup (cas rare).
+      // Dans tous les autres cas (fermeture volontaire, annulation...),
+      // on laisse l'erreur remonter normalement.
+      if (popupErr?.code === 'auth/popup-blocked') {
+
+        debugLog('⚠️ Popup bloquée par le navigateur — repli sur signInWithRedirect()');
+
+        debugLog('📱 Appel de signInWithRedirect()...');
+        setOperation('signInWithRedirect (repli après popup bloquée)');
+
+        await signInWithRedirect(
+          auth,
+          googleProvider
+        );
+
+        debugLog('📱 signInWithRedirect() résolu (la page devrait être redirigée)');
+
+        return; // La page va être rechargée par la redirection Google.
+      }
+
+      throw popupErr;
+    }
+
+    debugLog('🌐 signInWithPopup() résolu');
+    setOperation('aucune opération en cours (popup résolu)');
+    localStorage.removeItem(AUTH_PENDING_KEY);
+
+    // --------------------------------------------------------
+    // VERIFICATION UTILISATEUR
+    // --------------------------------------------------------
+
+    if (
+      !result ||
+      !result.user
+    ) {
+
+      throw new Error(
+        'Aucun utilisateur Google reçu.'
+      );
+    }
+
+    debugLog(
+      '✅ Google connecté :',
+      result.user.email
+    );
+
+    // --------------------------------------------------------
+    // INITIALISATION DU COMPTE
+    // --------------------------------------------------------
+
+    await completeSignIn(
+      result.user
+    );
+
+  } catch (err) {
+
+    setOperation('aucune opération en cours');
+    localStorage.removeItem(AUTH_PENDING_KEY);
+
+    debugLog(
+      '❌ Erreur Google:',
+      err,
+      'message:', err?.message || 'pas de message',
+      'code:', err?.code || 'pas de code',
+      'stack:', err?.stack || 'pas de stack'
+    );
+
+    showError(
+      translateAuthError(err)
+    );
+  }
+}
+
+// ============================================================
+// CHECKBOX CONDITIONS
+// ============================================================
+
+termsCheckbox.addEventListener(
+  'change',
+  () => {
+
+    debugLog('☑️ Checkbox changée, coché:', termsCheckbox.checked);
+
+    googleBtn.disabled =
+      !termsCheckbox.checked;
+  }
+);
+
+// ============================================================
+// BOUTON GOOGLE
+// ============================================================
+
+googleBtn.addEventListener(
+  'click',
+  startGoogleSignIn
+);
+
+debugLog('🎯 Event listener attaché au bouton Google');
+
+// ============================================================
+// BOUTON RETRY
+// ============================================================
+
+if (retryBtn) {
+
+  retryBtn.addEventListener(
+    'click',
+    () => {
+
+      debugLog('🔁 Clic bouton Réessayer — rechargement complet de la page de connexion (état SDK propre) avant de relancer Google');
+
+      // CORRECTIF : on ne relance plus signInWithPopup() directement dans la
+      // même page. Un premier échec (popup fermée trop vite, état interne
+      // du SDK Firebase Auth resté partiellement initialisé, jeton de geste
+      // utilisateur déjà consommé, etc.) laisse parfois la page dans un état
+      // qui fait échouer une deuxième tentative immédiate au même endroit,
+      // même si tout semble correct. Un rechargement complet de login.html
+      // repart d'un état totalement propre (nouveau script, nouvelle
+      // instance Auth), ce qui correspond au comportement observé : la
+      // deuxième tentative réussit presque toujours après un vrai rechargement.
+      window.location.href = '/login.html';
+
+    }
+  );
+}
+
+// ============================================================
+// BOUTON X — fermeture manuelle de la notification
+// ============================================================
+
+const errorCloseBtn = document.getElementById('errorCloseBtn');
+
+if (errorCloseBtn) {
+
+  errorCloseBtn.addEventListener(
+    'click',
+    () => {
+
+      debugLog('✖️ Notification d\'erreur fermée manuellement');
+
+      // Le bouton Google était masqué pendant l'erreur (voir showError) :
+      // on le réaffiche ici pour que l'écran ne reste pas vide.
+      showButton();
+
+    }
+  );
+}
+
+// ============================================================
+// BOUTON "OUVRIR DANS LE NAVIGATEUR" (secours PWA bloquée)
+// ============================================================
+
+if (openBrowserBtn) {
+
+  openBrowserBtn.addEventListener(
+    'click',
+    () => {
+
+      debugLog('🌍 Clic bouton "Ouvrir dans le navigateur"');
+
+      localStorage.removeItem(AUTH_PENDING_KEY);
+
+      // Ouvre la page de connexion dans un nouvel onglet du navigateur
+      // système : en PWA standalone (Android/iOS), window.open() en dehors
+      // du contexte installé bascule vers le navigateur classique.
+      window.open(window.location.href, '_blank');
+
+      showButton();
+
+    }
+  );
+}
+
+// ============================================================
+// INITIALISATION
+// ============================================================
+
+checkRedirectResult();
+
+debugLog(
+  '✅ Kontra-Africa Login chargé'
+);
