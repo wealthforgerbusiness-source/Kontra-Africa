@@ -50,7 +50,7 @@ const productSellingCurrency = document.getElementById("product-selling-currency
 
 // Ventes
 const saleProductSearch = document.getElementById("sale-product-search");
-const saleProductOptions = document.getElementById("sale-product-options");
+const saleProductSuggestions = document.getElementById("sale-product-suggestions");
 const saleQuantity = document.getElementById("sale-quantity");
 const saleStockHint = document.getElementById("sale-stock-hint");
 const saleFormError = document.getElementById("sale-form-error");
@@ -319,6 +319,14 @@ function requireCurrencyConfigured(options = {}) {
 // Auth + fetch helper (pattern à réconcilier avec finances.js)
 // ============================================================
 
+// Délai maximum avant de considérer la requête comme "trop lente" et de
+// basculer sur le cache local. Sans ça, si le serveur met du temps à
+// répondre (ex : serveur Render qui se réveille après une mise en veille,
+// ou connexion 2G/3G instable), l'appli reste bloquée sur "Chargement…"
+// pendant 30 à 60 secondes au lieu de proposer immédiatement les données
+// hors ligne déjà en cache.
+const FETCH_TIMEOUT_MS = 8000;
+
 async function authFetch(path, options = {}) {
   const token = await auth.currentUser.getIdToken();
   const headers = {
@@ -327,7 +335,29 @@ async function authFetch(path, options = {}) {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // AbortError (timeout) ou vraie coupure réseau : les deux doivent être
+    // traités comme une erreur réseau (pas de .status) afin de déclencher
+    // le fallback cache déjà géré par isNetworkError().
+    const networkError = new Error(
+      error.name === "AbortError"
+        ? "La connexion est trop lente, passage en mode hors ligne."
+        : error.message || "Erreur réseau."
+    );
+    throw networkError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -583,9 +613,15 @@ function loadStockDataFromCache(uid, scope = "all") {
 }
 
 function warnCacheFallbackOnce(hasCache) {
-  if (hasCache && !cacheFallbackWarningShown) {
-    cacheFallbackWarningShown = true;
-    showWarningToast("Données affichées depuis la dernière synchronisation connue.");
+  if (cacheFallbackWarningShown) return;
+  cacheFallbackWarningShown = true;
+
+  if (hasCache) {
+    showWarningToast("Connexion lente ou hors ligne — données affichées depuis la dernière synchronisation connue.");
+  } else {
+    // Aucune donnée en cache : on informe clairement plutôt que de laisser
+    // l'utilisateur devant un écran vide sans explication.
+    showWarningToast("Hors ligne et aucune donnée locale disponible pour l'instant. Reconnecte-toi puis réessaie.");
   }
 }
 
@@ -935,7 +971,9 @@ function renderProducts() {
   }
 
   renderLowStockSection();
-  renderSaleProductOptions();
+  // Si le menu déroulant de vente est ouvert au moment où les produits
+  // sont rechargés (ex: stock mis à jour ailleurs), on le rafraîchit.
+  if (!saleProductSuggestions.hidden) renderSaleProductSuggestions();
 }
 
 productSearch.addEventListener("input", renderProducts);
@@ -993,15 +1031,129 @@ function findProductByName(name) {
   return null;
 }
 
-function renderSaleProductOptions() {
-  saleProductOptions.innerHTML = "";
-  for (const product of products.values()) {
-    if (product.archived) continue;
-    const option = document.createElement("option");
-    option.value = product.name;
-    saleProductOptions.appendChild(option);
-  }
+// ============================================================
+// Autocomplete produit (vente) — menu déroulant maison
+// ============================================================
+// Remplace l'ancien <input list> + <datalist> : sur mobile en particulier,
+// le datalist natif ouvre une liste minuscule, peu lisible, qui ne filtre
+// pas toujours bien en direct. Ici la liste se reconstruit à chaque frappe,
+// s'affiche juste sous le champ, et se sélectionne au clic/tap.
+
+let saleSuggestionItems = [];
+let saleSuggestionActiveIndex = -1;
+
+function getSaleProductCandidates(query) {
+  const normalized = (query || "").trim().toLowerCase();
+  const available = [...products.values()].filter((p) => !p.archived);
+  const filtered = normalized
+    ? available.filter((p) => p.name.toLowerCase().includes(normalized))
+    : available;
+  // Produits en rupture affichés en dernier plutôt que masqués (pratique
+  // pour réintégrer visuellement, mais on empêche la vente ailleurs).
+  return filtered
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 30);
 }
+
+function closeSaleSuggestions() {
+  saleSuggestionItems = [];
+  saleSuggestionActiveIndex = -1;
+  saleProductSuggestions.hidden = true;
+  saleProductSuggestions.innerHTML = "";
+  saleProductSearch.setAttribute("aria-expanded", "false");
+}
+
+function highlightSaleSuggestion(index) {
+  const buttons = saleProductSuggestions.querySelectorAll(".product-autocomplete__item");
+  buttons.forEach((btn, i) => {
+    btn.classList.toggle("product-autocomplete__item--active", i === index);
+  });
+  saleSuggestionActiveIndex = index;
+}
+
+function selectSaleProduct(product) {
+  saleProductSearch.value = product.name;
+  closeSaleSuggestions();
+  updateSaleStockHint();
+}
+
+function renderSaleProductSuggestions() {
+  const candidates = getSaleProductCandidates(saleProductSearch.value);
+
+  if (candidates.length === 0) {
+    saleProductSuggestions.innerHTML =
+      '<div class="product-autocomplete__empty">Aucun produit correspondant.</div>';
+    saleProductSuggestions.hidden = false;
+    saleProductSearch.setAttribute("aria-expanded", "true");
+    saleSuggestionItems = [];
+    saleSuggestionActiveIndex = -1;
+    return;
+  }
+
+  saleSuggestionItems = candidates;
+  saleSuggestionActiveIndex = -1;
+  saleProductSuggestions.innerHTML = "";
+
+  candidates.forEach((product) => {
+    const isOut = product.stockQuantity <= 0;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className =
+      "product-autocomplete__item" + (isOut ? " product-autocomplete__item--out" : "");
+    item.setAttribute("role", "option");
+    item.innerHTML = `
+      <span>${escapeHtml(product.name)}</span>
+      <span class="product-autocomplete__item-stock">${product.stockQuantity} ${escapeHtml(product.unit || "")}${isOut ? " · rupture" : ""}</span>
+    `;
+    // mousedown (plutôt que click) pour sélectionner AVANT que le blur
+    // du champ texte ne referme la liste.
+    item.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      selectSaleProduct(product);
+    });
+    saleProductSuggestions.appendChild(item);
+  });
+
+  saleProductSuggestions.hidden = false;
+  saleProductSearch.setAttribute("aria-expanded", "true");
+}
+
+saleProductSearch.addEventListener("focus", renderSaleProductSuggestions);
+
+saleProductSearch.addEventListener("input", () => {
+  renderSaleProductSuggestions();
+  updateSaleStockHint();
+});
+
+saleProductSearch.addEventListener("keydown", (event) => {
+  if (saleProductSuggestions.hidden || saleSuggestionItems.length === 0) return;
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    highlightSaleSuggestion(Math.min(saleSuggestionActiveIndex + 1, saleSuggestionItems.length - 1));
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    highlightSaleSuggestion(Math.max(saleSuggestionActiveIndex - 1, 0));
+  } else if (event.key === "Enter") {
+    if (saleSuggestionActiveIndex >= 0) {
+      event.preventDefault();
+      selectSaleProduct(saleSuggestionItems[saleSuggestionActiveIndex]);
+    }
+  } else if (event.key === "Escape") {
+    closeSaleSuggestions();
+  }
+});
+
+saleProductSearch.addEventListener("blur", () => {
+  // Léger délai pour laisser le mousedown de l'item s'exécuter en premier.
+  setTimeout(closeSaleSuggestions, 100);
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".product-autocomplete")) {
+    closeSaleSuggestions();
+  }
+});
 
 // ============================================================
 // Rendu — Ventes du jour
