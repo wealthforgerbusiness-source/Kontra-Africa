@@ -38,22 +38,29 @@
       <!-- ================================================== -->
       <section class="stock-panel" data-tab-panel="dashboard" role="tabpanel">
 
+        <!-- =============================================== -->
+        <!-- CARTE HÉRO — BÉNÉFICE ACTUEL                      -->
+        <!-- Remplace l'ancienne carte "Solde actuel" (masquée -->
+        <!-- plus bas, conservée dans le DOM pour ne rien      -->
+        <!-- casser côté JS, mais invisible pour l'utilisateur) -->
+        <!-- =============================================== -->
+        <section class="profit-hero-card">
+          <div class="profit-hero-card__top">
+            <span class="profit-hero-card__label">Bénéfice actuel</span>
+            <button type="button" class="dashboard-card__convert profit-hero-card__convert" id="btn-convert-profit">🔄 USD</button>
+          </div>
+          <p class="profit-hero-card__amount" id="daily-profit-value">—</p>
+          <p class="profit-hero-card__footer">Total vendu : <span id="stock-total-sales-count">0 vente</span></p>
+        </section>
+
         <div class="dashboard-grid">
 
-          <div class="dashboard-card">
+          <div class="dashboard-card" id="legacy-balance-card" hidden>
             <div class="dashboard-card__label-row">
               <span class="dashboard-card__label">Solde actuel</span>
               <button type="button" class="dashboard-card__convert" id="btn-convert-balance">🔄 USD</button>
             </div>
             <p class="dashboard-card__value" id="stock-balance-value">—</p>
-          </div>
-
-          <div class="dashboard-card">
-            <div class="dashboard-card__label-row">
-              <span class="dashboard-card__label">Bénéfice du jour</span>
-              <button type="button" class="dashboard-card__convert" id="btn-convert-profit">🔄 USD</button>
-            </div>
-            <p class="dashboard-card__value" id="daily-profit-value">—</p>
           </div>
 
           <div class="dashboard-card">
