@@ -121,10 +121,71 @@ const INIT_USER_TIMEOUT_MS = 120000; // 2 minutes
 const INIT_USER_MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 5000;
 
-// Clé localStorage posée juste avant signInWithRedirect(), et lue au
-// rechargement de la page après le retour de Google, pour savoir qu'un
-// résultat de redirection est attendu.
+// Clé localStorage posée juste avant signInWithRedirect()/signInWithPopup(),
+// et lue au rechargement de la page pour savoir qu'un résultat de connexion
+// est attendu.
 const AUTH_PENDING_KEY = 'kontra_auth_pending';
+
+// ⚠️ CORRECTIF : on stocke maintenant un timestamp avec le flag "pending",
+// pas juste '1'. Avant, si la page plantait ou était fermée brutalement
+// pendant une tentative de connexion (ex: script cassé, onglet tué par le
+// système), AUTH_PENDING_KEY restait bloqué à '1' pour TOUJOURS dans le
+// localStorage — donc à CHAQUE rechargement suivant, même des jours après,
+// checkRedirectResult() croyait qu'une connexion Google était en cours,
+// ne trouvait aucun résultat, et affichait à tort "Supprimez vos onglets en
+// arrière-plan : cela peut bloquer la connexion", empêchant l'utilisateur de
+// simplement recommencer normalement. Avec le timestamp, un flag "pending"
+// trop ancien (au-delà de AUTH_PENDING_MAX_AGE_MS) est maintenant considéré
+// comme obsolète et ignoré silencieusement, sans afficher d'erreur.
+const AUTH_PENDING_MAX_AGE_MS = 3 * 60 * 1000; // 3 minutes
+
+function setAuthPending() {
+  try {
+    localStorage.setItem(AUTH_PENDING_KEY, String(Date.now()));
+  } catch (e) {
+    // localStorage indisponible : tant pis, pas bloquant pour la connexion.
+  }
+}
+
+function clearAuthPending() {
+  try {
+    localStorage.removeItem(AUTH_PENDING_KEY);
+  } catch (e) {
+    // rien à faire
+  }
+}
+
+// Retourne true seulement si un flag "pending" existe ET qu'il est assez
+// récent pour être crédible (sinon on le nettoie et on ignore).
+function checkAuthPendingIsFresh() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(AUTH_PENDING_KEY);
+  } catch (e) {
+    return false;
+  }
+
+  if (!raw) return false;
+
+  // Compatibilité avec l'ancien format ('1' sans timestamp, posé par une
+  // version précédente du script) : on le traite comme obsolète d'office.
+  const ts = Number(raw);
+  if (!Number.isFinite(ts)) {
+    debugLog('🧹 Ancien flag AUTH_PENDING_KEY (format "1" sans timestamp) détecté — nettoyage silencieux');
+    clearAuthPending();
+    return false;
+  }
+
+  const age = Date.now() - ts;
+
+  if (age > AUTH_PENDING_MAX_AGE_MS) {
+    debugLog('🧹 Flag AUTH_PENDING_KEY obsolète (âge:', Math.round(age / 1000) + 's) — nettoyage silencieux, pas d\'erreur affichée');
+    clearAuthPending();
+    return false;
+  }
+
+  return true;
+}
 
 // Si getRedirectResult() ne s'est toujours pas résolu après ce délai suite à
 // un retour de redirection, on propose le secours "Ouvrir dans le
@@ -616,9 +677,13 @@ async function checkRedirectResult() {
 
   debugLog('🔎 checkRedirectResult() démarré');
 
-  const wasPending = localStorage.getItem(AUTH_PENDING_KEY) === '1';
+  // ⚠️ CORRECTIF : utilise désormais checkAuthPendingIsFresh() au lieu de
+  // comparer directement à '1'. Un flag trop ancien (résidu d'un plantage
+  // précédent) est nettoyé silencieusement et ne déclenche plus l'écran
+  // d'erreur "Supprimez vos onglets en arrière-plan".
+  const wasPending = checkAuthPendingIsFresh();
 
-  debugLog('🔎 wasPending:', wasPending);
+  debugLog('🔎 wasPending (frais):', wasPending);
 
   let fallbackTimer = null;
 
@@ -632,8 +697,8 @@ async function checkRedirectResult() {
       REDIRECT_FALLBACK_TIMEOUT_MS
     );
   } else {
-    // Rien en attente : écran normal tout de suite, la vérification se fait
-    // silencieusement en arrière-plan.
+    // Rien en attente (ou flag obsolète déjà nettoyé) : écran normal tout de
+    // suite, la vérification se fait silencieusement en arrière-plan.
     showButton();
   }
 
@@ -651,7 +716,7 @@ async function checkRedirectResult() {
 
     if (result && result.user) {
 
-      localStorage.removeItem(AUTH_PENDING_KEY);
+      clearAuthPending();
 
       debugLog(
         '✅ Google connecté (redirect) :',
@@ -665,12 +730,13 @@ async function checkRedirectResult() {
     // Aucun résultat exploitable. Si on attendait un retour de connexion
     // (redirect OU popup interrompu par un rechargement de page — ex :
     // l'onglet a été déchargé par le navigateur en arrière-plan, ce qui
-    // arrive souvent avec beaucoup d'onglets ouverts), on ne doit JAMAIS
-    // laisser l'utilisateur revenir silencieusement à l'écran de départ
-    // sans explication : il faut un message clair + un bouton Réessayer.
+    // arrive souvent avec beaucoup d'onglets ouverts), et que ce flag est
+    // encore FRAIS (voir checkAuthPendingIsFresh), on ne doit pas laisser
+    // l'utilisateur revenir silencieusement à l'écran de départ sans
+    // explication : il faut un message clair + un bouton Réessayer.
     if (wasPending) {
       debugLog('⚠️ Connexion attendue mais aucun résultat exploitable reçu — la page a probablement été interrompue/rechargée pendant le processus');
-      localStorage.removeItem(AUTH_PENDING_KEY);
+      clearAuthPending();
       showError(
         "Supprimez vos onglets en arrière-plan : cela peut bloquer la connexion.",
         { directRetry: false }
@@ -683,7 +749,7 @@ async function checkRedirectResult() {
 
     if (fallbackTimer) clearTimeout(fallbackTimer);
 
-    localStorage.removeItem(AUTH_PENDING_KEY);
+    clearAuthPending();
 
     debugLog(
       '❌ Erreur redirect Google :',
@@ -742,11 +808,13 @@ async function startGoogleSignIn() {
     "Connexion à Google…"
   );
 
-  // Posé pour les DEUX flux (Popup ET Redirect) : sert à détecter, au
-  // prochain chargement de page, qu'une connexion était en cours et a été
-  // interrompue avant d'aboutir (rechargement forcé du navigateur, onglet
-  // déchargé en arrière-plan, etc.) — voir checkRedirectResult().
-  localStorage.setItem(AUTH_PENDING_KEY, '1');
+  // Posé pour les DEUX flux (Popup ET Redirect), avec un timestamp : sert à
+  // détecter, au prochain chargement de page, qu'une connexion était en
+  // cours et a été interrompue avant d'aboutir (rechargement forcé du
+  // navigateur, onglet déchargé en arrière-plan, etc.) — voir
+  // checkRedirectResult(). Le timestamp permet de distinguer une
+  // interruption récente (à signaler) d'un résidu ancien (à ignorer).
+  setAuthPending();
 
   try {
 
@@ -808,7 +876,7 @@ async function startGoogleSignIn() {
 
     debugLog('🌐 signInWithPopup() résolu');
     setOperation('aucune opération en cours (popup résolu)');
-    localStorage.removeItem(AUTH_PENDING_KEY);
+    clearAuthPending();
 
     // --------------------------------------------------------
     // VERIFICATION UTILISATEUR
@@ -840,7 +908,7 @@ async function startGoogleSignIn() {
   } catch (err) {
 
     setOperation('aucune opération en cours');
-    localStorage.removeItem(AUTH_PENDING_KEY);
+    clearAuthPending();
 
     debugLog(
       '❌ Erreur Google:',
@@ -943,7 +1011,7 @@ if (openBrowserBtn) {
 
       debugLog('🌍 Clic bouton "Ouvrir dans le navigateur"');
 
-      localStorage.removeItem(AUTH_PENDING_KEY);
+      clearAuthPending();
 
       // Ouvre la page de connexion dans un nouvel onglet du navigateur
       // système : en PWA standalone (Android/iOS), window.open() en dehors
