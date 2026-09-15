@@ -1,27 +1,11 @@
 import { auth, db } from "./firebase-config.js";
-import {
-  doc,
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-  increment,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
 import { getCurrencySymbol, formatAmount } from "./currency.js";
 import { renderAppNav } from "./app-nav.js";
 
 renderAppNav("stock"); // sidebar desktop + bottom nav mobile
 
-// Produits, ventes et rapport mensuel : lus/écrits directement dans Firebase
-// (temps réel + cache local hors ligne), donc plus jamais bloqués par une
-// éventuelle lenteur du serveur Render — celui-ci ne sert plus que pour la
-// génération du PDF de clôture (voir plus bas).
 const API_BASE = "https://kontra-africa.onrender.com/api/stock";
 const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
 
@@ -50,9 +34,6 @@ const lowStockSection = document.getElementById("low-stock-section");
 const lowStockBadges = document.getElementById("low-stock-badges");
 const btnQuickAddStock = document.getElementById("btn-quick-add-stock");
 const btnCloseDay = document.getElementById("btn-close-day");
-const monthRevenueValue = document.getElementById("month-revenue-value");
-const monthProfitValue = document.getElementById("month-profit-value");
-const monthSalesCount = document.getElementById("month-sales-count");
 
 // Produits
 const btnAddProduct = document.getElementById("btn-add-product");
@@ -82,17 +63,8 @@ const dailySummary = document.getElementById("daily-summary");
 let currentUser = null;
 let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local", balance: 0 };
 let products = new Map(); // id -> product
-// ⚠️ Malgré son nom (conservé pour limiter les changements ailleurs dans ce
-// fichier), ce tableau contient TOUTES les ventes non encore clôturées, pas
-// seulement celles d'aujourd'hui. Elles ne sont jamais supprimées tant que
-// "Clôturer la journée" n'a pas été confirmé.
 let salesToday = [];
 let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
-let currentMonthTotals = { totalRevenue: 0, totalProfit: 0, salesCount: 0 };
-
-let unsubscribeProducts = null;
-let unsubscribeSales = null;
-let unsubscribeMonthlyReport = null;
 
 // Toggles indépendants des deux cartes du dashboard (🔄 USD)
 let balanceViewCurrency = "local";
@@ -339,13 +311,15 @@ function requireCurrencyConfigured(options = {}) {
 // Auth + fetch helper (pattern à réconcilier avec finances.js)
 // ============================================================
 
-// Délai maximum avant de considérer la requête comme "trop lente" et de
-// basculer sur le cache local. Sans ça, si le serveur met du temps à
-// répondre (ex : serveur Render qui se réveille après une mise en veille,
-// ou connexion 2G/3G instable), l'appli reste bloquée sur "Chargement…"
-// pendant 30 à 60 secondes au lieu de proposer immédiatement les données
-// hors ligne déjà en cache.
-const FETCH_TIMEOUT_MS = 8000;
+// Délai maximum avant de considérer la requête comme "trop lente" et
+// d'afficher une erreur avec un bouton "Réessayer" à la place du
+// "Chargement…" figé. Le serveur (Render, offre gratuite) peut mettre
+// jusqu'à 30-50 secondes à se réveiller après une mise en veille — un
+// délai trop court (l'ancien 8000ms) déclenchait une erreur avant même
+// que le serveur ait eu le temps de répondre, et comme il n'y a plus de
+// cache hors ligne vers lequel basculer, la page restait bloquée sur
+// "Chargement…" indéfiniment (aucune UI de reprise n'était affichée).
+const FETCH_TIMEOUT_MS = 45000;
 
 async function authFetch(path, options = {}) {
   const token = await auth.currentUser.getIdToken();
@@ -490,168 +464,81 @@ window.addEventListener("online", () => {
 window.addEventListener("offline", updateOnlineStatus);
 
 // ============================================================
-// Chargement des données — Firebase en temps réel
+// Chargement des données
 // ============================================================
-// Produits et ventes ne dépendent plus du serveur Render : ils sont lus (et
-// écrits) directement dans Firestore via onSnapshot. Ça veut dire :
-//  - premier affichage quasi instantané (cache local hors ligne déjà activé
-//    dans firebase-config.js), même si le téléphone est hors ligne ;
-//  - mise à jour automatique dès qu'une donnée change (pas besoin de
-//    recharger la page) ;
-//  - plus jamais bloqué sur "Chargement…" à cause d'un serveur qui met du
-//    temps à se réveiller.
-// Seule la génération du PDF de clôture de journée reste sur le serveur
-// Render (voir plus bas), car elle utilise une librairie PDF côté Node.
 
-function getCurrentMonthId(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+async function refreshAllData() {
+  try {
+    await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
+  } catch (error) {
+    console.error("Erreur lors du chargement des données stock :", error);
+    showErrorToast("Impossible de charger les données — vérifie ta connexion internet.", {
+      actionLabel: "Réessayer",
+      onAction: refreshAllData,
+    });
+  }
 }
 
-function startRealtimeListeners(uid) {
-  // On se désabonne d'abord si des écouteurs tournaient déjà (ex: bouton
-  // "Réessayer" après une erreur), pour ne jamais en empiler deux.
-  stopRealtimeListeners();
+// ============================================================
+// État d'erreur avec bouton "Réessayer" (remplace un "Chargement…"
+// qui resterait sinon affiché indéfiniment si la requête échoue).
+// ============================================================
 
-  const productsQuery = query(
-    collection(db, "users", uid, "stockProducts"),
-    orderBy("createdAt", "desc"),
-    limit(500)
-  );
-  unsubscribeProducts = onSnapshot(
-    productsQuery,
-    (snapshot) => {
-      products = new Map(snapshot.docs.map((docSnap) => [docSnap.id, serializeProductDoc(docSnap)]));
-      renderProducts();
-    },
-    (error) => {
-      console.error("Erreur d'écoute des produits :", error);
-      renderProductsError();
-    }
-  );
+function renderLoadError(container, message, onRetry) {
+  container.innerHTML = "";
 
-  // Toutes les ventes non encore clôturées (voir note sur `salesToday` plus
-  // haut) — jamais filtrées par date, donc rien ne "disparaît" du jour au
-  // lendemain si tu oublies de clôturer.
-  const salesQuery = query(
-    collection(db, "users", uid, "stockSales"),
-    orderBy("saleDate", "desc"),
-    limit(1000)
-  );
-  unsubscribeSales = onSnapshot(
-    salesQuery,
-    (snapshot) => {
-      salesToday = snapshot.docs.map(serializeSaleDoc);
-      renderSalesToday();
-    },
-    (error) => {
-      console.error("Erreur d'écoute des ventes :", error);
-      renderSalesTodayError();
-    }
-  );
-
-  // Cumul du mois en cours (revenu / bénéfice), alimenté par le serveur à
-  // chaque clôture de journée — voir functions/src/stock.js.
-  unsubscribeMonthlyReport = onSnapshot(
-    doc(db, "users", uid, "stockMonthlyReports", getCurrentMonthId()),
-    (snap) => {
-      currentMonthTotals = snap.exists()
-        ? {
-            totalRevenue: Number(snap.data().totalRevenue || 0),
-            totalProfit: Number(snap.data().totalProfit || 0),
-            salesCount: Number(snap.data().salesCount || 0),
-          }
-        : { totalRevenue: 0, totalProfit: 0, salesCount: 0 };
-      renderMonthCard();
-    },
-    (error) => {
-      console.error("Erreur d'écoute du rapport mensuel :", error);
-    }
-  );
-}
-
-function stopRealtimeListeners() {
-  if (unsubscribeProducts) unsubscribeProducts();
-  if (unsubscribeSales) unsubscribeSales();
-  if (unsubscribeMonthlyReport) unsubscribeMonthlyReport();
-  unsubscribeProducts = null;
-  unsubscribeSales = null;
-  unsubscribeMonthlyReport = null;
-}
-
-function serializeProductDoc(docSnap) {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    name: data.name || "",
-    purchasePrice: Number(data.purchasePrice || 0),
-    sellingPrice: Number(data.sellingPrice || 0),
-    stockQuantity: Number(data.stockQuantity || 0),
-    lowStockThreshold: data.lowStockThreshold ?? 5,
-    unit: data.unit || "piece",
-    archived: Boolean(data.archived),
-  };
-}
-
-function serializeSaleDoc(docSnap) {
-  const data = docSnap.data();
-  const saleDate =
-    data.saleDate && typeof data.saleDate.toDate === "function"
-      ? data.saleDate.toDate().toISOString()
-      : new Date().toISOString();
-  return {
-    id: docSnap.id,
-    productId: data.productId || "",
-    productName: data.productName || "",
-    quantity: Number(data.quantity || 0),
-    unitSellingPrice: Number(data.unitSellingPrice || 0),
-    unitPurchasePrice: Number(data.unitPurchasePrice || 0),
-    totalRevenue: Number(data.totalRevenue || 0),
-    totalProfit: Number(data.totalProfit || 0),
-    saleDate,
-  };
-}
-
-function renderProductsError() {
-  productsList.innerHTML = "";
-  const wrapper = document.createElement("div");
-  wrapper.className = "state-message";
-  wrapper.textContent = "Impossible de charger les produits. ";
+  const wrap = document.createElement("div");
+  wrap.className = "state-message state-message--error";
+  wrap.textContent = message;
 
   const retryBtn = document.createElement("button");
   retryBtn.type = "button";
   retryBtn.className = "btn btn-secondary btn-sm";
   retryBtn.textContent = "Réessayer";
-  retryBtn.addEventListener("click", () => {
-    productsList.innerHTML = '<div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>';
-    if (currentUser) startRealtimeListeners(currentUser.uid);
-  });
+  retryBtn.style.marginTop = "8px";
+  retryBtn.addEventListener("click", onRetry);
 
-  wrapper.appendChild(retryBtn);
-  productsList.appendChild(wrapper);
+  wrap.appendChild(document.createElement("br"));
+  wrap.appendChild(retryBtn);
+  container.appendChild(wrap);
 }
 
-function renderSalesTodayError() {
-  salesTodayList.innerHTML = "";
-  const wrapper = document.createElement("div");
-  wrapper.className = "state-message";
-  wrapper.textContent = "Impossible de charger les ventes. ";
-
-  const retryBtn = document.createElement("button");
-  retryBtn.type = "button";
-  retryBtn.className = "btn btn-secondary btn-sm";
-  retryBtn.textContent = "Réessayer";
-  retryBtn.addEventListener("click", () => {
-    salesTodayList.innerHTML = '<div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>';
-    if (currentUser) startRealtimeListeners(currentUser.uid);
-  });
-
-  wrapper.appendChild(retryBtn);
-  salesTodayList.appendChild(wrapper);
+async function loadProducts() {
+  try {
+    const data = await authFetch("/products");
+    products = new Map(data.products.map((p) => [p.id, p]));
+    renderProducts();
+  } catch (error) {
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour charger les produits.");
+    }
+    renderLoadError(
+      productsList,
+      "Impossible de charger les produits.",
+      () => loadProducts()
+    );
+    throw error;
+  }
 }
 
-// Seules les dépenses (page Finances) restent chargées via le serveur : ce
-// n'est qu'une petite info d'appoint pour la carte "Bénéfice actuel", elle
-// n'empêche jamais l'affichage des produits/ventes si elle échoue.
+async function loadSalesToday() {
+  try {
+    const data = await authFetch("/sales");
+    salesToday = data.sales;
+    renderSalesToday();
+  } catch (error) {
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour charger les ventes.");
+    }
+    renderLoadError(
+      salesTodayList,
+      "Impossible de charger les ventes du jour.",
+      () => loadSalesToday()
+    );
+    throw error;
+  }
+}
+
 async function loadDailyReport() {
   const today = getTodayLocalISODate();
   try {
@@ -662,10 +549,6 @@ async function loadDailyReport() {
     totalExpensesToday = 0;
   }
   renderDailyProfitCard();
-}
-
-async function refreshAllData() {
-  await loadDailyReport();
 }
 
 // ============================================================
@@ -826,12 +709,17 @@ function ensureAddStockModal() {
     submitBtn.disabled = true;
 
     try {
-      await adjustProductStock(product.id, quantity);
+      await handleUpdateProduct(product.id, {
+        name: product.name,
+        purchasePrice: product.purchasePrice,
+        sellingPrice: product.sellingPrice,
+        stockQuantity: product.stockQuantity + quantity,
+        lowStockThreshold: product.lowStockThreshold,
+        unit: product.unit,
+      });
       showSavedMsg(form);
       closeModal(dialog);
       form.reset();
-    } catch (error) {
-      showFormError(form, "Erreur lors de l'ajout au stock. " + (error.message || ""));
     } finally {
       submitBtn.disabled = false;
     }
@@ -879,7 +767,7 @@ btnQuickAddStock.addEventListener("click", openAddStockModal);
 btnCloseDay.addEventListener("click", async () => {
   if (
     !(await showConfirm(
-      "Le PDF sera téléchargé, le total sera ajouté à ton bilan du mois, puis toutes les ventes en attente seront définitivement supprimées. Continuer ?",
+      "Le PDF sera téléchargé puis les ventes du jour seront définitivement supprimées. Continuer ?",
       "Clôturer la journée"
     ))
   ) {
@@ -1181,10 +1069,9 @@ function renderSalesToday() {
 
 function renderSaleRow(sale) {
   const row = document.createElement("div");
+  const isToday = isSaleFromToday(sale.saleDate);
 
-  // Une vente reste modifiable tant que la journée n'a pas été clôturée,
-  // quel que soit le jour où elle a été enregistrée.
-  row.className = "sale-row";
+  row.className = "sale-row" + (isToday ? "" : " sale-row--locked");
   row.dataset.saleId = sale.id;
   row.dataset.saleDate =
     typeof sale.saleDate === "string" ? sale.saleDate : new Date(sale.saleDate).toISOString();
@@ -1197,32 +1084,16 @@ function renderSaleRow(sale) {
         · Bénéfice <span class="sale-row__profit">${formatAmount(sale.totalProfit, currentUserData, currentUserData.displayCurrency)}</span>
       </span>
     </div>
-    <button class="btn btn-debit btn-sm" data-action="remove-sale">Retirer</button>
+    <button class="btn btn-debit btn-sm" data-action="remove-sale" ${!isToday ? 'disabled title="Non modifiable après la journée"' : ""}>Retirer</button>
   `;
 
-  row.querySelector('[data-action="remove-sale"]').addEventListener("click", () => {
-    handleRemoveSale(sale);
-  });
+  if (isToday) {
+    row.querySelector('[data-action="remove-sale"]').addEventListener("click", () => {
+      handleRemoveSale(sale);
+    });
+  }
 
   return row;
-}
-
-function renderMonthCard() {
-  if (!monthRevenueValue || !monthProfitValue) return;
-  monthRevenueValue.textContent = formatAmount(
-    currentMonthTotals.totalRevenue,
-    currentUserData,
-    currentUserData.displayCurrency
-  );
-  monthProfitValue.textContent = formatAmount(
-    currentMonthTotals.totalProfit,
-    currentUserData,
-    currentUserData.displayCurrency
-  );
-  if (monthSalesCount) {
-    const count = currentMonthTotals.salesCount || 0;
-    monthSalesCount.textContent = `${count} vente${count > 1 ? "s" : ""} clôturée${count > 1 ? "s" : ""}`;
-  }
 }
 
 function renderDailySummary() {
@@ -1364,49 +1235,39 @@ formProduct.addEventListener("submit", async (event) => {
 
 async function handleCreateProduct(payload) {
   try {
-    await addDoc(collection(db, "users", currentUser.uid, "stockProducts"), {
-      name: payload.name,
-      purchasePrice: payload.purchasePrice,
-      sellingPrice: payload.sellingPrice,
-      stockQuantity: payload.stockQuantity,
-      lowStockThreshold: payload.lowStockThreshold ?? 5,
-      unit: payload.unit || "piece",
-      archived: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    // La liste se met à jour toute seule via l'écoute temps réel Firestore.
+    const created = await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
+    products.set(created.id, created);
+    renderProducts();
     finishProductForm();
   } catch (error) {
-    showFormError(formProduct, "Erreur lors de la création du produit. " + (error.message || ""));
+    if (isNetworkError(error)) {
+      showFormError(formProduct, "Connexion internet requise pour ajouter un produit.");
+    } else {
+      showFormError(formProduct, error.message || "Erreur lors de la création du produit.");
+    }
   }
 }
 
 async function handleUpdateProduct(id, payload) {
+  const previous = products.get(id);
+
   try {
-    await updateDoc(doc(db, "users", currentUser.uid, "stockProducts", id), {
-      name: payload.name,
-      purchasePrice: payload.purchasePrice,
-      sellingPrice: payload.sellingPrice,
-      stockQuantity: payload.stockQuantity,
-      lowStockThreshold: payload.lowStockThreshold ?? 5,
-      unit: payload.unit || "piece",
-      updatedAt: serverTimestamp(),
+    const updated = await authFetch(`/products/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
     });
+    products.set(id, updated);
+    renderProducts();
     finishProductForm();
   } catch (error) {
-    showFormError(formProduct, "Erreur lors de la modification du produit. " + (error.message || ""));
+    products.set(id, previous);
+    renderProducts();
+    if (isNetworkError(error)) {
+      showFormError(formProduct, "Connexion internet requise pour modifier ce produit.");
+    } else {
+      showFormError(formProduct, error.message || "Erreur lors de la modification du produit.");
+    }
   }
-}
-
-// Ajuste le stock d'un produit de façon atomique (utilisé pour le
-// réapprovisionnement rapide, les ventes et les retraits de vente) : évite
-// les problèmes de concurrence qu'aurait un simple "lire puis réécrire".
-async function adjustProductStock(productId, delta) {
-  await updateDoc(doc(db, "users", currentUser.uid, "stockProducts", productId), {
-    stockQuantity: increment(delta),
-    updatedAt: serverTimestamp(),
-  });
 }
 
 // ============================================================
@@ -1461,38 +1322,26 @@ btnConfirmSale.addEventListener("click", async () => {
     return;
   }
 
-  btnConfirmSale.disabled = true;
+  const saleDate = new Date().toISOString();
+  const payload = { productId: product.id, quantity, saleDate };
 
   try {
-    const totalRevenue = quantity * product.sellingPrice;
-    const totalProfit = quantity * (product.sellingPrice - product.purchasePrice);
-
-    // Deux écritures Firestore indépendantes (plutôt qu'une transaction) :
-    // chacune fonctionne même hors ligne grâce au cache local, et se
-    // synchronise automatiquement dès que la connexion revient — au lieu
-    // d'échouer entièrement en attendant une réponse serveur.
-    await addDoc(collection(db, "users", currentUser.uid, "stockSales"), {
-      productId: product.id,
-      productName: product.name,
-      quantity,
-      unitSellingPrice: product.sellingPrice,
-      unitPurchasePrice: product.purchasePrice,
-      totalRevenue,
-      totalProfit,
-      saleDate: serverTimestamp(),
-      createdAt: serverTimestamp(),
-    });
-    await adjustProductStock(product.id, -quantity);
-
+    const created = await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
+    salesToday.unshift(created);
+    products.set(product.id, { ...product, stockQuantity: product.stockQuantity - quantity });
+    renderProducts();
+    renderSalesToday();
     saleProductSearch.value = "";
     saleQuantity.value = "";
     saleStockHint.textContent = "";
     showSaleSavedMsg();
     showSuccessToast("Vente enregistrée ✓");
   } catch (error) {
-    showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
-  } finally {
-    btnConfirmSale.disabled = false;
+    if (isNetworkError(error)) {
+      showSaleFormError("Connexion internet requise pour enregistrer une vente.");
+    } else {
+      showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
+    }
   }
 });
 
@@ -1501,16 +1350,28 @@ btnConfirmSale.addEventListener("click", async () => {
 // ============================================================
 
 async function handleRemoveSale(sale) {
+  if (!isSaleFromToday(sale.saleDate)) return; // garde-fou, le bouton est déjà désactivé sinon
+
   if (!(await showConfirm("Retirer cette vente et réintégrer le stock ?", "Retirer la vente"))) return;
 
+  const product = products.get(sale.productId);
+  const previousStock = product ? product.stockQuantity : null;
+
   try {
-    await deleteDoc(doc(db, "users", currentUser.uid, "stockSales", sale.id));
-    if (products.has(sale.productId)) {
-      await adjustProductStock(sale.productId, sale.quantity);
+    await authFetch(`/sales/${sale.id}`, { method: "DELETE" });
+    salesToday = salesToday.filter((s) => s.id !== sale.id);
+    if (product) {
+      products.set(sale.productId, { ...product, stockQuantity: product.stockQuantity + sale.quantity });
     }
+    renderProducts();
+    renderSalesToday();
     showSuccessToast("Vente retirée, stock réintégré.");
   } catch (error) {
-    showErrorToast(error.message || "Erreur lors du retrait de la vente.");
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour retirer une vente.");
+    } else {
+      showErrorToast(error.message || "Erreur lors du retrait de la vente.");
+    }
   }
 }
 
@@ -1538,13 +1399,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderDailyProfitCard();
     renderProducts();
     renderSalesToday();
-    renderMonthCard();
   });
 
-  // Produits, ventes et bilan mensuel : branchés en temps réel sur Firebase,
-  // indépendamment de l'état du serveur Render.
-  startRealtimeListeners(user.uid);
-
-  await refreshAllData(); // dépenses du jour uniquement (voir plus haut)
+  await refreshAllData();
   renderBalanceCard();
 });
