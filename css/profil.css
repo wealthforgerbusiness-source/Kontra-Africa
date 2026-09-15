@@ -1,296 +1,321 @@
-import { auth, db } from './firebase-config.js';
-import { requireAppAccess } from './auth-guard.js';
-import { signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
-import { renderAppNav } from './app-nav.js';
-import { buildCountryOptionsHtml, cleanPhoneDigits } from './phone-countries.js';
+/*
+  Styles de la page Profil.
+  Suppose que css/tokens.css est chargé avant ce fichier et définit déjà
+  les variables de couleur/typo/espacement/rayons/ombres (voir css/tokens.css).
+*/
 
-renderAppNav('profil'); // sidebar desktop + bottom nav mobile
+/* ---------------------------------- En-tête de page ---------------------------------- */
 
-const API_BASE = 'https://kontra-africa.onrender.com';
-const CHECKOUT_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
-
-// Délai avant d'abandonner l'attente automatique après un retour de
-// paiement (?payment=success) et de proposer la saisie manuelle de la clé
-// en secours. Couvre : le webhook Chariow qui peut mettre plusieurs
-// secondes à arriver, ET un éventuel cold start de Render pendant que le
-// webhook traite la requête côté serveur.
-const PAYMENT_RETURN_TIMEOUT_MS = 45000;
-
-// ---------- Éléments DOM ----------
-const profilePhoto = document.getElementById('profile-photo');
-const profileName = document.getElementById('profile-name');
-const profileEmail = document.getElementById('profile-email');
-
-const paymentPendingBanner = document.getElementById('payment-pending-banner');
-const paymentPendingText = document.getElementById('payment-pending-text');
-
-const subscriptionMessage = document.getElementById('subscription-message');
-const btnResubscribe = document.getElementById('btn-resubscribe');
-const subscriptionError = document.getElementById('subscription-error');
-const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
-const resubscribeCountry = document.getElementById('resubscribe-country');
-const resubscribePhone = document.getElementById('resubscribe-phone');
-const licenseKeyRow = document.getElementById('license-key-row');
-const licenseKeyInput = document.getElementById('license-key-input');
-const btnVerifyLicense = document.getElementById('btn-verify-license');
-
-if (resubscribeCountry) {
-  resubscribeCountry.innerHTML = buildCountryOptionsHtml();
+.page-header {
+  margin-bottom: var(--space-5);
 }
 
-const btnLogout = document.getElementById('btn-logout');
-
-let currentUser = null;
-
-// ---------- Retour de paiement Chariow (?payment=success) ----------
-// IMPORTANT : ce paramètre d'URL n'est qu'un signal d'affichage. N'importe
-// qui peut le taper dans la barre d'adresse sans avoir payé — il ne
-// débloque JAMAIS rien par lui-même. La seule source de vérité pour
-// activer un compte est le champ subscriptionStatus dans Firestore, écrit
-// par le webhook côté serveur (functions/src/webhook.js). Ce bloc se
-// contente d'attendre, en lecture seule, que ce champ passe à "active" via
-// le même onSnapshot temps réel que listenToSubscription() utilise déjà.
-let paymentReturnTimeoutId = null;
-let awaitingPaymentActivation = false;
-
-function isReturningFromPayment() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get('payment') === 'success';
+.page-title {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
 }
 
-function startPaymentPendingUI() {
-  awaitingPaymentActivation = true;
-
-  // Nettoie l'URL tout de suite : un refresh de page ne doit pas relancer
-  // le bandeau indéfiniment.
-  const cleanUrl = window.location.pathname + window.location.hash;
-  window.history.replaceState({}, document.title, cleanUrl);
-
-  if (!paymentPendingBanner) return;
-  paymentPendingText.textContent = 'Paiement reçu, activation de ton abonnement en cours…';
-  paymentPendingBanner.hidden = false;
-
-  paymentReturnTimeoutId = setTimeout(() => {
-    if (!awaitingPaymentActivation) return; // déjà résolu entre-temps
-    paymentPendingText.textContent =
-      "Ça prend plus de temps que prévu. Si tu as reçu ta clé de licence par email, tu peux l'activer directement ci-dessous.";
-    // On force l'affichage du champ clé même si le statut Firestore
-    // n'est pas encore "expired"/"cancelled" (cas normal ici : il est
-    // probablement encore "trial" ou l'ancien statut expiré), car
-    // renderSubscriptionStatus() ne le révèle pas dans ce cas.
-    if (licenseKeyRow) licenseKeyRow.hidden = false;
-  }, PAYMENT_RETURN_TIMEOUT_MS);
+.page-subtitle {
+  color: var(--color-text-muted);
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
 }
 
-function resolvePaymentPendingUI() {
-  if (!awaitingPaymentActivation) return;
-  awaitingPaymentActivation = false;
-  if (paymentReturnTimeoutId) {
-    clearTimeout(paymentReturnTimeoutId);
-    paymentReturnTimeoutId = null;
+/* ---------------------------------- Carte identité ---------------------------------- */
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.profile-photo {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.profile-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.profile-name {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  color: var(--color-text);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-email {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------- Panneaux (sections) ---------------------------------- */
+
+.panel {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.panel-title {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 var(--space-4);
+}
+
+/* ---------------------------------- Boutons ---------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-full);
+  border: 1.5px solid transparent;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-base);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #FFFFFF;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn-secondary {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-color: var(--color-border-strong);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-primary);
+}
+
+.btn-logout {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.btn-logout:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+/* ---------------------------------- Réglages ---------------------------------- */
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.settings-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------- Statut abonnement ---------------------------------- */
+
+.subscription-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.subscription-message {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+/* Badges de statut */
+.status-active,
+.status-trial,
+.status-expired {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  width: fit-content;
+}
+
+.status-active {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.status-trial {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.status-expired {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
+/* Bannière de paiement en attente (retour Chariow, avant confirmation webhook) */
+.payment-pending-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-warning);
+  font-size: var(--fs-sm);
+}
+
+.payment-pending-banner .spinner {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+/* Ligne "numéro Mobile Money" pour le réabonnement / la clé de licence */
+.resubscribe-phone-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.resubscribe-phone-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.resubscribe-phone-inputs {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.resubscribe-phone-select,
+.resubscribe-phone-input {
+  min-height: 44px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.resubscribe-phone-select:focus-visible,
+.resubscribe-phone-input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.resubscribe-phone-select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.resubscribe-phone-input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.form-error {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+/* ---------------------------------- Responsive ---------------------------------- */
+
+@media (max-width: 480px) {
+  .profile-card {
+    padding: var(--space-4);
+    gap: var(--space-3);
   }
-  if (paymentPendingBanner) paymentPendingBanner.hidden = true;
-}
 
-// ---------- Auth + garde d'accès (paywall si essai/abonnement terminé) ----------
-async function init() {
-  const session = await requireAppAccess();
-  if (!session) return; // redirection vers /login.html ou paywall déjà affiché
-
-  currentUser = session.user;
-  renderIdentity(session.user);
-
-  if (isReturningFromPayment()) {
-    startPaymentPendingUI();
+  .profile-photo {
+    width: 56px;
+    height: 56px;
   }
 
-  listenToSubscription(session.user.uid);
-}
+  .panel {
+    padding: var(--space-4);
+  }
 
-init();
+  .resubscribe-phone-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-function renderIdentity(user) {
-  profilePhoto.src = user.photoURL || '/icons/icon-192.png';
-  profilePhoto.alt = user.displayName ? `Photo de ${user.displayName}` : '';
-  profileName.textContent = user.displayName || 'Utilisateur';
-  profileEmail.textContent = user.email || '';
-}
-
-// ---------- Statut abonnement ----------
-function listenToSubscription(uid) {
-  onSnapshot(doc(db, 'users', uid), (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    // Dès que le webhook a fait son travail (statut actif), on referme le
-    // bandeau d'attente, quel que soit son état (banner normal ou message
-    // "ça prend plus de temps").
-    if (data.subscriptionStatus === 'active') {
-      resolvePaymentPendingUI();
-    }
-    renderSubscriptionStatus(data);
-  });
-}
-
-function renderSubscriptionStatus(data) {
-  const status = data.subscriptionStatus;
-  subscriptionMessage.classList.remove('status-trial', 'status-active', 'status-expired');
-  btnResubscribe.hidden = true;
-  if (resubscribePhoneRow) resubscribePhoneRow.hidden = true;
-  // Ne pas re-masquer licenseKeyRow s'il vient d'être révélé par le
-  // fallback "ça prend plus de temps que prévu" ci-dessus, tant qu'on
-  // attend encore une activation.
-  if (licenseKeyRow && !awaitingPaymentActivation) licenseKeyRow.hidden = true;
-  subscriptionError.hidden = true;
-
-  if (status === 'trial') {
-    const date = formatDate(data.trialEndDate);
-    subscriptionMessage.textContent = date
-      ? `Essai gratuit — expire le ${date}`
-      : 'Essai gratuit en cours';
-    subscriptionMessage.classList.add('status-trial');
-  } else if (status === 'active') {
-    const date = formatDate(data.subscriptionExpiresAt);
-    subscriptionMessage.textContent = date
-      ? `Abonnement actif — prochain renouvellement le ${date}`
-      : 'Abonnement actif';
-    subscriptionMessage.classList.add('status-active');
-  } else if (status === 'expired' || status === 'cancelled') {
-    subscriptionMessage.textContent = 'Abonnement expiré';
-    subscriptionMessage.classList.add('status-expired');
-    btnResubscribe.hidden = false;
-    if (resubscribePhoneRow) resubscribePhoneRow.hidden = false;
-    // Filet de secours : si le paiement a réussi côté opérateur mais que le
-    // webhook Chariow n'est jamais arrivé, l'utilisateur peut débloquer son
-    // compte lui-même avec la clé de licence reçue après paiement.
-    if (licenseKeyRow) licenseKeyRow.hidden = false;
-  } else {
-    subscriptionMessage.textContent = 'Statut d’abonnement inconnu.';
+  .resubscribe-phone-select {
+    width: 100%;
   }
 }
 
-function formatDate(value) {
-  const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
-  return date ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : null;
-}
-
-// ---------- Réabonnement ----------
-btnResubscribe.addEventListener('click', handleResubscribe);
-
-async function handleResubscribe() {
-  if (!currentUser) return;
-  subscriptionError.hidden = true;
-
-  const phoneNumber = cleanPhoneDigits(resubscribePhone ? resubscribePhone.value : '');
-  const countryCode = resubscribeCountry ? resubscribeCountry.value : 'CD';
-
-  if (phoneNumber.length < 8) {
-    subscriptionError.textContent = 'Entrez un numéro Mobile Money valide pour continuer.';
-    subscriptionError.hidden = false;
-    return;
-  }
-
-  btnResubscribe.disabled = true;
-  btnResubscribe.textContent = 'Redirection en cours…';
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS);
-
-  try {
-    const idToken = await currentUser.getIdToken();
-    const res = await fetch(`${API_BASE}/api/checkout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
-        lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
-        phone: { number: phoneNumber, countryCode }
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || body.message || "Impossible de lancer le paiement.");
-    }
-
-    const result = await res.json();
-
-    if (result.checkoutUrl) {
-      window.location.href = result.checkoutUrl;
-      return;
-    }
-
-    throw new Error("Réponse inattendue du serveur de paiement.");
-  } catch (error) {
-    subscriptionError.textContent =
-      error.name === 'AbortError'
-        ? 'Le serveur met trop de temps à répondre. Réessaie dans quelques instants.'
-        : (error.message || "Erreur lors du lancement du paiement.");
-    subscriptionError.hidden = false;
-  } finally {
-    clearTimeout(timeoutId);
-    btnResubscribe.disabled = false;
-    btnResubscribe.textContent = 'Se réabonner';
+@media (min-width: 900px) {
+  .profile-card,
+  .panel {
+    padding: var(--space-6);
   }
 }
-
-// ---------- Vérification manuelle de la clé de licence ----------
-if (btnVerifyLicense) {
-  btnVerifyLicense.addEventListener('click', handleVerifyLicense);
-}
-
-async function handleVerifyLicense() {
-  if (!currentUser || !licenseKeyInput) return;
-  subscriptionError.hidden = true;
-
-  const key = licenseKeyInput.value.trim();
-
-  if (!key) {
-    subscriptionError.textContent = 'Entre ta clé de licence pour continuer.';
-    subscriptionError.hidden = false;
-    return;
-  }
-
-  btnVerifyLicense.disabled = true;
-  const originalLabel = btnVerifyLicense.textContent;
-  btnVerifyLicense.textContent = 'Vérification…';
-
-  try {
-    const idToken = await currentUser.getIdToken();
-    const res = await fetch(`${API_BASE}/api/verify-license`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ licenseKey: key }),
-    });
-
-    const result = await res.json().catch(() => ({}));
-
-    if (!res.ok || !result.valid) {
-      throw new Error(result.error || "Clé de licence invalide.");
-    }
-
-    // La confirmation visuelle vient du onSnapshot (subscriptionStatus
-    // passe à "active" en direct) — resolvePaymentPendingUI() s'en charge
-    // déjà si on était en attente après un paiement.
-    licenseKeyInput.value = '';
-  } catch (error) {
-    subscriptionError.textContent = error.message || "Erreur lors de la vérification de la clé.";
-    subscriptionError.hidden = false;
-  } finally {
-    btnVerifyLicense.disabled = false;
-    btnVerifyLicense.textContent = originalLabel;
-  }
-}
-
-// ---------- Déconnexion ----------
-btnLogout.addEventListener('click', async () => {
-  await signOut(auth);
-  window.location.href = '/login.html';
-});
