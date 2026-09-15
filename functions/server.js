@@ -32,6 +32,14 @@ const { ALLOWED_ORIGINS } = require("./src/config");
 
 const app = express();
 
+// Render est derrière un proxy inverse : sans ce réglage, Express ignore
+// l'en-tête X-Forwarded-For, et express-rate-limit ne peut plus distinguer
+// les IP des utilisateurs (soit tout le monde partage la même IP fictive,
+// soit le rate-limit ne protège plus rien selon la version).
+// "1" = on fait confiance au premier proxy devant nous (celui de Render),
+// pas à toute la chaîne — évite qu'un client falsifie X-Forwarded-For.
+app.set("trust proxy", 1);
+
 // Le port est fourni par Render via la variable d'environnement PORT
 const PORT = process.env.PORT || 8080;
 
