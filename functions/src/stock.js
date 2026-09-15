@@ -4,7 +4,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { Timestamp } = require("firebase-admin/firestore");
+const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 
 const { db, adminApp } = require("./config");
@@ -450,26 +450,15 @@ router.get("/sales", async (req, res) => {
     const user = await requireAuth(req, res);
     if (!user) return;
 
+    // Toutes les ventes non encore clôturées, sans filtre de date : une
+    // vente n'est jamais retirée de la liste tant que "Clôturer la
+    // journée" n'a pas été confirmé (voir /reports/close-day/confirm).
     const snapshot = await salesCollection(user.uid)
       .orderBy("saleDate", "desc")
-      .limit(500)
+      .limit(1000)
       .get();
 
-    const today = new Date();
-
-    const sales = snapshot.docs
-      .map(serializeSale)
-      .filter((sale) => {
-        if (!sale.saleDate) return false;
-
-        const date = new Date(sale.saleDate);
-
-        return (
-          date.getFullYear() === today.getFullYear() &&
-          date.getMonth() === today.getMonth() &&
-          date.getDate() === today.getDate()
-        );
-      });
+    const sales = snapshot.docs.map(serializeSale);
 
     return res.status(200).json({
       sales,
@@ -832,25 +821,12 @@ router.post("/reports/close-day", async (req, res) => {
         today.getDate()
       ).padStart(2, "0")}`;
 
-    const startDate = new Date(
-      `${dateString}T00:00:00`
-    );
-
-    const endDate = new Date(
-      `${dateString}T23:59:59.999`
-    );
-
+    // Toutes les ventes en attente de clôture, quelle que soit leur date —
+    // une vente d'un jour précédent oublié n'est jamais perdue : elle sera
+    // simplement incluse dans le prochain rapport de clôture.
     const snapshot = await salesCollection(user.uid)
-      .where(
-        "saleDate",
-        ">=",
-        Timestamp.fromDate(startDate)
-      )
-      .where(
-        "saleDate",
-        "<=",
-        Timestamp.fromDate(endDate)
-      )
+      .orderBy("saleDate", "asc")
+      .limit(1000)
       .get();
 
     const sales = snapshot.docs.map((doc) => doc.data());
@@ -997,36 +973,65 @@ router.post("/reports/close-day", async (req, res) => {
 // ventes du jour. Ne touche JAMAIS aux produits ni à leur stock.
 // ============================================================
 
+function monthlyReportDoc(uid, monthId) {
+  return db.collection("users").doc(uid).collection("stockMonthlyReports").doc(monthId);
+}
+
 router.post("/reports/close-day/confirm", async (req, res) => {
   try {
     const user = await requireAuth(req, res);
     if (!user) return;
 
-    const today = new Date();
+    const now = new Date();
+    const monthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    const dateString =
-      `${today.getFullYear()}-${String(
-        today.getMonth() + 1
-      ).padStart(2, "0")}-${String(
-        today.getDate()
-      ).padStart(2, "0")}`;
-
-    const startDate = new Date(`${dateString}T00:00:00`);
-    const endDate = new Date(`${dateString}T23:59:59.999`);
-
+    // Toutes les ventes en attente, sans filtre de date — cohérent avec
+    // /reports/close-day, qui a servi à générer le PDF que l'utilisateur
+    // vient de télécharger.
     const snapshot = await salesCollection(user.uid)
-      .where("saleDate", ">=", Timestamp.fromDate(startDate))
-      .where("saleDate", "<=", Timestamp.fromDate(endDate))
+      .orderBy("saleDate", "asc")
+      .limit(1000)
       .get();
 
-    if (!snapshot.empty) {
-      const batch = db.batch();
-      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
+    if (snapshot.empty) {
+      return res.status(200).json({ deleted: 0 });
     }
+
+    let totalRevenue = 0;
+    let totalProfit = 0;
+    let totalQuantity = 0;
+
+    snapshot.docs.forEach((doc) => {
+      const sale = doc.data();
+      totalRevenue += Number(sale.totalRevenue || 0);
+      totalProfit += Number(sale.totalProfit || 0);
+      totalQuantity += Number(sale.quantity || 0);
+    });
+
+    // Le bilan mensuel est cumulé (increment) à chaque clôture, afin qu'à
+    // la fin du mois l'utilisateur voie le total de toutes ses journées
+    // clôturées, même s'il a fermé plusieurs fois dans le mois.
+    const batch = db.batch();
+
+    batch.set(
+      monthlyReportDoc(user.uid, monthId),
+      {
+        totalRevenue: FieldValue.increment(totalRevenue),
+        totalProfit: FieldValue.increment(totalProfit),
+        totalQuantity: FieldValue.increment(totalQuantity),
+        salesCount: FieldValue.increment(snapshot.size),
+        lastClosedAt: Timestamp.now(),
+      },
+      { merge: true }
+    );
+
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+
+    await batch.commit();
 
     return res.status(200).json({
       deleted: snapshot.size,
+      addedToMonth: { totalRevenue, totalProfit, totalQuantity },
     });
   } catch (error) {
     console.error("POST /reports/close-day/confirm :", error);
