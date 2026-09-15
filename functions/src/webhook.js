@@ -74,14 +74,35 @@ exports.chariowWebhook = async (req, res) => {
     const customMetadata = sale.custom_metadata || license.custom_metadata || {};
     let firebaseUid = customMetadata.firebase_uid || null;
 
-    // Fallback : si le firebase_uid n'est pas dans les métadonnées (ex. vieilles
-    // ventes créées avant ce correctif), on retrouve l'utilisateur par email,
-    // puisque l'email est déjà en base Firestore.
+    // Clé de licence : utile pour retrouver l'utilisateur quand custom_metadata
+    // est absent (cas des events license.*, qui ne renvoient pas les métadonnées
+    // passées à l'achat).
+    const licenseKeyForLookup = sale.license_key || license.key || null;
+
     let userRef = null;
+
     if (firebaseUid) {
       userRef = db.collection("users").doc(firebaseUid);
-    } else if (customer.email) {
-      console.warn(`Aucun firebase_uid dans le webhook, tentative de résolution par email : ${customer.email}`);
+    } else if (licenseKeyForLookup) {
+      // Fallback n°1 : résolution par clé de licence, déjà stockée sur le
+      // compte lors du successful.sale initial (voir updateData.chariowLicenseKey
+      // plus bas). Fiable, contrairement à customer.email qui sur les events
+      // license.* peut correspondre au compte marchand (toi) plutôt qu'à
+      // l'acheteur réel — c'est ce qui causait la réactivation du mauvais compte.
+      console.warn(`Aucun firebase_uid dans le webhook, tentative de résolution par clé de licence : ${licenseKeyForLookup}`);
+      const snap = await db.collection("users").where("chariowLicenseKey", "==", licenseKeyForLookup).limit(1).get();
+      if (!snap.empty) {
+        userRef = snap.docs[0].ref;
+        firebaseUid = snap.docs[0].id;
+        console.log(`Utilisateur résolu par clé de licence : ${firebaseUid}`);
+      }
+    }
+
+    // Fallback n°2 (email) : gardé UNIQUEMENT pour les events de vente (sale.*),
+    // où "customer" est vraiment l'acheteur. Désactivé pour les events license.*
+    // pour éviter de réactiver le mauvais compte.
+    if (!userRef && customer.email && !normalizedEvent.startsWith("license.")) {
+      console.warn(`Aucun firebase_uid/clé de licence trouvé, tentative de résolution par email : ${customer.email}`);
       const snap = await db.collection("users").where("email", "==", customer.email).limit(1).get();
       if (!snap.empty) {
         userRef = snap.docs[0].ref;
@@ -91,7 +112,9 @@ exports.chariowWebhook = async (req, res) => {
     }
 
     if (!userRef) {
-      console.warn("Aucun utilisateur trouvé (ni firebase_uid, ni email correspondant).");
+      // On logue le payload complet pour identifier les vrais noms de champs
+      // si ça bloque encore sur un prochain event.
+      console.warn("Aucun utilisateur trouvé (ni firebase_uid, ni clé de licence, ni email correspondant). Payload complet :", JSON.stringify(body));
       return res.status(200).json({ received: true, status: "skipped_no_user" });
     }
 
