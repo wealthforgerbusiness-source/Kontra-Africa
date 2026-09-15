@@ -50,7 +50,10 @@
             <button type="button" class="dashboard-card__convert profit-hero-card__convert" id="btn-convert-profit">🔄 USD</button>
           </div>
           <p class="profit-hero-card__amount" id="daily-profit-value">—</p>
-          <p class="profit-hero-card__footer">Total vendu : <span id="stock-total-sales-count">0 vente</span></p>
+          <p class="profit-hero-card__footer">
+            Chiffre d'affaires : <span id="stock-total-revenue-value">—</span>
+            · <span id="stock-total-sales-count">0 vente</span>
+          </p>
         </section>
 
         <div class="dashboard-grid">
@@ -143,8 +146,25 @@
 
           <div class="form-field">
             <label for="sale-product-search">Produit</label>
-            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
-            <datalist id="sale-product-options"></datalist>
+            <div class="product-autocomplete">
+              <input
+                type="text"
+                id="sale-product-search"
+                class="product-autocomplete__input"
+                placeholder="Rechercher ou choisir un produit…"
+                autocomplete="off"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+              />
+              <button
+                type="button"
+                id="sale-product-toggle"
+                class="product-autocomplete__toggle"
+                aria-label="Afficher la liste des produits"
+              >▾</button>
+              <div id="sale-product-suggestions" class="product-autocomplete__list" role="listbox" hidden></div>
+            </div>
           </div>
 
           <div class="form-field">
