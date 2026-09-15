@@ -38,6 +38,15 @@ function isValidSignature(req) {
   return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 }
 
+// CORRECTIF (15/09, confirmé via un Pulse test réel) : Chariow n'envoie
+// JAMAIS "custom_metadata" (objet). Il envoie "custom_fields", un TABLEAU
+// de paires { name, value }. Il faut chercher dedans par nom.
+function getCustomField(fieldsArray, fieldName) {
+  if (!Array.isArray(fieldsArray)) return null;
+  const field = fieldsArray.find((f) => f && f.name === fieldName);
+  return field ? field.value : null;
+}
+
 // ============================================================
 // RÉCUPÉRATION DIRECTE DE LA LICENCE APRÈS UN ACHAT
 // ============================================================
@@ -46,8 +55,8 @@ function isValidSignature(req) {
 // pas de champ "license"). On va donc la chercher nous-mêmes, tout de
 // suite, avec les identifiants qu'on a déjà (customer.id, product.id) —
 // au lieu d'attendre un événement license.issued/license.activated qui,
-// lui, ne contient AUCUN firebase_uid (pas de custom_metadata sur les
-// events license.*) et nous forcerait à deviner le compte par email.
+// lui, n'a pas non plus de custom_fields et nous forcerait à deviner le
+// compte par email.
 //
 // Ça élimine le besoin pour l'utilisateur de recopier sa clé à la main :
 // le compte est actif et lié dès la confirmation du paiement.
@@ -172,12 +181,12 @@ exports.chariowWebhook = async (req, res) => {
 
     console.log(`Webhook Chariow reçu. Événement : ${eventType}`);
 
-    // custom_metadata ne vit QUE sur les events sale.* (successful.sale,
-    // failed.sale, abandoned.sale). Les events license.* n'en portent
-    // jamais (voir doc Pulses) : leur firebaseUid sera toujours null ici,
-    // c'est normal et attendu, pas un bug de parsing.
-    const customMetadata = sale.custom_metadata || {};
-    let firebaseUid = customMetadata.firebase_uid || null;
+    // CORRECTIF (15/09) : lecture de custom_fields (tableau), plus jamais
+    // custom_metadata (objet, qui n'existe pas dans le vrai payload Chariow).
+    let firebaseUid =
+      getCustomField(sale.custom_fields, "firebase_uid") ||
+      getCustomField(license.custom_fields, "firebase_uid") ||
+      null;
 
     // Clé de licence : utile pour retrouver l'utilisateur sur les events
     // license.* UNE FOIS que handleSuccessfulSale (ci-dessus) a déjà
