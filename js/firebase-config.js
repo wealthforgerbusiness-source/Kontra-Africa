@@ -3,7 +3,11 @@
    ========================================================================== */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 const firebaseConfig = {
   apiKey: "AIzaSyDRwWJ-BzdDiepdmuRQ4OezrdY3vyOHjEQ",
   authDomain: "kontra-africa.firebaseapp.com",
@@ -14,5 +18,12 @@ const firebaseConfig = {
 };
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Persistance hors ligne activée : sans ça, la lecture du document
+// utilisateur (abonnement, devise, etc.) échoue dès que l'app est ouverte
+// sans réseau, même si la session Firebase Auth est correctement restaurée.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 export const googleProvider = new GoogleAuthProvider();
