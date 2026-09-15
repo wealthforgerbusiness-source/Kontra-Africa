@@ -1,592 +1,815 @@
 diff --git a/css/stock.css b/css/stock.css
-index 98bd734..1aa826b 100644
+index 98bd734..3550c38 100644
 --- a/css/stock.css
 +++ b/css/stock.css
-@@ -368,6 +368,111 @@
-   box-shadow: 0 0 0 3px var(--color-primary-light);
+@@ -111,6 +111,31 @@
+   color: var(--color-error);
  }
  
-+/* ---------------------------------- Autocomplete produit (vente) ---------------------------------- */
-+/* Remplace l'ancien <datalist> natif, peu lisible et peu tactile sur mobile :
-+   ce menu déroulant maison filtre en direct pendant la saisie et se
-+   sélectionne au clic/tap, aussi bien sur mobile que sur PC. */
-+
-+.product-autocomplete {
-+  position: relative;
-+}
-+
-+.product-autocomplete__input-row {
-+  position: relative;
-+  display: flex;
-+  align-items: stretch;
-+}
-+
-+.product-autocomplete__input-row input {
-+  flex: 1 1 auto;
-+  min-width: 0;
-+  padding-right: 44px; /* laisse la place au bouton triangle */
-+}
-+
-+.product-autocomplete__toggle {
-+  position: absolute;
-+  right: 4px;
-+  top: 4px;
-+  bottom: 4px;
-+  width: 38px;
-+  border: none;
-+  background: none;
-+  color: var(--color-text-muted);
-+  font-size: 18px;
-+  line-height: 1;
-+  cursor: pointer;
-+  border-radius: var(--radius-sm, 6px);
-+  transition: background var(--duration-fast) var(--ease-standard),
-+              transform var(--duration-fast) var(--ease-standard);
-+}
-+
-+.product-autocomplete__toggle:hover,
-+.product-autocomplete__toggle:focus-visible {
-+  background: var(--color-primary-light);
-+  outline: none;
-+}
-+
-+.product-autocomplete__toggle--open {
-+  transform: rotate(180deg);
-+}
-+
-+.product-autocomplete__list {
-+  position: absolute;
-+  z-index: 30;
-+  top: calc(100% + 4px);
-+  left: 0;
-+  right: 0;
-+  max-height: 240px;
-+  overflow-y: auto;
-+  background: var(--color-surface);
-+  border: 1.5px solid var(--color-border-strong);
-+  border-radius: var(--radius-md);
-+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
-+  padding: var(--space-1, 4px) 0;
-+}
-+
-+.product-autocomplete__list[hidden] {
-+  display: none;
-+}
-+
-+.product-autocomplete__item {
++/* Rond de chargement animé — affiché pendant qu'on attend les premières
++   données Firestore (quasi instantané depuis le cache local, sinon le temps
++   que la connexion s'établisse). Remplace l'ancien texte "Chargement…" figé
++   qui donnait l'impression que l'appli était bloquée. */
++.state-message--loading {
 +  display: flex;
 +  align-items: center;
-+  justify-content: space-between;
-+  gap: var(--space-3);
-+  width: 100%;
-+  padding: var(--space-3) var(--space-4);
-+  background: none;
-+  border: none;
-+  text-align: left;
-+  font-size: var(--fs-base);
-+  color: var(--color-text);
-+  cursor: pointer;
-+}
-+
-+.product-autocomplete__item:hover,
-+.product-autocomplete__item:focus-visible,
-+.product-autocomplete__item--active {
-+  background: var(--color-primary-light);
-+  outline: none;
-+}
-+
-+.product-autocomplete__item-stock {
-+  font-size: var(--fs-sm);
-+  color: var(--color-text-muted);
-+  white-space: nowrap;
-+}
-+
-+.product-autocomplete__item--out {
-+  opacity: 0.55;
-+}
-+
-+.product-autocomplete__empty {
-+  padding: var(--space-3) var(--space-4);
-+  font-size: var(--fs-sm);
-+  color: var(--color-text-muted);
-+}
-+
- .form-field__currency-row {
-   display: flex;
-   align-items: stretch;
-@@ -534,14 +639,59 @@
- }
- 
- .profit-hero-card__footer {
-+  display: flex;
-+  align-items: stretch;
 +  justify-content: center;
-+  gap: 16px;
-   margin: 0;
-   padding-top: 14px;
-   border-top: 1px solid rgba(255, 255, 255, 0.25);
--  font-size: 0.875rem;
++  gap: var(--space-2, 8px);
 +}
 +
-+.profit-hero-card__stat {
-+  flex: 1 1 0;
-+  min-width: 0;
-+  display: flex;
-+  flex-direction: column;
-+  align-items: center;
-+  gap: 2px;
++.spinner {
++  display: inline-block;
++  width: 16px;
++  height: 16px;
++  border: 2px solid var(--color-border, #d1d5db);
++  border-top-color: var(--color-primary, #6d28d9);
++  border-radius: 50%;
++  animation: stock-spin 0.7s linear infinite;
 +}
 +
-+.profit-hero-card__stat-label {
-+  font-size: 0.75rem;
-   font-weight: 600;
--  opacity: 0.95;
-+  opacity: 0.85;
-+  text-transform: uppercase;
-+  letter-spacing: 0.02em;
-+  white-space: nowrap;
- }
- 
--.profit-hero-card__footer span {
-+.profit-hero-card__stat-value {
-+  font-size: 1rem;
-   font-weight: 700;
-+  word-break: break-word;
++@keyframes stock-spin {
++  to { transform: rotate(360deg); }
 +}
 +
-+.profit-hero-card__stat-divider {
-+  width: 1px;
-+  background: rgba(255, 255, 255, 0.3);
+ /* ---------------------------------- Boutons additionnels ---------------------------------- */
+ 
+ .btn-sm {
+diff --git a/firestore.rules b/firestore.rules
+index 238c619..afd2b66 100644
+--- a/firestore.rules
++++ b/firestore.rules
+@@ -45,6 +45,46 @@ service cloud.firestore {
+         allow read: if isOwner(userId) || isAdmin();
+         allow write: if false;
+       }
++      // -----------------------------------------------------------------
++      // STOCK — produits (lu/écrit directement par le client, en temps réel)
++      // -----------------------------------------------------------------
++      match /stockProducts/{productId} {
++        allow read: if isOwner(userId) || isAdmin();
++        allow create, update: if isOwner(userId)
++          && request.resource.data.name is string
++          && request.resource.data.purchasePrice is number
++          && request.resource.data.purchasePrice >= 0
++          && request.resource.data.sellingPrice is number
++          && request.resource.data.sellingPrice >= 0
++          && request.resource.data.stockQuantity is number
++          && request.resource.data.stockQuantity >= 0;
++        allow delete: if false;
++      }
++      // -----------------------------------------------------------------
++      // STOCK — ventes en attente de clôture (lues/écrites par le client ;
++      // supprimées uniquement par le serveur, via /reports/close-day/confirm,
++      // qui utilise firebase-admin et ne passe donc pas par ces règles).
++      // -----------------------------------------------------------------
++      match /stockSales/{saleId} {
++        allow read: if isOwner(userId) || isAdmin();
++        allow create: if isOwner(userId)
++          && request.resource.data.productId is string
++          && request.resource.data.quantity is number
++          && request.resource.data.quantity > 0;
++        allow update: if false;
++        // Autorisé : retirer une vente non encore clôturée (bouton
++        // "Retirer" dans l'onglet Ventes).
++        allow delete: if isOwner(userId);
++      }
++      // -----------------------------------------------------------------
++      // STOCK — bilan mensuel : lecture seule côté client. N'est jamais
++      // écrit que par le serveur (firebase-admin) à chaque clôture de
++      // journée, pour garantir un historique fiable.
++      // -----------------------------------------------------------------
++      match /stockMonthlyReports/{monthId} {
++        allow read: if isOwner(userId) || isAdmin();
++        allow write: if false;
++      }
+     }
+     // -----------------------------------------------------------------------
+     // CONTRACTS
+diff --git a/functions/src/stock.js b/functions/src/stock.js
+index 82559bb..778a0f4 100644
+--- a/functions/src/stock.js
++++ b/functions/src/stock.js
+@@ -4,7 +4,7 @@
+ const express = require("express");
+ const router = express.Router();
+ 
+-const { Timestamp } = require("firebase-admin/firestore");
++const { Timestamp, FieldValue } = require("firebase-admin/firestore");
+ const { getAuth } = require("firebase-admin/auth");
+ 
+ const { db, adminApp } = require("./config");
+@@ -450,26 +450,15 @@ router.get("/sales", async (req, res) => {
+     const user = await requireAuth(req, res);
+     if (!user) return;
+ 
++    // Toutes les ventes non encore clôturées, sans filtre de date : une
++    // vente n'est jamais retirée de la liste tant que "Clôturer la
++    // journée" n'a pas été confirmé (voir /reports/close-day/confirm).
+     const snapshot = await salesCollection(user.uid)
+       .orderBy("saleDate", "desc")
+-      .limit(500)
++      .limit(1000)
+       .get();
+ 
+-    const today = new Date();
+-
+-    const sales = snapshot.docs
+-      .map(serializeSale)
+-      .filter((sale) => {
+-        if (!sale.saleDate) return false;
+-
+-        const date = new Date(sale.saleDate);
+-
+-        return (
+-          date.getFullYear() === today.getFullYear() &&
+-          date.getMonth() === today.getMonth() &&
+-          date.getDate() === today.getDate()
+-        );
+-      });
++    const sales = snapshot.docs.map(serializeSale);
+ 
+     return res.status(200).json({
+       sales,
+@@ -832,25 +821,12 @@ router.post("/reports/close-day", async (req, res) => {
+         today.getDate()
+       ).padStart(2, "0")}`;
+ 
+-    const startDate = new Date(
+-      `${dateString}T00:00:00`
+-    );
+-
+-    const endDate = new Date(
+-      `${dateString}T23:59:59.999`
+-    );
+-
++    // Toutes les ventes en attente de clôture, quelle que soit leur date —
++    // une vente d'un jour précédent oublié n'est jamais perdue : elle sera
++    // simplement incluse dans le prochain rapport de clôture.
+     const snapshot = await salesCollection(user.uid)
+-      .where(
+-        "saleDate",
+-        ">=",
+-        Timestamp.fromDate(startDate)
+-      )
+-      .where(
+-        "saleDate",
+-        "<=",
+-        Timestamp.fromDate(endDate)
+-      )
++      .orderBy("saleDate", "asc")
++      .limit(1000)
+       .get();
+ 
+     const sales = snapshot.docs.map((doc) => doc.data());
+@@ -997,36 +973,65 @@ router.post("/reports/close-day", async (req, res) => {
+ // ventes du jour. Ne touche JAMAIS aux produits ni à leur stock.
+ // ============================================================
+ 
++function monthlyReportDoc(uid, monthId) {
++  return db.collection("users").doc(uid).collection("stockMonthlyReports").doc(monthId);
 +}
 +
-+/* Mobile : le libellé "Chiffre d'affaires" est trop long pour tenir sur une
-+   seule ligne à côté de "Total vendu" sans s'écraser — on repasse en
-+   uppercase plus petit + on autorise le retour à la ligne du libellé
-+   uniquement, jamais du montant. */
-+@media (max-width: 420px) {
-+  .profit-hero-card__footer {
-+    gap: 8px;
-+  }
-+
-+  .profit-hero-card__stat-label {
-+    white-space: normal;
-+    font-size: 0.7rem;
-+  }
-+
-+  .profit-hero-card__stat-value {
-+    font-size: 0.9rem;
-+  }
- }
-diff --git a/index.html b/index.html
-index b25c00a..59bc2f7 100644
---- a/index.html
-+++ b/index.html
-@@ -7,8 +7,8 @@
-   <meta name="google-site-verification" content="-_aNDFj2tGqemqJy4bAPqVS9438FSGOIACF2So6ZFVo" />
-   <meta name="color-scheme" content="light only">
-   <meta name="supported-color-schemes" content="light">
--  <title>Kontra-Africa — Contrats, signatures et finances, simplifiés</title>
--  <meta name="description" content="Créez des contrats, faites-les signer par WhatsApp, et suivez vos finances. Une seule app, installable sur tout appareil.">
-+  <title>Kontra-Africa — Contrats, signatures, stock et finances, simplifiés</title>
-+  <meta name="description" content="Créez des contrats, faites-les signer par WhatsApp, gérez votre stock et suivez vos finances. Une seule app, installable sur tout appareil.">
-   <meta name="theme-color" content="#5B3FE0">
-   <meta name="color-scheme" content="light">
- 
-@@ -156,7 +156,7 @@
-     <section class="hero">
-       <div class="container hero__inner">
-         <div class="hero__copy reveal">
--          <p class="eyebrow">Contrats · Signatures · Finances</p>
-+          <p class="eyebrow">Contrats · Signatures · Stock · Finances</p>
-           <h1 class="hero__title">
-             Vos contrats signés,
-             <span class="signature-wrap">
-@@ -441,7 +441,7 @@
-           <p class="eyebrow">Rejoignez-nous</p>
-           <h2 class="section__title">Prêt à signer votre premier contrat aujourd'hui ?</h2>
-           <p class="feature-split__text">
--            Rejoignez les utilisateurs qui gèrent déjà leurs contrats et leurs finances sur Kontra-Africa.
-+            Rejoignez les utilisateurs qui gèrent déjà leurs contrats, leur stock et leurs finances sur Kontra-Africa.
-             3 jours d'essai gratuit, sans carte bancaire.
-           </p>
-           <a href="/login.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
-diff --git a/js/auth-guard.js b/js/auth-guard.js
-index 266c67a..f03dc6c 100644
---- a/js/auth-guard.js
-+++ b/js/auth-guard.js
-@@ -479,8 +479,8 @@ function renderPaywall(user) {
- 
-         <p class="paywall__text">
-           Abonnez-vous pour continuer à créer des
--          contrats, les faire signer et suivre vos
--          finances sur Kontra-Africa.
-+          contrats, les faire signer, gérer votre
-+          stock et suivre vos finances sur Kontra-Africa.
-         </p>
- 
-         <div class="paywall__price">
-diff --git a/js/contracts.js b/js/contracts.js
-index f12fe27..bc751c2 100644
---- a/js/contracts.js
-+++ b/js/contracts.js
-@@ -713,7 +713,7 @@ async function startCreatorPdfDownload(
-     true;
- 
-   button.textContent =
--    'Préparation du PDF…';
-+    'Préparation du PDF… (jusqu\'à 30s si le serveur se réveille)';
- 
- 
+ router.post("/reports/close-day/confirm", async (req, res) => {
    try {
+     const user = await requireAuth(req, res);
+     if (!user) return;
+ 
+-    const today = new Date();
+-
+-    const dateString =
+-      `${today.getFullYear()}-${String(
+-        today.getMonth() + 1
+-      ).padStart(2, "0")}-${String(
+-        today.getDate()
+-      ).padStart(2, "0")}`;
+-
+-    const startDate = new Date(`${dateString}T00:00:00`);
+-    const endDate = new Date(`${dateString}T23:59:59.999`);
++    const now = new Date();
++    const monthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+ 
++    // Toutes les ventes en attente, sans filtre de date — cohérent avec
++    // /reports/close-day, qui a servi à générer le PDF que l'utilisateur
++    // vient de télécharger.
+     const snapshot = await salesCollection(user.uid)
+-      .where("saleDate", ">=", Timestamp.fromDate(startDate))
+-      .where("saleDate", "<=", Timestamp.fromDate(endDate))
++      .orderBy("saleDate", "asc")
++      .limit(1000)
+       .get();
+ 
+-    if (!snapshot.empty) {
+-      const batch = db.batch();
+-      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+-      await batch.commit();
++    if (snapshot.empty) {
++      return res.status(200).json({ deleted: 0 });
+     }
+ 
++    let totalRevenue = 0;
++    let totalProfit = 0;
++    let totalQuantity = 0;
++
++    snapshot.docs.forEach((doc) => {
++      const sale = doc.data();
++      totalRevenue += Number(sale.totalRevenue || 0);
++      totalProfit += Number(sale.totalProfit || 0);
++      totalQuantity += Number(sale.quantity || 0);
++    });
++
++    // Le bilan mensuel est cumulé (increment) à chaque clôture, afin qu'à
++    // la fin du mois l'utilisateur voie le total de toutes ses journées
++    // clôturées, même s'il a fermé plusieurs fois dans le mois.
++    const batch = db.batch();
++
++    batch.set(
++      monthlyReportDoc(user.uid, monthId),
++      {
++        totalRevenue: FieldValue.increment(totalRevenue),
++        totalProfit: FieldValue.increment(totalProfit),
++        totalQuantity: FieldValue.increment(totalQuantity),
++        salesCount: FieldValue.increment(snapshot.size),
++        lastClosedAt: Timestamp.now(),
++      },
++      { merge: true }
++    );
++
++    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
++
++    await batch.commit();
++
+     return res.status(200).json({
+       deleted: snapshot.size,
++      addedToMonth: { totalRevenue, totalProfit, totalQuantity },
+     });
+   } catch (error) {
+     console.error("POST /reports/close-day/confirm :", error);
 diff --git a/js/stock.js b/js/stock.js
-index d05c6d9..59506d2 100644
+index b34c69b..0bf10df 100644
 --- a/js/stock.js
 +++ b/js/stock.js
-@@ -30,6 +30,8 @@ const stockBalanceValue = document.getElementById("stock-balance-value");
- const btnConvertBalance = document.getElementById("btn-convert-balance");
- const dailyProfitValue = document.getElementById("daily-profit-value");
- const btnConvertProfit = document.getElementById("btn-convert-profit");
-+const stockTotalRevenueValue = document.getElementById("stock-total-revenue-value");
-+const stockTotalSalesCount = document.getElementById("stock-total-sales-count");
- const topProductName = document.getElementById("top-product-name");
- const topProductQty = document.getElementById("top-product-qty");
- const lowProductName = document.getElementById("low-product-name");
-@@ -50,7 +52,8 @@ const productSellingCurrency = document.getElementById("product-selling-currency
+@@ -1,11 +1,27 @@
+ import { auth, db } from "./firebase-config.js";
+-import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
++import {
++  doc,
++  collection,
++  addDoc,
++  updateDoc,
++  deleteDoc,
++  onSnapshot,
++  query,
++  orderBy,
++  limit,
++  increment,
++  serverTimestamp,
++} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+ import { requireAppAccess } from "./auth-guard.js";
+ import { getCurrencySymbol, formatAmount } from "./currency.js";
+ import { renderAppNav } from "./app-nav.js";
  
- // Ventes
- const saleProductSearch = document.getElementById("sale-product-search");
--const saleProductOptions = document.getElementById("sale-product-options");
-+const saleProductSuggestions = document.getElementById("sale-product-suggestions");
-+const saleProductToggle = document.getElementById("sale-product-toggle");
- const saleQuantity = document.getElementById("sale-quantity");
- const saleStockHint = document.getElementById("sale-stock-hint");
- const saleFormError = document.getElementById("sale-form-error");
-@@ -319,6 +322,14 @@ function requireCurrencyConfigured(options = {}) {
- // Auth + fetch helper (pattern à réconcilier avec finances.js)
+ renderAppNav("stock"); // sidebar desktop + bottom nav mobile
+ 
++// Produits, ventes et rapport mensuel : lus/écrits directement dans Firebase
++// (temps réel + cache local hors ligne), donc plus jamais bloqués par une
++// éventuelle lenteur du serveur Render — celui-ci ne sert plus que pour la
++// génération du PDF de clôture (voir plus bas).
+ const API_BASE = "https://kontra-africa.onrender.com/api/stock";
+ const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
+ 
+@@ -34,6 +50,9 @@ const lowStockSection = document.getElementById("low-stock-section");
+ const lowStockBadges = document.getElementById("low-stock-badges");
+ const btnQuickAddStock = document.getElementById("btn-quick-add-stock");
+ const btnCloseDay = document.getElementById("btn-close-day");
++const monthRevenueValue = document.getElementById("month-revenue-value");
++const monthProfitValue = document.getElementById("month-profit-value");
++const monthSalesCount = document.getElementById("month-sales-count");
+ 
+ // Produits
+ const btnAddProduct = document.getElementById("btn-add-product");
+@@ -63,8 +82,17 @@ const dailySummary = document.getElementById("daily-summary");
+ let currentUser = null;
+ let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "local", balance: 0 };
+ let products = new Map(); // id -> product
++// ⚠️ Malgré son nom (conservé pour limiter les changements ailleurs dans ce
++// fichier), ce tableau contient TOUTES les ventes non encore clôturées, pas
++// seulement celles d'aujourd'hui. Elles ne sont jamais supprimées tant que
++// "Clôturer la journée" n'a pas été confirmé.
+ let salesToday = [];
+ let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
++let currentMonthTotals = { totalRevenue: 0, totalProfit: 0, salesCount: 0 };
++
++let unsubscribeProducts = null;
++let unsubscribeSales = null;
++let unsubscribeMonthlyReport = null;
+ 
+ // Toggles indépendants des deux cartes du dashboard (🔄 USD)
+ let balanceViewCurrency = "local";
+@@ -462,44 +490,168 @@ window.addEventListener("online", () => {
+ window.addEventListener("offline", updateOnlineStatus);
+ 
  // ============================================================
- 
-+// Délai maximum avant de considérer la requête comme "trop lente" et de
-+// basculer sur le cache local. Sans ça, si le serveur met du temps à
-+// répondre (ex : serveur Render qui se réveille après une mise en veille,
-+// ou connexion 2G/3G instable), l'appli reste bloquée sur "Chargement…"
-+// pendant 30 à 60 secondes au lieu de proposer immédiatement les données
-+// hors ligne déjà en cache.
-+const FETCH_TIMEOUT_MS = 8000;
+-// Chargement des données
++// Chargement des données — Firebase en temps réel
+ // ============================================================
+-
+-async function refreshAllData() {
+-  try {
+-    await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
+-  } catch (error) {
+-    console.error("Erreur lors du chargement des données stock :", error);
+-    showErrorToast("Impossible de charger les données — vérifie ta connexion internet.");
+-  }
++// Produits et ventes ne dépendent plus du serveur Render : ils sont lus (et
++// écrits) directement dans Firestore via onSnapshot. Ça veut dire :
++//  - premier affichage quasi instantané (cache local hors ligne déjà activé
++//    dans firebase-config.js), même si le téléphone est hors ligne ;
++//  - mise à jour automatique dès qu'une donnée change (pas besoin de
++//    recharger la page) ;
++//  - plus jamais bloqué sur "Chargement…" à cause d'un serveur qui met du
++//    temps à se réveiller.
++// Seule la génération du PDF de clôture de journée reste sur le serveur
++// Render (voir plus bas), car elle utilise une librairie PDF côté Node.
 +
- async function authFetch(path, options = {}) {
-   const token = await auth.currentUser.getIdToken();
-   const headers = {
-@@ -327,7 +338,29 @@ async function authFetch(path, options = {}) {
-     ...(options.headers || {}),
-   };
- 
--  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-+  const controller = new AbortController();
-+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-+
-+  let response;
-+  try {
-+    response = await fetch(`${API_BASE}${path}`, {
-+      ...options,
-+      headers,
-+      signal: controller.signal,
-+    });
-+  } catch (error) {
-+    // AbortError (timeout) ou vraie coupure réseau : les deux doivent être
-+    // traités comme une erreur réseau (pas de .status) afin de déclencher
-+    // le fallback cache déjà géré par isNetworkError().
-+    const networkError = new Error(
-+      error.name === "AbortError"
-+        ? "La connexion est trop lente, passage en mode hors ligne."
-+        : error.message || "Erreur réseau."
-+    );
-+    throw networkError;
-+  } finally {
-+    clearTimeout(timeoutId);
-+  }
- 
-   if (!response.ok) {
-     const body = await response.json().catch(() => ({}));
-@@ -583,9 +616,15 @@ function loadStockDataFromCache(uid, scope = "all") {
++function getCurrentMonthId(date = new Date()) {
++  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
  }
  
- function warnCacheFallbackOnce(hasCache) {
--  if (hasCache && !cacheFallbackWarningShown) {
--    cacheFallbackWarningShown = true;
--    showWarningToast("Données affichées depuis la dernière synchronisation connue.");
-+  if (cacheFallbackWarningShown) return;
-+  cacheFallbackWarningShown = true;
+-async function loadProducts() {
+-  try {
+-    const data = await authFetch("/products");
+-    products = new Map(data.products.map((p) => [p.id, p]));
+-    renderProducts();
+-  } catch (error) {
+-    if (isNetworkError(error)) {
+-      showErrorToast("Connexion internet requise pour charger les produits.");
++function startRealtimeListeners(uid) {
++  // On se désabonne d'abord si des écouteurs tournaient déjà (ex: bouton
++  // "Réessayer" après une erreur), pour ne jamais en empiler deux.
++  stopRealtimeListeners();
 +
-+  if (hasCache) {
-+    showWarningToast("Connexion lente ou hors ligne — données affichées depuis la dernière synchronisation connue.");
-+  } else {
-+    // Aucune donnée en cache : on informe clairement plutôt que de laisser
-+    // l'utilisateur devant un écran vide sans explication.
-+    showWarningToast("Hors ligne et aucune donnée locale disponible pour l'instant. Reconnecte-toi puis réessaie.");
-   }
- }
++  const productsQuery = query(
++    collection(db, "users", uid, "stockProducts"),
++    orderBy("createdAt", "desc"),
++    limit(500)
++  );
++  unsubscribeProducts = onSnapshot(
++    productsQuery,
++    (snapshot) => {
++      products = new Map(snapshot.docs.map((docSnap) => [docSnap.id, serializeProductDoc(docSnap)]));
++      renderProducts();
++    },
++    (error) => {
++      console.error("Erreur d'écoute des produits :", error);
++      renderProductsError();
+     }
+-    throw error;
+-  }
+-}
++  );
  
-@@ -662,10 +701,18 @@ btnConvertBalance.addEventListener("click", () => {
- function renderDailyProfitCard() {
-   const salesProfit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
-   const netProfit = salesProfit - totalExpensesToday;
-+  const revenue = salesToday.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
- 
-   dailyProfitValue.textContent = formatAmount(netProfit, currentUserData, profitViewCurrency);
-   btnConvertProfit.textContent =
-     profitViewCurrency === "local" ? "🔄 USD" : `🔄 ${getCurrencySymbol(currentUserData) || "Local"}`;
+-async function loadSalesToday() {
+-  try {
+-    const data = await authFetch("/sales");
+-    salesToday = data.sales;
+-    renderSalesToday();
+-  } catch (error) {
+-    if (isNetworkError(error)) {
+-      showErrorToast("Connexion internet requise pour charger les ventes.");
++  // Toutes les ventes non encore clôturées (voir note sur `salesToday` plus
++  // haut) — jamais filtrées par date, donc rien ne "disparaît" du jour au
++  // lendemain si tu oublies de clôturer.
++  const salesQuery = query(
++    collection(db, "users", uid, "stockSales"),
++    orderBy("saleDate", "desc"),
++    limit(1000)
++  );
++  unsubscribeSales = onSnapshot(
++    salesQuery,
++    (snapshot) => {
++      salesToday = snapshot.docs.map(serializeSaleDoc);
++      renderSalesToday();
++    },
++    (error) => {
++      console.error("Erreur d'écoute des ventes :", error);
++      renderSalesTodayError();
+     }
+-    throw error;
+-  }
++  );
 +
-+  // Chiffre d'affaires + nombre de ventes, sur la même carte hero que le
-+  // bénéfice (auparavant seul "Total vendu" était affiché, et n'était même
-+  // jamais mis à jour depuis le JS — texte figé à "0 vente").
-+  stockTotalRevenueValue.textContent = formatAmount(revenue, currentUserData, profitViewCurrency);
-+  const count = salesToday.length;
-+  stockTotalSalesCount.textContent = `${count} vente${count > 1 ? "s" : ""}`;
- }
- 
- btnConvertProfit.addEventListener("click", () => {
-@@ -935,7 +982,9 @@ function renderProducts() {
-   }
- 
-   renderLowStockSection();
--  renderSaleProductOptions();
-+  // Si le menu déroulant de vente est ouvert au moment où les produits
-+  // sont rechargés (ex: stock mis à jour ailleurs), on le rafraîchit.
-+  if (!saleProductSuggestions.hidden) renderSaleProductSuggestions();
- }
- 
- productSearch.addEventListener("input", renderProducts);
-@@ -993,16 +1042,145 @@ function findProductByName(name) {
-   return null;
- }
- 
--function renderSaleProductOptions() {
--  saleProductOptions.innerHTML = "";
--  for (const product of products.values()) {
--    if (product.archived) continue;
--    const option = document.createElement("option");
--    option.value = product.name;
--    saleProductOptions.appendChild(option);
-+// ============================================================
-+// Autocomplete produit (vente) — menu déroulant maison
-+// ============================================================
-+// Remplace l'ancien <input list> + <datalist> : sur mobile en particulier,
-+// le datalist natif ouvre une liste minuscule, peu lisible, qui ne filtre
-+// pas toujours bien en direct. Ici la liste se reconstruit à chaque frappe,
-+// s'affiche juste sous le champ, et se sélectionne au clic/tap.
-+
-+let saleSuggestionItems = [];
-+let saleSuggestionActiveIndex = -1;
-+
-+function getSaleProductCandidates(query) {
-+  const normalized = (query || "").trim().toLowerCase();
-+  const available = [...products.values()].filter((p) => !p.archived);
-+  const filtered = normalized
-+    ? available.filter((p) => p.name.toLowerCase().includes(normalized))
-+    : available;
-+  // Produits en rupture affichés en dernier plutôt que masqués (pratique
-+  // pour réintégrer visuellement, mais on empêche la vente ailleurs).
-+  return filtered
-+    .sort((a, b) => a.name.localeCompare(b.name))
-+    .slice(0, 30);
-+}
-+
-+function closeSaleSuggestions() {
-+  saleSuggestionItems = [];
-+  saleSuggestionActiveIndex = -1;
-+  saleProductSuggestions.hidden = true;
-+  saleProductSuggestions.innerHTML = "";
-+  saleProductSearch.setAttribute("aria-expanded", "false");
-+  saleProductToggle.classList.remove("product-autocomplete__toggle--open");
-+}
-+
-+function highlightSaleSuggestion(index) {
-+  const buttons = saleProductSuggestions.querySelectorAll(".product-autocomplete__item");
-+  buttons.forEach((btn, i) => {
-+    btn.classList.toggle("product-autocomplete__item--active", i === index);
-+  });
-+  saleSuggestionActiveIndex = index;
-+}
-+
-+function selectSaleProduct(product) {
-+  saleProductSearch.value = product.name;
-+  closeSaleSuggestions();
-+  updateSaleStockHint();
-+}
-+
-+function renderSaleProductSuggestions() {
-+  const candidates = getSaleProductCandidates(saleProductSearch.value);
-+
-+  if (candidates.length === 0) {
-+    saleProductSuggestions.innerHTML =
-+      '<div class="product-autocomplete__empty">Aucun produit correspondant.</div>';
-+    saleProductSuggestions.hidden = false;
-+    saleProductSearch.setAttribute("aria-expanded", "true");
-+    saleProductToggle.classList.add("product-autocomplete__toggle--open");
-+    saleSuggestionItems = [];
-+    saleSuggestionActiveIndex = -1;
-+    return;
-   }
-+
-+  saleSuggestionItems = candidates;
-+  saleSuggestionActiveIndex = -1;
-+  saleProductSuggestions.innerHTML = "";
-+
-+  candidates.forEach((product) => {
-+    const isOut = product.stockQuantity <= 0;
-+    const item = document.createElement("button");
-+    item.type = "button";
-+    item.className =
-+      "product-autocomplete__item" + (isOut ? " product-autocomplete__item--out" : "");
-+    item.setAttribute("role", "option");
-+    item.innerHTML = `
-+      <span>${escapeHtml(product.name)}</span>
-+      <span class="product-autocomplete__item-stock">${product.stockQuantity} ${escapeHtml(product.unit || "")}${isOut ? " · rupture" : ""}</span>
-+    `;
-+    // mousedown (plutôt que click) pour sélectionner AVANT que le blur
-+    // du champ texte ne referme la liste.
-+    item.addEventListener("mousedown", (event) => {
-+      event.preventDefault();
-+      selectSaleProduct(product);
-+    });
-+    saleProductSuggestions.appendChild(item);
-+  });
-+
-+  saleProductSuggestions.hidden = false;
-+  saleProductSearch.setAttribute("aria-expanded", "true");
-+  saleProductToggle.classList.add("product-autocomplete__toggle--open");
- }
- 
-+saleProductSearch.addEventListener("focus", renderSaleProductSuggestions);
-+
-+saleProductSearch.addEventListener("input", () => {
-+  renderSaleProductSuggestions();
-+  updateSaleStockHint();
-+});
-+
-+saleProductSearch.addEventListener("keydown", (event) => {
-+  if (saleProductSuggestions.hidden || saleSuggestionItems.length === 0) return;
-+
-+  if (event.key === "ArrowDown") {
-+    event.preventDefault();
-+    highlightSaleSuggestion(Math.min(saleSuggestionActiveIndex + 1, saleSuggestionItems.length - 1));
-+  } else if (event.key === "ArrowUp") {
-+    event.preventDefault();
-+    highlightSaleSuggestion(Math.max(saleSuggestionActiveIndex - 1, 0));
-+  } else if (event.key === "Enter") {
-+    if (saleSuggestionActiveIndex >= 0) {
-+      event.preventDefault();
-+      selectSaleProduct(saleSuggestionItems[saleSuggestionActiveIndex]);
++  // Cumul du mois en cours (revenu / bénéfice), alimenté par le serveur à
++  // chaque clôture de journée — voir functions/src/stock.js.
++  unsubscribeMonthlyReport = onSnapshot(
++    doc(db, "users", uid, "stockMonthlyReports", getCurrentMonthId()),
++    (snap) => {
++      currentMonthTotals = snap.exists()
++        ? {
++            totalRevenue: Number(snap.data().totalRevenue || 0),
++            totalProfit: Number(snap.data().totalProfit || 0),
++            salesCount: Number(snap.data().salesCount || 0),
++          }
++        : { totalRevenue: 0, totalProfit: 0, salesCount: 0 };
++      renderMonthCard();
++    },
++    (error) => {
++      console.error("Erreur d'écoute du rapport mensuel :", error);
 +    }
-+  } else if (event.key === "Escape") {
-+    closeSaleSuggestions();
-+  }
-+});
++  );
++}
 +
-+saleProductSearch.addEventListener("blur", () => {
-+  // Léger délai pour laisser le mousedown de l'item s'exécuter en premier.
-+  setTimeout(closeSaleSuggestions, 100);
-+});
++function stopRealtimeListeners() {
++  if (unsubscribeProducts) unsubscribeProducts();
++  if (unsubscribeSales) unsubscribeSales();
++  if (unsubscribeMonthlyReport) unsubscribeMonthlyReport();
++  unsubscribeProducts = null;
++  unsubscribeSales = null;
++  unsubscribeMonthlyReport = null;
++}
 +
-+// Bouton triangle : ouvre/ferme la liste complète même sans taper de texte,
-+// comme un <select> classique. mousedown pour agir avant le blur du champ.
-+saleProductToggle.addEventListener("mousedown", (event) => {
-+  event.preventDefault();
-+  if (saleProductSuggestions.hidden) {
-+    saleProductSearch.focus();
-+    renderSaleProductSuggestions();
-+  } else {
-+    closeSaleSuggestions();
-+  }
-+});
++function serializeProductDoc(docSnap) {
++  const data = docSnap.data();
++  return {
++    id: docSnap.id,
++    name: data.name || "",
++    purchasePrice: Number(data.purchasePrice || 0),
++    sellingPrice: Number(data.sellingPrice || 0),
++    stockQuantity: Number(data.stockQuantity || 0),
++    lowStockThreshold: data.lowStockThreshold ?? 5,
++    unit: data.unit || "piece",
++    archived: Boolean(data.archived),
++  };
++}
 +
-+document.addEventListener("click", (event) => {
-+  if (!event.target.closest(".product-autocomplete")) {
-+    closeSaleSuggestions();
-+  }
-+});
++function serializeSaleDoc(docSnap) {
++  const data = docSnap.data();
++  const saleDate =
++    data.saleDate && typeof data.saleDate.toDate === "function"
++      ? data.saleDate.toDate().toISOString()
++      : new Date().toISOString();
++  return {
++    id: docSnap.id,
++    productId: data.productId || "",
++    productName: data.productName || "",
++    quantity: Number(data.quantity || 0),
++    unitSellingPrice: Number(data.unitSellingPrice || 0),
++    unitPurchasePrice: Number(data.unitPurchasePrice || 0),
++    totalRevenue: Number(data.totalRevenue || 0),
++    totalProfit: Number(data.totalProfit || 0),
++    saleDate,
++  };
++}
++
++function renderProductsError() {
++  productsList.innerHTML = "";
++  const wrapper = document.createElement("div");
++  wrapper.className = "state-message";
++  wrapper.textContent = "Impossible de charger les produits. ";
++
++  const retryBtn = document.createElement("button");
++  retryBtn.type = "button";
++  retryBtn.className = "btn btn-secondary btn-sm";
++  retryBtn.textContent = "Réessayer";
++  retryBtn.addEventListener("click", () => {
++    productsList.innerHTML = '<div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>';
++    if (currentUser) startRealtimeListeners(currentUser.uid);
++  });
++
++  wrapper.appendChild(retryBtn);
++  productsList.appendChild(wrapper);
++}
++
++function renderSalesTodayError() {
++  salesTodayList.innerHTML = "";
++  const wrapper = document.createElement("div");
++  wrapper.className = "state-message";
++  wrapper.textContent = "Impossible de charger les ventes. ";
++
++  const retryBtn = document.createElement("button");
++  retryBtn.type = "button";
++  retryBtn.className = "btn btn-secondary btn-sm";
++  retryBtn.textContent = "Réessayer";
++  retryBtn.addEventListener("click", () => {
++    salesTodayList.innerHTML = '<div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>';
++    if (currentUser) startRealtimeListeners(currentUser.uid);
++  });
++
++  wrapper.appendChild(retryBtn);
++  salesTodayList.appendChild(wrapper);
+ }
+ 
++// Seules les dépenses (page Finances) restent chargées via le serveur : ce
++// n'est qu'une petite info d'appoint pour la carte "Bénéfice actuel", elle
++// n'empêche jamais l'affichage des produits/ventes si elle échoue.
+ async function loadDailyReport() {
+   const today = getTodayLocalISODate();
+   try {
+@@ -512,6 +664,10 @@ async function loadDailyReport() {
+   renderDailyProfitCard();
+ }
+ 
++async function refreshAllData() {
++  await loadDailyReport();
++}
 +
  // ============================================================
- // Rendu — Ventes du jour
+ // Rendu — Dashboard (solde, bénéfice, top/low produit)
  // ============================================================
-diff --git a/login.html b/login.html
-index a0d1c1c..f649d65 100644
---- a/login.html
-+++ b/login.html
-@@ -25,7 +25,7 @@
-       </a>
-       <div class="login-card__intro">
-         <h1 class="login-card__title">Bienvenue sur Kontra-Africa</h1>
--        <p class="login-card__subtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
-+        <p class="login-card__subtitle">Connectez-vous pour créer vos contrats, gérer votre stock et suivre vos finances.</p>
-       </div>
-       <!-- Case à cocher obligatoire : CGU + Politique de confidentialité -->
-       <label class="login-card__terms" for="termsCheckbox">
-diff --git a/manifest.json b/manifest.json
-index 9c29a99..375b1d0 100644
---- a/manifest.json
-+++ b/manifest.json
-@@ -1,7 +1,7 @@
- {
-   "name": "Kontra-Africa",
-   "short_name": "Kontra",
--  "description": "Kontra-Africa — Gestion des contrats et des finances",
-+  "description": "Kontra-Africa — Gestion des contrats, du stock et des finances",
-   "start_url": "/",
-   "scope": "/",
-   "display": "standalone",
+@@ -670,17 +826,12 @@ function ensureAddStockModal() {
+     submitBtn.disabled = true;
+ 
+     try {
+-      await handleUpdateProduct(product.id, {
+-        name: product.name,
+-        purchasePrice: product.purchasePrice,
+-        sellingPrice: product.sellingPrice,
+-        stockQuantity: product.stockQuantity + quantity,
+-        lowStockThreshold: product.lowStockThreshold,
+-        unit: product.unit,
+-      });
++      await adjustProductStock(product.id, quantity);
+       showSavedMsg(form);
+       closeModal(dialog);
+       form.reset();
++    } catch (error) {
++      showFormError(form, "Erreur lors de l'ajout au stock. " + (error.message || ""));
+     } finally {
+       submitBtn.disabled = false;
+     }
+@@ -728,7 +879,7 @@ btnQuickAddStock.addEventListener("click", openAddStockModal);
+ btnCloseDay.addEventListener("click", async () => {
+   if (
+     !(await showConfirm(
+-      "Le PDF sera téléchargé puis les ventes du jour seront définitivement supprimées. Continuer ?",
++      "Le PDF sera téléchargé, le total sera ajouté à ton bilan du mois, puis toutes les ventes en attente seront définitivement supprimées. Continuer ?",
+       "Clôturer la journée"
+     ))
+   ) {
+@@ -1030,9 +1181,10 @@ function renderSalesToday() {
+ 
+ function renderSaleRow(sale) {
+   const row = document.createElement("div");
+-  const isToday = isSaleFromToday(sale.saleDate);
+ 
+-  row.className = "sale-row" + (isToday ? "" : " sale-row--locked");
++  // Une vente reste modifiable tant que la journée n'a pas été clôturée,
++  // quel que soit le jour où elle a été enregistrée.
++  row.className = "sale-row";
+   row.dataset.saleId = sale.id;
+   row.dataset.saleDate =
+     typeof sale.saleDate === "string" ? sale.saleDate : new Date(sale.saleDate).toISOString();
+@@ -1045,18 +1197,34 @@ function renderSaleRow(sale) {
+         · Bénéfice <span class="sale-row__profit">${formatAmount(sale.totalProfit, currentUserData, currentUserData.displayCurrency)}</span>
+       </span>
+     </div>
+-    <button class="btn btn-debit btn-sm" data-action="remove-sale" ${!isToday ? 'disabled title="Non modifiable après la journée"' : ""}>Retirer</button>
++    <button class="btn btn-debit btn-sm" data-action="remove-sale">Retirer</button>
+   `;
+ 
+-  if (isToday) {
+-    row.querySelector('[data-action="remove-sale"]').addEventListener("click", () => {
+-      handleRemoveSale(sale);
+-    });
+-  }
++  row.querySelector('[data-action="remove-sale"]').addEventListener("click", () => {
++    handleRemoveSale(sale);
++  });
+ 
+   return row;
+ }
+ 
++function renderMonthCard() {
++  if (!monthRevenueValue || !monthProfitValue) return;
++  monthRevenueValue.textContent = formatAmount(
++    currentMonthTotals.totalRevenue,
++    currentUserData,
++    currentUserData.displayCurrency
++  );
++  monthProfitValue.textContent = formatAmount(
++    currentMonthTotals.totalProfit,
++    currentUserData,
++    currentUserData.displayCurrency
++  );
++  if (monthSalesCount) {
++    const count = currentMonthTotals.salesCount || 0;
++    monthSalesCount.textContent = `${count} vente${count > 1 ? "s" : ""} clôturée${count > 1 ? "s" : ""}`;
++  }
++}
++
+ function renderDailySummary() {
+   const revenue = salesToday.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
+   const profit = salesToday.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+@@ -1196,41 +1364,51 @@ formProduct.addEventListener("submit", async (event) => {
+ 
+ async function handleCreateProduct(payload) {
+   try {
+-    const created = await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
+-    products.set(created.id, created);
+-    renderProducts();
++    await addDoc(collection(db, "users", currentUser.uid, "stockProducts"), {
++      name: payload.name,
++      purchasePrice: payload.purchasePrice,
++      sellingPrice: payload.sellingPrice,
++      stockQuantity: payload.stockQuantity,
++      lowStockThreshold: payload.lowStockThreshold ?? 5,
++      unit: payload.unit || "piece",
++      archived: false,
++      createdAt: serverTimestamp(),
++      updatedAt: serverTimestamp(),
++    });
++    // La liste se met à jour toute seule via l'écoute temps réel Firestore.
+     finishProductForm();
+   } catch (error) {
+-    if (isNetworkError(error)) {
+-      showFormError(formProduct, "Connexion internet requise pour ajouter un produit.");
+-    } else {
+-      showFormError(formProduct, error.message || "Erreur lors de la création du produit.");
+-    }
++    showFormError(formProduct, "Erreur lors de la création du produit. " + (error.message || ""));
+   }
+ }
+ 
+ async function handleUpdateProduct(id, payload) {
+-  const previous = products.get(id);
+-
+   try {
+-    const updated = await authFetch(`/products/${id}`, {
+-      method: "PUT",
+-      body: JSON.stringify(payload),
++    await updateDoc(doc(db, "users", currentUser.uid, "stockProducts", id), {
++      name: payload.name,
++      purchasePrice: payload.purchasePrice,
++      sellingPrice: payload.sellingPrice,
++      stockQuantity: payload.stockQuantity,
++      lowStockThreshold: payload.lowStockThreshold ?? 5,
++      unit: payload.unit || "piece",
++      updatedAt: serverTimestamp(),
+     });
+-    products.set(id, updated);
+-    renderProducts();
+     finishProductForm();
+   } catch (error) {
+-    products.set(id, previous);
+-    renderProducts();
+-    if (isNetworkError(error)) {
+-      showFormError(formProduct, "Connexion internet requise pour modifier ce produit.");
+-    } else {
+-      showFormError(formProduct, error.message || "Erreur lors de la modification du produit.");
+-    }
++    showFormError(formProduct, "Erreur lors de la modification du produit. " + (error.message || ""));
+   }
+ }
+ 
++// Ajuste le stock d'un produit de façon atomique (utilisé pour le
++// réapprovisionnement rapide, les ventes et les retraits de vente) : évite
++// les problèmes de concurrence qu'aurait un simple "lire puis réécrire".
++async function adjustProductStock(productId, delta) {
++  await updateDoc(doc(db, "users", currentUser.uid, "stockProducts", productId), {
++    stockQuantity: increment(delta),
++    updatedAt: serverTimestamp(),
++  });
++}
++
+ // ============================================================
+ // Formulaire de vente (onglet Ventes — recherche + quantité)
+ // ============================================================
+@@ -1283,26 +1461,38 @@ btnConfirmSale.addEventListener("click", async () => {
+     return;
+   }
+ 
+-  const saleDate = new Date().toISOString();
+-  const payload = { productId: product.id, quantity, saleDate };
++  btnConfirmSale.disabled = true;
+ 
+   try {
+-    const created = await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
+-    salesToday.unshift(created);
+-    products.set(product.id, { ...product, stockQuantity: product.stockQuantity - quantity });
+-    renderProducts();
+-    renderSalesToday();
++    const totalRevenue = quantity * product.sellingPrice;
++    const totalProfit = quantity * (product.sellingPrice - product.purchasePrice);
++
++    // Deux écritures Firestore indépendantes (plutôt qu'une transaction) :
++    // chacune fonctionne même hors ligne grâce au cache local, et se
++    // synchronise automatiquement dès que la connexion revient — au lieu
++    // d'échouer entièrement en attendant une réponse serveur.
++    await addDoc(collection(db, "users", currentUser.uid, "stockSales"), {
++      productId: product.id,
++      productName: product.name,
++      quantity,
++      unitSellingPrice: product.sellingPrice,
++      unitPurchasePrice: product.purchasePrice,
++      totalRevenue,
++      totalProfit,
++      saleDate: serverTimestamp(),
++      createdAt: serverTimestamp(),
++    });
++    await adjustProductStock(product.id, -quantity);
++
+     saleProductSearch.value = "";
+     saleQuantity.value = "";
+     saleStockHint.textContent = "";
+     showSaleSavedMsg();
+     showSuccessToast("Vente enregistrée ✓");
+   } catch (error) {
+-    if (isNetworkError(error)) {
+-      showSaleFormError("Connexion internet requise pour enregistrer une vente.");
+-    } else {
+-      showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
+-    }
++    showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
++  } finally {
++    btnConfirmSale.disabled = false;
+   }
+ });
+ 
+@@ -1311,28 +1501,16 @@ btnConfirmSale.addEventListener("click", async () => {
+ // ============================================================
+ 
+ async function handleRemoveSale(sale) {
+-  if (!isSaleFromToday(sale.saleDate)) return; // garde-fou, le bouton est déjà désactivé sinon
+-
+   if (!(await showConfirm("Retirer cette vente et réintégrer le stock ?", "Retirer la vente"))) return;
+ 
+-  const product = products.get(sale.productId);
+-  const previousStock = product ? product.stockQuantity : null;
+-
+   try {
+-    await authFetch(`/sales/${sale.id}`, { method: "DELETE" });
+-    salesToday = salesToday.filter((s) => s.id !== sale.id);
+-    if (product) {
+-      products.set(sale.productId, { ...product, stockQuantity: product.stockQuantity + sale.quantity });
++    await deleteDoc(doc(db, "users", currentUser.uid, "stockSales", sale.id));
++    if (products.has(sale.productId)) {
++      await adjustProductStock(sale.productId, sale.quantity);
+     }
+-    renderProducts();
+-    renderSalesToday();
+     showSuccessToast("Vente retirée, stock réintégré.");
+   } catch (error) {
+-    if (isNetworkError(error)) {
+-      showErrorToast("Connexion internet requise pour retirer une vente.");
+-    } else {
+-      showErrorToast(error.message || "Erreur lors du retrait de la vente.");
+-    }
++    showErrorToast(error.message || "Erreur lors du retrait de la vente.");
+   }
+ }
+ 
+@@ -1360,8 +1538,13 @@ document.addEventListener("DOMContentLoaded", async () => {
+     renderDailyProfitCard();
+     renderProducts();
+     renderSalesToday();
++    renderMonthCard();
+   });
+ 
+-  await refreshAllData();
++  // Produits, ventes et bilan mensuel : branchés en temps réel sur Firebase,
++  // indépendamment de l'état du serveur Render.
++  startRealtimeListeners(user.uid);
++
++  await refreshAllData(); // dépenses du jour uniquement (voir plus haut)
+   renderBalanceCard();
+ });
 diff --git a/stock.html b/stock.html
-index 664fc0c..9f094ec 100644
+index 664fc0c..219346a 100644
 --- a/stock.html
 +++ b/stock.html
-@@ -50,7 +50,17 @@
-             <button type="button" class="dashboard-card__convert profit-hero-card__convert" id="btn-convert-profit">🔄 USD</button>
+@@ -75,6 +75,18 @@
+             <p class="dashboard-card__hint" id="low-product-qty"></p>
            </div>
-           <p class="profit-hero-card__amount" id="daily-profit-value">—</p>
--          <p class="profit-hero-card__footer">Total vendu : <span id="stock-total-sales-count">0 vente</span></p>
-+          <div class="profit-hero-card__footer">
-+            <div class="profit-hero-card__stat">
-+              <span class="profit-hero-card__stat-label">Chiffre d'affaires</span>
-+              <span class="profit-hero-card__stat-value" id="stock-total-revenue-value">—</span>
-+            </div>
-+            <div class="profit-hero-card__stat-divider" aria-hidden="true"></div>
-+            <div class="profit-hero-card__stat">
-+              <span class="profit-hero-card__stat-label">Total vendu</span>
-+              <span class="profit-hero-card__stat-value" id="stock-total-sales-count">0 vente</span>
-+            </div>
+ 
++          <div class="dashboard-card">
++            <span class="dashboard-card__label">Chiffre d'affaires — ce mois-ci</span>
++            <p class="dashboard-card__value" id="month-revenue-value">—</p>
++            <p class="dashboard-card__hint" id="month-sales-count"></p>
 +          </div>
++
++          <div class="dashboard-card">
++            <span class="dashboard-card__label">Bénéfice — ce mois-ci</span>
++            <p class="dashboard-card__value" id="month-profit-value">—</p>
++            <p class="dashboard-card__hint">Mis à jour à chaque clôture de journée</p>
++          </div>
++
+         </div>
+ 
+         <section class="panel" id="low-stock-section" hidden>
+@@ -115,7 +127,7 @@
+           </div>
+ 
+           <div id="products-list" class="products-list">
+-            <div class="state-message">Chargement…</div>
++            <div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>
+           </div>
          </section>
  
-         <div class="dashboard-grid">
-@@ -129,10 +139,13 @@
-         <section class="panel">
-           <h2 class="panel-title">Nouvelle vente</h2>
+@@ -151,7 +163,7 @@
+           <h2 class="panel-title">Ventes du jour</h2>
  
--          <div class="form-field">
-+          <div class="form-field product-autocomplete">
-             <label for="sale-product-search">Produit</label>
--            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
--            <datalist id="sale-product-options"></datalist>
-+            <div class="product-autocomplete__input-row">
-+              <input type="text" id="sale-product-search" placeholder="Rechercher ou choisir un produit…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sale-product-suggestions" />
-+              <button type="button" id="sale-product-toggle" class="product-autocomplete__toggle" aria-label="Afficher la liste des produits">▾</button>
-+            </div>
-+            <div id="sale-product-suggestions" class="product-autocomplete__list" role="listbox" hidden></div>
+           <div id="sales-today-list" class="sales-list">
+-            <div class="state-message">Chargement…</div>
++            <div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>
            </div>
  
-           <div class="form-field">
-diff --git a/terms.html b/terms.html
-index 9c732f0..e9ed109 100644
---- a/terms.html
-+++ b/terms.html
-@@ -92,8 +92,8 @@
-     <h2>1. Description du service</h2>
-     <p>
-       Kontra-Africa est une application permettant de créer des contrats, de les faire signer par
--      les parties (y compris via WhatsApp pour les signataires ne disposant pas de compte), et de
--      suivre des finances personnelles ou professionnelles.
-+      les parties (y compris via WhatsApp pour les signataires ne disposant pas de compte), de gérer
-+      leur stock, et de suivre des finances personnelles ou professionnelles.
-     </p>
-     <p>
-       Kontra-Africa n'est pas un cabinet d'avocats et ne fournit aucun conseil juridique. Les modèles
+           <div id="daily-summary" class="daily-summary"></div>
