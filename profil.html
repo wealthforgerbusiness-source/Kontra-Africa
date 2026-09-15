@@ -37,6 +37,15 @@
       <section class="panel">
         <h2 class="panel-title">Abonnement</h2>
         <div id="subscription-status" class="subscription-status">
+          <!-- Affiché juste après un retour de paiement Chariow
+               (?payment=success), tant que le webhook n'a pas encore
+               confirmé l'activation côté serveur. Purement informatif :
+               ce n'est jamais ce paramètre d'URL qui débloque l'accès. -->
+          <div id="payment-pending-banner" class="payment-pending-banner" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span id="payment-pending-text">Paiement reçu, activation de ton abonnement en cours…</span>
+          </div>
+
           <p id="subscription-message" class="subscription-message">Chargement…</p>
 
           <div id="resubscribe-phone-row" class="resubscribe-phone-row" hidden>
