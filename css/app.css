@@ -665,40 +665,61 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-6) var(--space-5);
   text-align: center;
 }
 
+@media (min-width: 480px) {
+  .paywall__card {
+    padding: var(--space-8) var(--space-6);
+  }
+}
+
 .paywall__logo {
-  height: 28px;
-  margin-bottom: var(--space-6);
+  height: 24px;
+  margin-bottom: var(--space-3);
   margin-inline: auto;
 }
 
 .paywall__title {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: 600;
-  margin-top: var(--space-2);
-  margin-bottom: var(--space-3);
+  margin-top: 0;
+  margin-bottom: var(--space-1);
+}
+
+@media (min-width: 480px) {
+  .paywall__title {
+    font-size: var(--fs-xl);
+  }
 }
 
 .paywall__text {
   color: var(--color-text-muted);
+  font-size: var(--fs-sm);
   max-width: 36ch;
   margin-inline: auto;
 }
 
 .paywall__price {
   font-family: var(--font-display);
-  font-size: var(--fs-3xl);
+  font-size: var(--fs-2xl);
   font-weight: 700;
   color: var(--color-primary);
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
   background: var(--color-primary-light);
   display: inline-flex;
   align-items: baseline;
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-full);
+}
+
+@media (min-width: 480px) {
+  .paywall__price {
+    font-size: var(--fs-3xl);
+    margin-top: var(--space-6);
+    padding: var(--space-2) var(--space-5);
+  }
 }
 
 .paywall__currency {
@@ -713,9 +734,15 @@
 }
 
 .paywall__phone {
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
   width: 100%;
   text-align: left;
+}
+
+@media (min-width: 480px) {
+  .paywall__phone {
+    margin-top: var(--space-6);
+  }
 }
 
 .paywall__phone-label {
@@ -741,36 +768,70 @@
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
-.paywall__phone-divider {
-  width: 1px;
-  align-self: stretch;
-  margin: var(--space-2) 0;
-  background: var(--color-border);
-}
-
-.paywall__phone-select,
-.paywall__phone-input {
-  min-height: 46px;
-  border: none;
-  background: transparent;
-  padding: 0 var(--space-3);
-  font-size: var(--fs-base);
-  color: var(--color-text);
-}
-
-.paywall__phone-select {
+/* --- Sélecteur de pays : drapeau (image) + indicatif, compact --------
+   Le vrai <select> reste présent et fonctionnel mais invisible
+   (opacity: 0), posé par-dessus le drapeau/indicatif qu'on affiche
+   nous-mêmes. Ça évite le repli "CD" que certains téléphones affichent
+   à la place de l'emoji drapeau, et laisse un maximum de place au champ
+   de saisie du numéro à côté. --------------------------------------- */
+.paywall__country {
+  position: relative;
   flex: 0 0 auto;
-  max-width: 45%;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-right: 1.5px solid var(--color-border);
+}
+
+.paywall__country-flag {
+  width: 22px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  flex: 0 0 auto;
+}
+
+.paywall__country-dial {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary, var(--color-text));
+  white-space: nowrap;
+}
+
+.paywall__country-chevron {
+  font-size: var(--fs-xs);
+  color: var(--color-text-faint);
+}
+
+.paywall__country-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-size: 16px;
 }
 
 .paywall__phone-input {
+  min-height: 50px;
   flex: 1 1 auto;
   min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-4);
+  font-size: var(--fs-md);
+  letter-spacing: 0.01em;
+  color: var(--color-text);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
-.paywall__phone-select:focus-visible,
+.paywall__country-select:focus-visible,
 .paywall__phone-input:focus-visible {
   outline: 3px solid var(--color-accent);
   outline-offset: 1px;
@@ -783,11 +844,17 @@
 }
 
 .paywall__zone {
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
   min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (min-width: 480px) {
+  .paywall__zone {
+    margin-top: var(--space-6);
+  }
 }
 
 .paywall__cta {
@@ -802,21 +869,25 @@
 }
 
 .paywall__trust {
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
   font-size: var(--fs-xs);
   color: var(--color-text-faint);
 }
 
+/* --- "Déjà payé ?" : encadré bien visible, pas juste un texte sous
+   un séparateur, pour que ce chemin alternatif ne passe pas inaperçu. */
 .paywall__license {
-  margin-top: var(--space-6);
-  padding-top: var(--space-5);
-  border-top: 1px dashed var(--color-border);
+  margin-top: var(--space-5);
   width: 100%;
   text-align: left;
+  background: var(--color-surface-alt);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
 }
 
 .paywall__license-question {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--color-text);
   margin: 0 0 var(--space-1);
@@ -826,33 +897,61 @@
   display: block;
   font-size: var(--fs-xs);
   color: var(--color-text-muted);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .paywall__license-row {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   gap: var(--space-2);
+}
+
+@media (min-width: 480px) {
+  .paywall__license-row {
+    flex-direction: row;
+  }
 }
 
 .paywall__license-input {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 46px;
+  min-height: 50px;
   border: 1.5px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  padding: 0 var(--space-3);
-  font-size: var(--fs-base);
+  padding: 0 var(--space-4);
+  font-size: var(--fs-md);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-text);
   transition: border-color var(--duration-fast) var(--ease-standard),
               box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.paywall__license-input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: var(--font-body, sans-serif);
 }
 
 .paywall__license-input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.paywall__license-btn {
+  min-height: 50px;
+  width: 100%;
+}
+
+@media (min-width: 480px) {
+  .paywall__license-btn {
+    width: auto;
+    flex: 0 0 auto;
+  }
 }
 
 .paywall__license-error {
@@ -862,7 +961,7 @@
 }
 
 .paywall__logout {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   font-size: var(--fs-sm);
   color: var(--color-text-faint);
 }
