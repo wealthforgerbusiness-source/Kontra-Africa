@@ -1,206 +1,105 @@
 /**
- * Contrôleur Webhook pour la réception des Pulses Chariow.
+ * Contrôleur pour initier une session de paiement Chariow.
  */
-const crypto = require("crypto");
-const { db, CHARIOW_WEBHOOK_SECRET } = require("./config");
+const { CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID, APP_BASE_URL } = require("./config");
+const { getVerifiedUser } = require("./verify-auth");
 
-/**
- * Vérifie la signature HMAC-SHA256 envoyée par Chariow dans l'en-tête
- * "x-chariow-signature", calculée sur le corps BRUT de la requête
- * (jamais sur JSON.stringify(req.body), qui ne reproduit pas les octets
- * exacts envoyés par Chariow — voir https://chariow.dev/en/guides/pulse-security).
- *
- * CHARIOW_WEBHOOK_SECRET doit contenir le "Secret de signature" du Pulse
- * (valeur qui commence par "whsec_"), visible et copiable dans le
- * dashboard Chariow : Automations → Pulses → ton Pulse → onglet Overview
- * → bloc "Secret de signature" → bouton "Reveal" puis "Copy".
- */
-function isValidSignature(req) {
-  if (!CHARIOW_WEBHOOK_SECRET) {
-    console.error(
-      "CHARIOW_WEBHOOK_SECRET n'est pas configuré sur le serveur — webhook refusé."
-    );
-    return false;
-  }
-
-  if (!req.rawBody) {
-    console.error(
-      "req.rawBody est absent — vérifie que bodyParser.json({ verify }) est bien configuré dans server.js."
-    );
-    return false;
-  }
-
-  const received = req.header("x-chariow-signature") || "";
-
-  const expected =
-    "sha256=" +
-    crypto
-      .createHmac("sha256", CHARIOW_WEBHOOK_SECRET)
-      .update(req.rawBody) // Buffer brut, jamais un objet re-sérialisé
-      .digest("hex");
-
-  const receivedBuffer = Buffer.from(received);
-  const expectedBuffer = Buffer.from(expected);
-
-  if (receivedBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
-}
-
-exports.chariowWebhook = async (req, res) => {
+exports.checkout = async (req, res) => {
   try {
-    if (!isValidSignature(req)) {
-      console.warn("Webhook Chariow refusé : signature manquante ou invalide.");
-      return res.status(401).json({ received: false, error: "unauthorized" });
+    const user = await getVerifiedUser(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Authentification requise ou invalide." });
     }
 
-    const body = req.body || {};
-    // IMPORTANT : Chariow n'enveloppe PAS le payload dans "data" ou "payload".
-    // Le payload d'une Pulse est à plat : { event, sale, product, customer, store, ... }
-    // Voir https://chariow.dev/en/guides/pulses
-    const eventType = body.event || "unknown_event";
-    const normalizedEvent = eventType.toLowerCase();
+    const { firebaseUid: _ignoredUid, email: _ignoredEmail } = req.body; // jamais utilisés, volontairement
 
-    const sale = body.sale || {};
-    const license = body.license || {};
-    const customer = body.customer || {};
+    // IMPORTANT : l'email vient du token Firebase vérifié, jamais du body.
+    // C'est cet email que Chariow utilise pour créer le client et pour
+    // ENVOYER LA CLÉ DE LICENCE PAR MAIL — un email non vérifié pourrait
+    // envoyer la clé de quelqu'un d'autre à un tiers.
+    const email = user.email;
 
-    console.log(`Webhook Chariow reçu. Événement : ${eventType}`);
-
-    // IMPORTANT (découvert via un Pulse test le 15/09) : Chariow n'envoie JAMAIS
-    // un objet "custom_metadata". Il envoie un TABLEAU "custom_fields", avec des
-    // paires { name, value } :
-    //   "custom_fields": [{ "name": "firebase_uid", "value": "..." }]
-    // Il faut donc chercher dedans par nom, pas lire une clé d'objet directement.
-    function getCustomField(fieldsArray, fieldName) {
-      if (!Array.isArray(fieldsArray)) return null;
-      const field = fieldsArray.find((f) => f && f.name === fieldName);
-      return field ? field.value : null;
+    if (!email) {
+      return res.status(400).json({
+        error: "Ton compte n'a pas d'adresse email valide — la clé de licence ne pourrait pas t'être envoyée. Contacte le support.",
+      });
     }
 
-    let firebaseUid =
-      getCustomField(sale.custom_fields, "firebase_uid") ||
-      getCustomField(license.custom_fields, "firebase_uid") ||
-      null;
+    const { firstName, lastName, phone } = req.body;
 
-    // Clé de licence : utile pour retrouver l'utilisateur quand custom_metadata
-    // est absent (cas des events license.*, qui ne renvoient pas les métadonnées
-    // passées à l'achat).
-    const licenseKeyForLookup = sale.license_key || license.key || null;
+    const phoneNumber = phone && phone.number ? String(phone.number).replace(/\D/g, '') : '';
+    const phoneCountryCode = phone && phone.countryCode ? String(phone.countryCode) : '';
 
-    let userRef = null;
-
-    if (firebaseUid) {
-      userRef = db.collection("users").doc(firebaseUid);
-    } else if (licenseKeyForLookup) {
-      // Fallback n°1 : résolution par clé de licence, déjà stockée sur le
-      // compte lors du successful.sale initial (voir updateData.chariowLicenseKey
-      // plus bas). Fiable, contrairement à customer.email qui sur les events
-      // license.* peut correspondre au compte marchand (toi) plutôt qu'à
-      // l'acheteur réel — c'est ce qui causait la réactivation du mauvais compte.
-      console.warn(`Aucun firebase_uid dans le webhook, tentative de résolution par clé de licence : ${licenseKeyForLookup}`);
-      const snap = await db.collection("users").where("chariowLicenseKey", "==", licenseKeyForLookup).limit(1).get();
-      if (!snap.empty) {
-        userRef = snap.docs[0].ref;
-        firebaseUid = snap.docs[0].id;
-        console.log(`Utilisateur résolu par clé de licence : ${firebaseUid}`);
-      }
+    if (!phoneNumber || phoneNumber.length < 8 || !phoneCountryCode) {
+      return res.status(400).json({ error: "Un numéro Mobile Money valide est requis pour le paiement." });
     }
 
-    // Fallback n°2 (email) : gardé UNIQUEMENT pour les events de vente (sale.*),
-    // où "customer" est vraiment l'acheteur. Désactivé pour les events license.*
-    // pour éviter de réactiver le mauvais compte.
-    if (!userRef && customer.email && !normalizedEvent.startsWith("license.")) {
-      console.warn(`Aucun firebase_uid/clé de licence trouvé, tentative de résolution par email : ${customer.email}`);
-      const snap = await db.collection("users").where("email", "==", customer.email).limit(1).get();
-      if (!snap.empty) {
-        userRef = snap.docs[0].ref;
-        firebaseUid = snap.docs[0].id;
-        console.log(`Utilisateur résolu par email : ${firebaseUid}`);
-      }
+    const payload = {
+      product_id: CHARIOW_PRODUCT_ID,
+      email,
+      first_name: firstName || "Client",
+      last_name: lastName || "Inconnu",
+      phone: {
+        number: phoneNumber,
+        country_code: phoneCountryCode
+      },
+      // Sans ce paramètre, Chariow renvoie le client vers sa page de post-achat
+      // par défaut (celle du compte/boutique Chariow) au lieu de le ramener dans
+      // l'app. On le ramène directement sur son profil.
+      // ATTENTION (15/09) : à vérifier auprès du support Chariow que
+      // "redirect_url" est bien le nom de champ attendu par leur API de
+      // checkout — des tests réels ont montré une redirection vers le
+      // domaine Chariow par défaut au lieu de cette URL, ce qui peut aussi
+      // venir d'un APP_BASE_URL vide/mal configuré sur Render.
+      redirect_url: `${APP_BASE_URL}/profil.html?payment=success`,
+      // CORRECTIF (15/09) : Chariow n'accepte PAS "custom_metadata" (objet).
+      // Confirmé via un Pulse test réel : le payload attend "custom_fields",
+      // un TABLEAU de paires { name, value }. L'ancien format ci-dessous
+      // était silencieusement ignoré par Chariow depuis le début — c'est la
+      // cause racine du firebase_uid manquant dans tous les webhooks reçus.
+      custom_fields: [
+        { name: "firebase_uid", value: user.uid }
+      ]
+    };
+
+    const response = await fetch(`${CHARIOW_API_URL}/checkout`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${CHARIOW_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Erreur API Chariow:", response.status, errorText);
+      let chariowMessage = null;
+      try {
+        chariowMessage = JSON.parse(errorText).message;
+      } catch (_) { /* corps non-JSON, on garde le message générique */ }
+      const statusToForward = response.status >= 400 && response.status < 500 ? response.status : 502;
+      return res.status(statusToForward).json({ error: chariowMessage || "Erreur de communication avec le service de paiement." });
     }
 
-    if (!userRef) {
-      // On logue le payload complet pour identifier les vrais noms de champs
-      // si ça bloque encore sur un prochain event.
-      console.warn("Aucun utilisateur trouvé (ni firebase_uid, ni clé de licence, ni email correspondant). Payload complet :", JSON.stringify(body));
-      return res.status(200).json({ received: true, status: "skipped_no_user" });
-    }
+    const responseData = await response.json();
+    const data = responseData.data || responseData;
 
-    // Noms d'événements réels envoyés par Chariow (voir doc Pulses) :
-    // successful.sale, failed.sale, abandoned.sale,
-    // license.issued, license.activated, license.revoked, license.expired, license.nearing_expiry
-    if (normalizedEvent === "successful.sale" || normalizedEvent === "license.issued" || normalizedEvent === "license.activated") {
-      const licenseKey = sale.license_key || license.key || null;
-      const rawExpiresAt = sale.expires_at || license.expires_at;
-
-      let subscriptionExpiresAt;
-      if (rawExpiresAt) {
-        subscriptionExpiresAt = new Date(rawExpiresAt);
-      } else {
-        const now = new Date();
-        subscriptionExpiresAt = new Date(now.setDate(now.getDate() + 30));
-      }
-
-      const updateData = {
-        subscriptionStatus: "active",
-        subscriptionExpiresAt: subscriptionExpiresAt,
-        updatedAt: new Date()
-      };
-
-      if (licenseKey) updateData.chariowLicenseKey = licenseKey;
-
-      await userRef.set(updateData, { merge: true });
-      console.log(`Statut de ${firebaseUid} mis à jour : active`);
-
-    } else if (
-      normalizedEvent === "license.expired"
-    ) {
-      await userRef.set({ subscriptionStatus: "expired", updatedAt: new Date() }, { merge: true });
-      console.log(`Statut de ${firebaseUid} mis à jour : expired`);
-
-    } else if (
-      normalizedEvent === "failed.sale" ||
-      normalizedEvent === "abandoned.sale"
-    ) {
-      // IMPORTANT : failed.sale / abandoned.sale signifient "cette tentative de
-      // paiement a échoué", PAS "l'abonnement en cours est révoqué". Comme les
-      // webhooks Chariow peuvent arriver dans le désordre (retries, confirmation
-      // mobile money asynchrone), on ne doit JAMAIS écraser un abonnement encore
-      // "active" et non expiré à cause d'une tentative ratée, sous peine de
-      // couper l'accès à un utilisateur qui vient tout juste d'être réactivé
-      // par un successful.sale reçu juste avant (voir capture du 26/08 19h45-19h51).
-      const currentSnap = await userRef.get();
-      const currentData = currentSnap.exists ? currentSnap.data() : {};
-      const currentlyActive = currentData.subscriptionStatus === "active";
-      const expiresAt = currentData.subscriptionExpiresAt?.toDate
-        ? currentData.subscriptionExpiresAt.toDate()
-        : currentData.subscriptionExpiresAt ? new Date(currentData.subscriptionExpiresAt) : null;
-      const stillWithinPaidPeriod = expiresAt && expiresAt > new Date();
-
-      if (currentlyActive && stillWithinPaidPeriod) {
-        console.log(
-          `${eventType} reçu pour ${firebaseUid} mais abonnement encore actif jusqu'au ${expiresAt.toISOString()} — statut inchangé (tentative ratée ignorée).`
-        );
-      } else {
-        await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
-        console.log(`Statut de ${firebaseUid} mis à jour : cancelled`);
-      }
-    } else if (normalizedEvent === "license.revoked") {
-      // license.revoked est une action explicite et volontaire (ex. remboursement,
-      // fraude) : contrairement à failed/abandoned, elle doit toujours s'appliquer.
-      await userRef.set({ subscriptionStatus: "cancelled", updatedAt: new Date() }, { merge: true });
-      console.log(`Statut de ${firebaseUid} mis à jour : cancelled (licence révoquée)`);
+    // NOTE : la branche "already_purchased" a été retirée. D'après la doc
+    // Chariow, un produit de type Licence autorise TOUJOURS le rachat
+    // (chaque achat génère une nouvelle clé) — "already_purchased" ne peut
+    // se produire que sur des produits Downloadable/Course/Bundle, pas sur
+    // le tien. La garder aurait permis d'accorder 30 jours gratuits sans
+    // paiement si le type de produit change un jour côté Chariow.
+    if (data.step === "payment") {
+      return res.status(200).json({ checkoutUrl: data.payment.checkout_url });
     } else {
-      console.log(`Événement ${eventType} reçu mais non traité (pas d'action nécessaire).`);
+      console.warn("Étape inattendue:", data.step);
+      return res.status(200).json({ checkoutUrl: data.payment?.checkout_url || null, step: data.step });
     }
-
-    // Répond toujours 200 à Chariow
-    return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("Erreur traitement webhook:", error);
-    return res.status(200).json({ received: true, error: error.message });
+    console.error("Erreur dans checkout:", error);
+    return res.status(500).json({ error: "Erreur serveur interne." });
   }
 };
