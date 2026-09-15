@@ -75,6 +75,18 @@
             <p class="dashboard-card__hint" id="low-product-qty"></p>
           </div>
 
+          <div class="dashboard-card">
+            <span class="dashboard-card__label">Chiffre d'affaires — ce mois-ci</span>
+            <p class="dashboard-card__value" id="month-revenue-value">—</p>
+            <p class="dashboard-card__hint" id="month-sales-count"></p>
+          </div>
+
+          <div class="dashboard-card">
+            <span class="dashboard-card__label">Bénéfice — ce mois-ci</span>
+            <p class="dashboard-card__value" id="month-profit-value">—</p>
+            <p class="dashboard-card__hint">Mis à jour à chaque clôture de journée</p>
+          </div>
+
         </div>
 
         <section class="panel" id="low-stock-section" hidden>
@@ -115,7 +127,7 @@
           </div>
 
           <div id="products-list" class="products-list">
-            <div class="state-message">Chargement…</div>
+            <div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>
           </div>
         </section>
 
@@ -151,7 +163,7 @@
           <h2 class="panel-title">Ventes du jour</h2>
 
           <div id="sales-today-list" class="sales-list">
-            <div class="state-message">Chargement…</div>
+            <div class="state-message state-message--loading"><span class="spinner" aria-hidden="true"></span>Chargement…</div>
           </div>
 
           <div id="daily-summary" class="daily-summary"></div>
