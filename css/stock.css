@@ -111,6 +111,31 @@
   color: var(--color-error);
 }
 
+/* Rond de chargement animé — affiché pendant qu'on attend les premières
+   données Firestore (quasi instantané depuis le cache local, sinon le temps
+   que la connexion s'établisse). Remplace l'ancien texte "Chargement…" figé
+   qui donnait l'impression que l'appli était bloquée. */
+.state-message--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border, #d1d5db);
+  border-top-color: var(--color-primary, #6d28d9);
+  border-radius: 50%;
+  animation: stock-spin 0.7s linear infinite;
+}
+
+@keyframes stock-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ---------------------------------- Boutons additionnels ---------------------------------- */
 
 .btn-sm {
