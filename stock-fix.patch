@@ -1,0 +1,102 @@
+From fcb80fc7d782f71b2de23a4f8dd1c721e06feff8 Mon Sep 17 00:00:00 2001
+From: Claude <assistant@example.com>
+Date: Tue, 15 Sep 2026 07:28:04 +0000
+Subject: [PATCH] Stock : corrige le chargement infini (timeout trop court +
+ pas de reprise en cas d'erreur)
+
+---
+ js/stock.js | 55 +++++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 47 insertions(+), 8 deletions(-)
+
+diff --git a/js/stock.js b/js/stock.js
+index b34c69b..a71fd00 100644
+--- a/js/stock.js
++++ b/js/stock.js
+@@ -311,13 +311,15 @@ function requireCurrencyConfigured(options = {}) {
+ // Auth + fetch helper (pattern à réconcilier avec finances.js)
+ // ============================================================
+ 
+-// Délai maximum avant de considérer la requête comme "trop lente" et de
+-// basculer sur le cache local. Sans ça, si le serveur met du temps à
+-// répondre (ex : serveur Render qui se réveille après une mise en veille,
+-// ou connexion 2G/3G instable), l'appli reste bloquée sur "Chargement…"
+-// pendant 30 à 60 secondes au lieu de proposer immédiatement les données
+-// hors ligne déjà en cache.
+-const FETCH_TIMEOUT_MS = 8000;
++// Délai maximum avant de considérer la requête comme "trop lente" et
++// d'afficher une erreur avec un bouton "Réessayer" à la place du
++// "Chargement…" figé. Le serveur (Render, offre gratuite) peut mettre
++// jusqu'à 30-50 secondes à se réveiller après une mise en veille — un
++// délai trop court (l'ancien 8000ms) déclenchait une erreur avant même
++// que le serveur ait eu le temps de répondre, et comme il n'y a plus de
++// cache hors ligne vers lequel basculer, la page restait bloquée sur
++// "Chargement…" indéfiniment (aucune UI de reprise n'était affichée).
++const FETCH_TIMEOUT_MS = 45000;
+ 
+ async function authFetch(path, options = {}) {
+   const token = await auth.currentUser.getIdToken();
+@@ -470,10 +472,37 @@ async function refreshAllData() {
+     await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
+   } catch (error) {
+     console.error("Erreur lors du chargement des données stock :", error);
+-    showErrorToast("Impossible de charger les données — vérifie ta connexion internet.");
++    showErrorToast("Impossible de charger les données — vérifie ta connexion internet.", {
++      actionLabel: "Réessayer",
++      onAction: refreshAllData,
++    });
+   }
+ }
+ 
++// ============================================================
++// État d'erreur avec bouton "Réessayer" (remplace un "Chargement…"
++// qui resterait sinon affiché indéfiniment si la requête échoue).
++// ============================================================
++
++function renderLoadError(container, message, onRetry) {
++  container.innerHTML = "";
++
++  const wrap = document.createElement("div");
++  wrap.className = "state-message state-message--error";
++  wrap.textContent = message;
++
++  const retryBtn = document.createElement("button");
++  retryBtn.type = "button";
++  retryBtn.className = "btn btn-secondary btn-sm";
++  retryBtn.textContent = "Réessayer";
++  retryBtn.style.marginTop = "8px";
++  retryBtn.addEventListener("click", onRetry);
++
++  wrap.appendChild(document.createElement("br"));
++  wrap.appendChild(retryBtn);
++  container.appendChild(wrap);
++}
++
+ async function loadProducts() {
+   try {
+     const data = await authFetch("/products");
+@@ -483,6 +512,11 @@ async function loadProducts() {
+     if (isNetworkError(error)) {
+       showErrorToast("Connexion internet requise pour charger les produits.");
+     }
++    renderLoadError(
++      productsList,
++      "Impossible de charger les produits.",
++      () => loadProducts()
++    );
+     throw error;
+   }
+ }
+@@ -496,6 +530,11 @@ async function loadSalesToday() {
+     if (isNetworkError(error)) {
+       showErrorToast("Connexion internet requise pour charger les ventes.");
+     }
++    renderLoadError(
++      salesTodayList,
++      "Impossible de charger les ventes du jour.",
++      () => loadSalesToday()
++    );
+     throw error;
+   }
+ }
+-- 
+2.43.0
