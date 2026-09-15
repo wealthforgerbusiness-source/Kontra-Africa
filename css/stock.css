@@ -570,3 +570,101 @@
 .profit-hero-card__footer span {
   font-weight: 700;
 }
+
+/* ============================================================
+   Autocomplete produit (vente) — ajouté avec le HTML manquant
+   (sale-product-suggestions / sale-product-toggle) : le JS de
+   js/stock.js pilotait déjà ce widget, mais le markup et ce CSS
+   n'avaient jamais été branchés dans stock.html, ce qui faisait
+   planter tout le module au chargement.
+   ============================================================ */
+
+.product-autocomplete {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.product-autocomplete__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-3, 12px);
+  padding-right: 40px; /* place pour le bouton triangle */
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-md);
+}
+
+.product-autocomplete__toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--fs-base);
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  transition: transform var(--duration-fast, 0.15s) var(--ease-standard, ease);
+}
+
+.product-autocomplete__toggle--open {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.product-autocomplete__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.product-autocomplete__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  width: 100%;
+  padding: var(--space-3, 12px);
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.product-autocomplete__item:hover,
+.product-autocomplete__item--active {
+  background: var(--color-surface-alt);
+}
+
+.product-autocomplete__item--out {
+  color: var(--color-text-faint);
+}
+
+.product-autocomplete__item-stock {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.product-autocomplete__empty {
+  padding: var(--space-4, 16px);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
