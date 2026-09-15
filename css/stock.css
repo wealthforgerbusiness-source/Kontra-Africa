@@ -368,111 +368,6 @@
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
-/* ---------------------------------- Autocomplete produit (vente) ---------------------------------- */
-/* Remplace l'ancien <datalist> natif, peu lisible et peu tactile sur mobile :
-   ce menu déroulant maison filtre en direct pendant la saisie et se
-   sélectionne au clic/tap, aussi bien sur mobile que sur PC. */
-
-.product-autocomplete {
-  position: relative;
-}
-
-.product-autocomplete__input-row {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-}
-
-.product-autocomplete__input-row input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-right: 44px; /* laisse la place au bouton triangle */
-}
-
-.product-autocomplete__toggle {
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  bottom: 4px;
-  width: 38px;
-  border: none;
-  background: none;
-  color: var(--color-text-muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: var(--radius-sm, 6px);
-  transition: background var(--duration-fast) var(--ease-standard),
-              transform var(--duration-fast) var(--ease-standard);
-}
-
-.product-autocomplete__toggle:hover,
-.product-autocomplete__toggle:focus-visible {
-  background: var(--color-primary-light);
-  outline: none;
-}
-
-.product-autocomplete__toggle--open {
-  transform: rotate(180deg);
-}
-
-.product-autocomplete__list {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
-  padding: var(--space-1, 4px) 0;
-}
-
-.product-autocomplete__list[hidden] {
-  display: none;
-}
-
-.product-autocomplete__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: none;
-  border: none;
-  text-align: left;
-  font-size: var(--fs-base);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.product-autocomplete__item:hover,
-.product-autocomplete__item:focus-visible,
-.product-autocomplete__item--active {
-  background: var(--color-primary-light);
-  outline: none;
-}
-
-.product-autocomplete__item-stock {
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.product-autocomplete__item--out {
-  opacity: 0.55;
-}
-
-.product-autocomplete__empty {
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--fs-sm);
-  color: var(--color-text-muted);
-}
-
 .form-field__currency-row {
   display: flex;
   align-items: stretch;
@@ -639,59 +534,14 @@
 }
 
 .profit-hero-card__footer {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 16px;
   margin: 0;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.profit-hero-card__stat {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.profit-hero-card__stat-label {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  opacity: 0.85;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  opacity: 0.95;
 }
 
-.profit-hero-card__stat-value {
-  font-size: 1rem;
+.profit-hero-card__footer span {
   font-weight: 700;
-  word-break: break-word;
-}
-
-.profit-hero-card__stat-divider {
-  width: 1px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Mobile : le libellé "Chiffre d'affaires" est trop long pour tenir sur une
-   seule ligne à côté de "Total vendu" sans s'écraser — on repasse en
-   uppercase plus petit + on autorise le retour à la ligne du libellé
-   uniquement, jamais du montant. */
-@media (max-width: 420px) {
-  .profit-hero-card__footer {
-    gap: 8px;
-  }
-
-  .profit-hero-card__stat-label {
-    white-space: normal;
-    font-size: 0.7rem;
-  }
-
-  .profit-hero-card__stat-value {
-    font-size: 0.9rem;
-  }
 }
