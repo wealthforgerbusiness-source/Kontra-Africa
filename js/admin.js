@@ -651,9 +651,15 @@ function renderUsersTable() {
     const tr = document.createElement('tr');
 
     tr.innerHTML = `
-      <td>${escapeHtml(user.email || '—')}</td>
+      <td data-label="Email">
+        ${
+          user.email
+            ? `<a href="mailto:${escapeHtml(user.email)}" class="admin-table__email-link">${escapeHtml(user.email)}</a>`
+            : "—"
+        }
+      </td>
 
-      <td>
+      <td data-label="Statut">
         <span class="badge ${escapeHtml(
           statusInfo.className
         )}">
@@ -661,13 +667,21 @@ function renderUsersTable() {
         </span>
       </td>
 
-      <td>${escapeHtml(
+      <td data-label="Inscrit le">${escapeHtml(
         formatDate(user.createdAt)
       )}</td>
 
-      <td>${escapeHtml(
+      <td data-label="Fin d'abonnement / essai">${escapeHtml(
         formatDate(endDate)
       )}</td>
+
+      <td data-label="Action">
+        ${
+          user.email
+            ? `<a href="mailto:${escapeHtml(user.email)}" class="btn btn-secondary btn-sm admin-table__email-btn">✉️ Écrire</a>`
+            : "—"
+        }
+      </td>
     `;
 
     usersTableBody.appendChild(tr);
