@@ -92,6 +92,7 @@
   padding: var(--space-4) var(--space-5);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -176,6 +177,16 @@
   background: var(--color-error-bg);
   color: var(--color-error);
   border: 1px solid rgba(216, 64, 47, 0.25);
+}
+
+.admin-section .stat-card {
+  transition: box-shadow var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.admin-section .stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .stat-card__value--success {
@@ -305,14 +316,15 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
-  min-width: 560px;
 }
 
 .admin-table thead th {
@@ -324,6 +336,7 @@
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -332,10 +345,15 @@
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
   font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
 .admin-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.admin-table tbody tr {
+  transition: background var(--duration-fast) var(--ease-standard);
 }
 
 .admin-table tbody tr:hover {
@@ -347,6 +365,122 @@
   text-align: center;
   color: var(--color-text-faint);
   font-size: var(--fs-sm);
+}
+
+/* Lien email + bouton "Écrire" dans le tableau. */
+.admin-table__email-link {
+  color: var(--color-primary);
+  font-weight: 500;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.admin-table__email-link:hover {
+  text-decoration: underline;
+}
+
+.admin-table__email-btn {
+  white-space: nowrap;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  font-size: var(--fs-xs);
+}
+
+/* Pagination sous le tableau. */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.pagination-controls #pageIndicator {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  min-width: 5rem;
+  text-align: center;
+}
+
+/* -------- Version mobile : le tableau devient une liste de cartes -------- *
+ * Au-delà d'un simple scroll horizontal (qui coupait mal le contenu sur
+ * petit écran), chaque ligne <tr> devient une carte et chaque <td> une
+ * rangée "libellé / valeur", grâce aux attributs data-label déjà présents
+ * dans le HTML généré par admin.js. */
+@media (max-width: 720px) {
+  .admin-table-wrap {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .admin-table {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table thead {
+    display: none;
+  }
+
+  .admin-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .admin-table tbody tr {
+    display: block;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-1) var(--space-4);
+  }
+
+  .admin-table tbody tr:hover {
+    background: var(--color-surface);
+  }
+
+  .admin-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+    white-space: normal;
+    text-align: right;
+  }
+
+  .admin-table td:last-child {
+    border-bottom: none;
+  }
+
+  .admin-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-faint);
+  }
+
+  .admin-table td[data-label="Action"] {
+    justify-content: flex-end;
+  }
+
+  .admin-table td[data-label="Action"]::before {
+    display: none;
+  }
 }
 
 /* ---------------------------------- Badges de statut ---------------------------------- */
