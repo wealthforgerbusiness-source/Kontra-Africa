@@ -13,6 +13,7 @@ import {
   buildCountryOptionsHtml,
   cleanPhoneDigits,
   getDialCode,
+  getFlagImage,
   DEFAULT_COUNTRY_CODE
 } from '/js/phone-countries.js';
 
@@ -469,18 +470,13 @@ function renderPaywall(user) {
           class="paywall__logo"
         >
 
-        <p class="eyebrow">
-          Abonnement
-        </p>
-
         <h1 class="paywall__title">
-          Votre période d'essai est terminée
+          Essai terminé
         </h1>
 
         <p class="paywall__text">
-          Abonnez-vous pour continuer à créer des
-          contrats, les faire signer, gérer votre
-          stock et suivre vos finances sur Kontra-Africa.
+          Abonnez-vous pour continuer à utiliser
+          Kontra-Africa.
         </p>
 
         <div class="paywall__price">
@@ -501,28 +497,43 @@ function renderPaywall(user) {
         <div class="paywall__phone">
 
           <label
-            for="paywallCountry"
+            for="paywallPhone"
             class="paywall__phone-label"
           >
-            Numéro Mobile Money (pour le paiement)
+            Numéro Mobile Money
           </label>
 
           <div class="paywall__phone-row">
 
-            <select
-              id="paywallCountry"
-              class="paywall__phone-select"
-              aria-label="Pays"
-            >
-              ${buildCountryOptionsHtml()}
-            </select>
+            <div class="paywall__country">
 
-            <span
-              class="paywall__phone-prefix"
-              id="paywallDialPrefix"
-              aria-hidden="true"
-              style="display:inline-flex;align-items:center;padding:0 8px;font-weight:600;color:var(--color-text-secondary,#555);white-space:nowrap;"
-            >${getDialCode(DEFAULT_COUNTRY_CODE)}</span>
+              <img
+                id="paywallCountryFlag"
+                class="paywall__country-flag"
+                src="${getFlagImage(DEFAULT_COUNTRY_CODE)}"
+                alt=""
+              >
+
+              <span
+                class="paywall__country-dial"
+                id="paywallDialPrefix"
+                aria-hidden="true"
+              >${getDialCode(DEFAULT_COUNTRY_CODE)}</span>
+
+              <span
+                class="paywall__country-chevron"
+                aria-hidden="true"
+              >▾</span>
+
+              <select
+                id="paywallCountry"
+                class="paywall__country-select"
+                aria-label="Pays"
+              >
+                ${buildCountryOptionsHtml()}
+              </select>
+
+            </div>
 
             <input
               type="tel"
@@ -540,8 +551,7 @@ function renderPaywall(user) {
             id="paywallPhoneError"
             hidden
           >
-            Entrez un numéro Mobile Money valide
-            pour continuer.
+            Entrez un numéro Mobile Money valide.
           </p>
 
         </div>
@@ -564,23 +574,21 @@ function renderPaywall(user) {
 
 
         <p class="paywall__trust">
-          🔒 Paiement sécurisé via Mobile Money —
-          vous restez connecté à ce compte
+          🔒 Paiement sécurisé via Mobile Money
         </p>
 
 
         <div class="paywall__license">
 
           <p class="paywall__license-question">
-            Tu as déjà payé mais tu n'as pas accès ?
+            💳 Déjà payé ?
           </p>
 
           <label
             for="paywallLicenseKey"
             class="paywall__license-label"
           >
-            Entre ta clé de licence
-            (envoyée dans ton email Chariow)
+            Entre ta clé de licence (reçue par email)
           </label>
 
           <div class="paywall__license-row">
@@ -591,12 +599,13 @@ function renderPaywall(user) {
               class="paywall__license-input"
               placeholder="ABC-123-XYZ-789"
               autocomplete="off"
+              autocapitalize="characters"
             >
 
             <button
               type="button"
               id="paywallVerifyLicenseBtn"
-              class="btn btn-secondary"
+              class="btn btn-secondary paywall__license-btn"
             >
               Vérifier
             </button>
@@ -712,6 +721,11 @@ function renderPaywall(user) {
       'paywallDialPrefix'
     );
 
+  const countryFlagEl =
+    document.getElementById(
+      'paywallCountryFlag'
+    );
+
   function updateDialPrefix() {
 
     const selectedOption =
@@ -723,6 +737,15 @@ function renderPaywall(user) {
       selectedOption
         ? selectedOption.dataset.dial
         : '';
+
+    if (
+      selectedOption &&
+      countryFlagEl
+    ) {
+
+      countryFlagEl.src =
+        `/assets/flags/${selectedOption.dataset.flag}`;
+    }
   }
 
   countrySelect.addEventListener(
