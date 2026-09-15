@@ -381,6 +381,12 @@ body.nav-open {
   font-weight: 600;
 }
 
+.section__subtitle {
+  margin-top: var(--space-3);
+  font-size: var(--fs-md, 1rem);
+  color: var(--color-text-muted);
+}
+
 /* ---------------------------------- Steps (comment ça marche) ---------------------------------- */
 
 .steps {
@@ -781,15 +787,45 @@ body.nav-open {
   text-align: center;
 }
 
-.contact-block__email {
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--color-text);
-  transition: color var(--duration-fast) var(--ease-standard);
+.contact-block__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
 }
 
-.contact-block__email:hover {
+.contact-block__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.contact-block__email-fallback {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.contact-block__email-fallback a {
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.contact-block__email-fallback a:hover {
   color: var(--color-primary);
+}
+
+@media (max-width: 480px) {
+  .contact-block__actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .contact-block__cta {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .social-links {
