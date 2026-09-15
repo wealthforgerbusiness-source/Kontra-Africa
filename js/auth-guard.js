@@ -597,7 +597,7 @@ function renderPaywall(user) {
               type="text"
               id="paywallLicenseKey"
               class="paywall__license-input"
-              placeholder="ABC-123-XYZ-789"
+              placeholder="ABCD-1234-EFGH-5678-IJKL"
               autocomplete="off"
               autocapitalize="characters"
             >
