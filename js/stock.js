@@ -6,6 +6,22 @@ import { renderAppNav } from "./app-nav.js";
 
 renderAppNav("stock"); // sidebar desktop + bottom nav mobile
 
+// Garde-fou : si stock.html et ce fichier venaient à nouveau à diverger
+// (un ID renommé/retiré d'un côté sans l'autre), on veut un message clair
+// en console plutôt qu'un TypeError qui arrête silencieusement tout le
+// module dès la première ligne fautive — c'est exactement ce qui s'est
+// produit avec sale-product-suggestions / sale-product-toggle.
+const CRITICAL_STOCK_IDS = [
+  "products-list", "sales-today-list", "sale-product-search",
+  "sale-product-suggestions", "sale-product-toggle", "btn-close-day",
+  "daily-profit-value", "stock-total-revenue-value", "stock-total-sales-count",
+];
+for (const id of CRITICAL_STOCK_IDS) {
+  if (!document.getElementById(id)) {
+    console.error(`[stock.js] Élément #${id} introuvable dans stock.html — stock.html et stock.js ont divergé.`);
+  }
+}
+
 const API_BASE = "https://kontra-africa.onrender.com/api/stock";
 const FINANCES_PAGE_URL = "finances.html"; // ⚠️ à ajuster si le nom de route diffère
 
@@ -65,6 +81,15 @@ let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "l
 let products = new Map(); // id -> product
 let salesToday = [];
 let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
+
+// État explicite par liste — évite de confondre "pas encore chargé" avec
+// "chargé et réellement vide" ou "erreur silencieuse". Sans ça, le cache
+// local Firestore (onSnapshot, quasi instantané) redessinait "Aucun
+// produit trouvé" PENDANT que le fetch HTTP vers Render était encore en
+// cours (jusqu'à 45s au réveil du serveur) : l'utilisateur voyait "vide"
+// alors que ça chargeait simplement.
+let productsLoadState = "idle"; // idle | loading | error | loaded
+let salesLoadState = "idle";
 
 // Toggles indépendants des deux cartes du dashboard (🔄 USD)
 let balanceViewCurrency = "local";
@@ -504,11 +529,14 @@ function renderLoadError(container, message, onRetry) {
 }
 
 async function loadProducts() {
+  productsLoadState = "loading";
   try {
     const data = await authFetch("/products");
     products = new Map(data.products.map((p) => [p.id, p]));
+    productsLoadState = "loaded";
     renderProducts();
   } catch (error) {
+    productsLoadState = "error";
     if (isNetworkError(error)) {
       showErrorToast("Connexion internet requise pour charger les produits.");
     }
@@ -522,11 +550,14 @@ async function loadProducts() {
 }
 
 async function loadSalesToday() {
+  salesLoadState = "loading";
   try {
     const data = await authFetch("/sales");
     salesToday = data.sales;
+    salesLoadState = "loaded";
     renderSalesToday();
   } catch (error) {
+    salesLoadState = "error";
     if (isNetworkError(error)) {
       showErrorToast("Connexion internet requise pour charger les ventes.");
     }
@@ -836,13 +867,26 @@ btnCloseDay.addEventListener("click", async () => {
 // ============================================================
 
 function renderProducts() {
+  // Tant que le premier chargement n'est pas terminé (ou qu'il a échoué),
+  // on ne touche pas au DOM : "Chargement…" ou le message d'erreur avec
+  // bouton "Réessayer" restent affichés tels quels. Sans ce garde, le
+  // listener temps réel sur le doc user (listenToUserDoc) rappelait
+  // renderProducts() à chaque changement de solde/devise et effaçait un
+  // message d'erreur réel pour le remplacer par "Aucun produit trouvé".
+  if (productsLoadState !== "loaded") return;
+
   const query = (productSearch.value || "").trim().toLowerCase();
+  const hasSearch = query.length > 0;
   const filtered = [...products.values()].filter(
     (p) => !query || p.name.toLowerCase().includes(query)
   );
 
   if (filtered.length === 0) {
-    productsList.innerHTML = '<div class="state-message">Aucun produit trouvé.</div>';
+    // Distinction utile : "aucun produit du tout" (inventaire vide) vs
+    // "aucun résultat pour cette recherche" (l'inventaire n'est pas vide).
+    productsList.innerHTML = hasSearch
+      ? '<div class="state-message">Aucun produit ne correspond à ta recherche.</div>'
+      : '<div class="state-message">Aucun produit pour l\'instant — ajoute ton premier produit.</div>';
   } else {
     productsList.innerHTML = "";
     for (const product of filtered) {
@@ -1054,6 +1098,8 @@ document.addEventListener("click", (event) => {
 // ============================================================
 
 function renderSalesToday() {
+  if (salesLoadState !== "loaded") return;
+
   if (salesToday.length === 0) {
     salesTodayList.innerHTML = '<div class="state-message">Aucune vente aujourd\'hui.</div>';
   } else {
