@@ -2,12 +2,6 @@ import { auth, db } from "./firebase-config.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { requireAppAccess } from "./auth-guard.js";
 import { getCurrencySymbol, formatAmount } from "./currency.js";
-import {
-  addPendingAction,
-  getPendingActions,
-  removePendingAction,
-  syncPendingActions,
-} from "./offline-queue.js";
 import { renderAppNav } from "./app-nav.js";
 
 renderAppNav("stock"); // sidebar desktop + bottom nav mobile
@@ -71,11 +65,6 @@ let currentUserData = { currencySymbol: "", exchangeRate: 0, displayCurrency: "l
 let products = new Map(); // id -> product
 let salesToday = [];
 let totalExpensesToday = 0; // vient de GET /reports/daily (pas d'UI de dépenses ici)
-
-// Vrai jusqu'à la toute première tentative de chargement (produits/ventes)
-// de la session en cours. Sert au fallback cache hors ligne à froid (tâche 6).
-let isFirstDataLoad = true;
-let cacheFallbackWarningShown = false;
 
 // Toggles indépendants des deux cartes du dashboard (🔄 USD)
 let balanceViewCurrency = "local";
@@ -451,34 +440,14 @@ stockTabs.forEach((tab) => {
 });
 
 // ============================================================
-// Bandeau hors-ligne
+// Bandeau "pas de connexion"
 // ============================================================
+// L'app nécessite désormais internet en permanence — plus de mode hors
+// ligne, plus de file d'attente, plus de synchronisation différée.
 
-// ⚠️ CORRECTIF : l'ancienne version affichait "Hors ligne — synchronisation
-// en attente (N)" dès qu'il y avait des actions en attente, SANS vérifier
-// navigator.onLine — donc le bandeau disait "Hors ligne" même connecté à
-// internet, tant que la queue n'était pas vide (ce qui arrivait tout le
-// temps à cause du bug de synchro corrigé plus haut). Le message reflète
-// maintenant le VRAI statut réseau, et signale séparément s'il reste des
-// éléments en attente de synchro.
-async function updateOnlineStatus() {
-  const [pendingProducts, pendingSales, pendingDeleteSales, pendingExpenses] = await Promise.all([
-    getPendingActions("product"),
-    getPendingActions("sale"),
-    getPendingActions("delete-sale"),
-    getPendingActions("expense"),
-  ]);
-  const total =
-    pendingProducts.length + pendingSales.length + pendingDeleteSales.length + pendingExpenses.length;
-
+function updateOnlineStatus() {
   if (!navigator.onLine) {
-    offlineBanner.textContent =
-      total > 0
-        ? `Hors ligne — ${total} en attente de synchronisation dès le retour du réseau`
-        : "Hors ligne";
-    offlineBanner.hidden = false;
-  } else if (total > 0) {
-    offlineBanner.textContent = `En ligne — synchronisation en cours (${total} en attente)`;
+    offlineBanner.textContent = "Pas de connexion internet — reconnecte-toi pour continuer.";
     offlineBanner.hidden = false;
   } else {
     offlineBanner.textContent = "";
@@ -488,82 +457,9 @@ async function updateOnlineStatus() {
 
 window.addEventListener("online", () => {
   updateOnlineStatus();
-  if (currentUser) trySyncPending();
+  if (currentUser) refreshAllData();
 });
 window.addEventListener("offline", updateOnlineStatus);
-
-// Bandeau cliquable : permet de forcer une resynchro immédiate sans recharger
-// la page si des éléments restent en attente alors qu'on est en ligne.
-offlineBanner.style.cursor = "pointer";
-offlineBanner.title = "Cliquer pour forcer une nouvelle tentative de synchronisation";
-offlineBanner.addEventListener("click", () => {
-  if (!navigator.onLine) {
-    showWarningToast("Toujours hors ligne — la synchro reprendra automatiquement dès que le réseau reviendra.");
-    return;
-  }
-  showInfoToast("Nouvelle tentative de synchronisation…");
-  trySyncPending();
-});
-
-// ============================================================
-// Synchro des actions en attente (produits -> ventes -> dépenses)
-// ============================================================
-
-// ⚠️ CORRECTIF : syncPendingActions() (offline-queue.js) appelle
-// syncFn(entry.payload, entry) — le PREMIER argument est déjà le payload
-// brut, pas l'objet wrapper {localId, type, payload, createdAtLocal}.
-// (Vérifié dans js/finances.js qui l'utilise déjà correctement : la
-// fonction de synchro y est `async (payload) => { ... payload.type ... }`,
-// SANS `.payload`.)
-// L'ancien code faisait `entry.payload` ici alors que `entry` ÉTAIT déjà
-// le payload → `.payload` valait toujours undefined → JSON.stringify()
-// renvoyait undefined → le fetch partait sans corps → 400 côté serveur →
-// la vente restait coincée dans la queue IndexedDB pour toujours, sans
-// jamais être écrite dans Firestore. C'est ce qui faisait "disparaître"
-// les ventes notées pendant une coupure réseau, dès qu'on quittait puis
-// revenait sur la page.
-async function syncProductAction(payload) {
-  if (payload._delete) {
-    await authFetch(`/products/${payload.id}`, { method: "DELETE" });
-  } else if (payload._update) {
-    await authFetch(`/products/${payload.id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-  } else {
-    await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
-  }
-}
-
-async function syncSaleAction(payload) {
-  await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
-}
-
-async function syncExpenseAction(payload) {
-  // Pas d'UI de création de dépense sur cette page, mais on synchronise quand
-  // même celles ajoutées ailleurs (ex. page Finances) via la même queue.
-  await authFetch("/expenses", { method: "POST", body: JSON.stringify(payload) });
-}
-
-async function syncDeleteSaleAction(payload) {
-  await authFetch(`/sales/${payload.saleId}`, { method: "DELETE" });
-}
-
-async function trySyncPending() {
-  if (!navigator.onLine) return;
-
-  try {
-    await syncPendingActions("product", syncProductAction);
-    await syncPendingActions("sale", syncSaleAction);
-    await syncPendingActions("delete-sale", syncDeleteSaleAction);
-    await syncPendingActions("expense", syncExpenseAction);
-  } catch (error) {
-    console.error("Synchro interrompue, sera retentée au prochain retour en ligne :", error);
-  } finally {
-    await refreshAllData();
-    await updateOnlineStatus();
-  }
-}
 
 // ============================================================
 // Chargement des données
@@ -574,99 +470,33 @@ async function refreshAllData() {
     await Promise.all([loadProducts(), loadSalesToday(), loadDailyReport()]);
   } catch (error) {
     console.error("Erreur lors du chargement des données stock :", error);
-  }
-}
-
-// Cache local pour permettre de vendre même au tout premier chargement de
-// l'app sans réseau (ex: PWA jamais ouverte en ligne dans cette session).
-// scope permet de ne restaurer que la moitié concernée (produits OU ventes) :
-// sinon, si l'une des deux requêtes réussit pendant que l'autre échoue, le
-// fallback écraserait les données fraîchement chargées par des données
-// potentiellement périmées.
-function cacheStockDataLocally(uid) {
-  try {
-    localStorage.setItem(`kontra-stock-cache-products-${uid}`, JSON.stringify([...products.values()]));
-    localStorage.setItem(`kontra-stock-cache-sales-${uid}`, JSON.stringify(salesToday));
-  } catch (e) {
-    console.error("Erreur cache local stock :", e);
-  }
-}
-
-function loadStockDataFromCache(uid, scope = "all") {
-  try {
-    let hasData = false;
-
-    if (scope === "all" || scope === "products") {
-      const cachedProducts = JSON.parse(localStorage.getItem(`kontra-stock-cache-products-${uid}`) || "[]");
-      products = new Map(cachedProducts.map((p) => [p.id, p]));
-      hasData = hasData || cachedProducts.length > 0;
-    }
-
-    if (scope === "all" || scope === "sales") {
-      const cachedSales = JSON.parse(localStorage.getItem(`kontra-stock-cache-sales-${uid}`) || "[]");
-      salesToday = cachedSales;
-      hasData = hasData || cachedSales.length > 0;
-    }
-
-    return hasData;
-  } catch (e) {
-    console.error("Erreur lecture cache local stock :", e);
-    return false;
-  }
-}
-
-function warnCacheFallbackOnce(hasCache) {
-  if (cacheFallbackWarningShown) return;
-  cacheFallbackWarningShown = true;
-
-  if (hasCache) {
-    showWarningToast("Connexion lente ou hors ligne — données affichées depuis la dernière synchronisation connue.");
-  } else {
-    // Aucune donnée en cache : on informe clairement plutôt que de laisser
-    // l'utilisateur devant un écran vide sans explication.
-    showWarningToast("Hors ligne et aucune donnée locale disponible pour l'instant. Reconnecte-toi puis réessaie.");
+    showErrorToast("Impossible de charger les données — vérifie ta connexion internet.");
   }
 }
 
 async function loadProducts() {
-  const wasFirstLoad = isFirstDataLoad;
-
   try {
     const data = await authFetch("/products");
     products = new Map(data.products.map((p) => [p.id, p]));
     renderProducts();
-    if (currentUser) cacheStockDataLocally(currentUser.uid);
   } catch (error) {
-    if (wasFirstLoad && isNetworkError(error) && currentUser) {
-      const hasCache = loadStockDataFromCache(currentUser.uid, "products");
-      renderProducts();
-      warnCacheFallbackOnce(hasCache);
-    } else {
-      throw error;
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour charger les produits.");
     }
-  } finally {
-    isFirstDataLoad = false;
+    throw error;
   }
 }
 
 async function loadSalesToday() {
-  const wasFirstLoad = isFirstDataLoad;
-
   try {
     const data = await authFetch("/sales");
     salesToday = data.sales;
     renderSalesToday();
-    if (currentUser) cacheStockDataLocally(currentUser.uid);
   } catch (error) {
-    if (wasFirstLoad && isNetworkError(error) && currentUser) {
-      const hasCache = loadStockDataFromCache(currentUser.uid, "sales");
-      renderSalesToday();
-      warnCacheFallbackOnce(hasCache);
-    } else {
-      throw error;
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour charger les ventes.");
     }
-  } finally {
-    isFirstDataLoad = false;
+    throw error;
   }
 }
 
@@ -1008,7 +838,6 @@ function renderProductCard(product) {
         <span class="product-card__stock ${isOut ? "product-card__stock--out" : isLow ? "product-card__stock--low" : ""}">${product.stockQuantity} ${escapeHtml(product.unit || "")}</span>
         · ${formatAmount(product.sellingPrice, currentUserData, currentUserData.displayCurrency)}
       </span>
-      ${product.pendingSync ? '<span class="state-message">En attente de synchro</span>' : ""}
     </div>
     <div class="product-card__actions">
       <button class="btn btn-credit btn-sm" data-action="sell" ${isOut ? 'disabled title="Rupture de stock"' : ""}>Vendre</button>
@@ -1214,7 +1043,6 @@ function renderSaleRow(sale) {
       <span class="sale-row__meta">
         ${formatAmount(sale.totalRevenue, currentUserData, currentUserData.displayCurrency)}
         · Bénéfice <span class="sale-row__profit">${formatAmount(sale.totalProfit, currentUserData, currentUserData.displayCurrency)}</span>
-        ${sale.pendingSync ? ' · <span class="state-message">En attente de synchro</span>' : ""}
       </span>
     </div>
     <button class="btn btn-debit btn-sm" data-action="remove-sale" ${!isToday ? 'disabled title="Non modifiable après la journée"' : ""}>Retirer</button>
@@ -1367,33 +1195,15 @@ formProduct.addEventListener("submit", async (event) => {
 });
 
 async function handleCreateProduct(payload) {
-  const localId = crypto.randomUUID();
-  products.set(localId, { id: localId, ...payload, archived: false, pendingSync: !navigator.onLine });
-  renderProducts();
-
-  const queuedPayload = { ...payload, localId };
-
-  if (!navigator.onLine) {
-    await addPendingAction("product", queuedPayload);
-    await updateOnlineStatus();
-    finishProductForm();
-    return;
-  }
-
   try {
     const created = await authFetch("/products", { method: "POST", body: JSON.stringify(payload) });
-    products.delete(localId);
     products.set(created.id, created);
     renderProducts();
     finishProductForm();
   } catch (error) {
     if (isNetworkError(error)) {
-      await addPendingAction("product", queuedPayload);
-      await updateOnlineStatus();
-      finishProductForm();
+      showFormError(formProduct, "Connexion internet requise pour ajouter un produit.");
     } else {
-      products.delete(localId);
-      renderProducts();
       showFormError(formProduct, error.message || "Erreur lors de la création du produit.");
     }
   }
@@ -1401,34 +1211,21 @@ async function handleCreateProduct(payload) {
 
 async function handleUpdateProduct(id, payload) {
   const previous = products.get(id);
-  products.set(id, { ...previous, ...payload, pendingSync: !navigator.onLine });
-  renderProducts();
-
-  const queuedPayload = { ...payload, id, _update: true, localId: crypto.randomUUID() };
-
-  if (!navigator.onLine) {
-    await addPendingAction("product", queuedPayload);
-    await updateOnlineStatus();
-    finishProductForm();
-    return;
-  }
 
   try {
     const updated = await authFetch(`/products/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
-    products.set(id, { ...updated, pendingSync: false });
+    products.set(id, updated);
     renderProducts();
     finishProductForm();
   } catch (error) {
+    products.set(id, previous);
+    renderProducts();
     if (isNetworkError(error)) {
-      await addPendingAction("product", queuedPayload);
-      await updateOnlineStatus();
-      finishProductForm();
+      showFormError(formProduct, "Connexion internet requise pour modifier ce produit.");
     } else {
-      products.set(id, previous);
-      renderProducts();
       showFormError(formProduct, error.message || "Erreur lors de la modification du produit.");
     }
   }
@@ -1486,79 +1283,24 @@ btnConfirmSale.addEventListener("click", async () => {
     return;
   }
 
-  const localId = crypto.randomUUID();
   const saleDate = new Date().toISOString();
-  const payload = { productId: product.id, quantity, saleDate, localId };
-  const newStock = product.stockQuantity - quantity;
+  const payload = { productId: product.id, quantity, saleDate };
 
-  // Optimistic UI
-  products.set(product.id, { ...product, stockQuantity: newStock });
-
-  const optimisticSale = {
-    id: localId,
-    productId: product.id,
-    productName: product.name,
-    quantity,
-    unitSellingPrice: product.sellingPrice,
-    unitPurchasePrice: product.purchasePrice,
-    totalRevenue: quantity * product.sellingPrice,
-    totalProfit: quantity * (product.sellingPrice - product.purchasePrice),
-    saleDate,
-    pendingSync: !navigator.onLine,
-  };
-  salesToday.unshift(optimisticSale);
-
-  renderProducts();
-  renderSalesToday();
-
-  // ⚠️ CORRECTIF : avant, resetForm() affichait TOUJOURS le même message
-  // "Vente enregistrée ✓", que la vente ait vraiment été confirmée par le
-  // serveur OU simplement mise en attente localement (hors ligne, ou après
-  // un échec réseau furtif). Résultat : tu voyais "enregistrée" et tu avais
-  // confiance, alors que la vente n'existait pas encore côté Firestore —
-  // et si elle restait coincée (comme avec le bug de synchro corrigé plus
-  // haut), elle "disparaissait" au rechargement sans que rien ne t'ait
-  // prévenu. Le message distingue maintenant clairement les deux cas.
-  const resetForm = ({ synced } = { synced: true }) => {
+  try {
+    const created = await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
+    salesToday.unshift(created);
+    products.set(product.id, { ...product, stockQuantity: product.stockQuantity - quantity });
+    renderProducts();
+    renderSalesToday();
     saleProductSearch.value = "";
     saleQuantity.value = "";
     saleStockHint.textContent = "";
     showSaleSavedMsg();
-    if (synced) {
-      showSuccessToast("Vente enregistrée et confirmée sur le serveur ✓");
-    } else {
-      showWarningToast(
-        "Vente enregistrée localement — pas encore confirmée par le serveur (réseau instable). Elle se synchronisera automatiquement.",
-        { duration: 8000 }
-      );
-    }
-  };
-
-  if (!navigator.onLine) {
-    await addPendingAction("sale", payload);
-    await updateOnlineStatus();
-    resetForm({ synced: false });
-    return;
-  }
-
-  try {
-    const created = await authFetch("/sales", { method: "POST", body: JSON.stringify(payload) });
-    salesToday = salesToday.filter((s) => s.id !== localId);
-    salesToday.unshift({ ...created, pendingSync: false });
-    renderProducts();
-    renderSalesToday();
-    resetForm({ synced: true });
+    showSuccessToast("Vente enregistrée ✓");
   } catch (error) {
     if (isNetworkError(error)) {
-      await addPendingAction("sale", payload);
-      await updateOnlineStatus();
-      resetForm({ synced: false });
+      showSaleFormError("Connexion internet requise pour enregistrer une vente.");
     } else {
-      // Rollback (ex: stock désynchronisé entre appareils, refusé par le serveur)
-      products.set(product.id, product);
-      salesToday = salesToday.filter((s) => s.id !== localId);
-      renderProducts();
-      renderSalesToday();
       showSaleFormError(error.message || "Erreur lors de l'enregistrement de la vente.");
     }
   }
@@ -1576,65 +1318,19 @@ async function handleRemoveSale(sale) {
   const product = products.get(sale.productId);
   const previousStock = product ? product.stockQuantity : null;
 
-  // Optimistic UI
-  salesToday = salesToday.filter((s) => s.id !== sale.id);
-  if (product) {
-    products.set(sale.productId, { ...product, stockQuantity: product.stockQuantity + sale.quantity });
-  }
-  renderProducts();
-  renderSalesToday();
-
-  // Cas A : la vente n'a jamais été confirmée par le serveur (créée hors
-  // ligne, ou juste avant une coupure réseau) — elle n'existe QUE dans la
-  // file d'attente "sale" (offline-queue.js), pas encore dans Firestore.
-  // On annule simplement sa création plutôt que d'appeler DELETE /sales/:id,
-  // qui échouerait (la vente n'existe pas côté serveur).
-  //
-  // NB : sale.id est ici l'UUID généré côté client au moment de la vente
-  // (voir btnConfirmSale : localId = crypto.randomUUID()), qui N'A PAS le
-  // préfixe "local_" — celui-ci n'est utilisé QUE pour la clé interne de la
-  // file d'attente elle-même (voir generateLocalId() dans offline-queue.js).
-  // Il faut donc retrouver l'entrée de la file dont payload.localId
-  // correspond à sale.id, puis la supprimer via SA propre clé (entry.localId).
-  if (sale.pendingSync) {
-    try {
-      const pendingSales = await getPendingActions("sale");
-      const match = pendingSales.find((entry) => entry.payload && entry.payload.localId === sale.id);
-      if (match) {
-        await removePendingAction(match.localId);
-      }
-    } catch (error) {
-      console.error("Impossible d'annuler la vente en attente :", error);
-    }
-    await updateOnlineStatus();
-    showSuccessToast("Vente annulée (n'avait pas encore été synchronisée).");
-    return;
-  }
-
-  // Cas B : la vente existe déjà côté serveur.
-  if (!navigator.onLine) {
-    // Comme pour les créations, on met en file une suppression différée,
-    // rejouée par trySyncPending() au retour du réseau (tâche 3).
-    await addPendingAction("delete-sale", { saleId: sale.id });
-    await updateOnlineStatus();
-    showSuccessToast("Retrait enregistré, sera synchronisé au retour du réseau.");
-    return;
-  }
-
   try {
     await authFetch(`/sales/${sale.id}`, { method: "DELETE" });
+    salesToday = salesToday.filter((s) => s.id !== sale.id);
+    if (product) {
+      products.set(sale.productId, { ...product, stockQuantity: product.stockQuantity + sale.quantity });
+    }
+    renderProducts();
+    renderSalesToday();
     showSuccessToast("Vente retirée, stock réintégré.");
   } catch (error) {
     if (isNetworkError(error)) {
-      await addPendingAction("delete-sale", { saleId: sale.id });
-      await updateOnlineStatus();
-      showSuccessToast("Retrait enregistré, sera synchronisé au retour du réseau.");
+      showErrorToast("Connexion internet requise pour retirer une vente.");
     } else {
-      // Rollback (erreur serveur réelle, ex: vente déjà supprimée ailleurs)
-      salesToday.unshift(sale);
-      if (product && previousStock !== null) products.set(sale.productId, { ...product, stockQuantity: previousStock });
-      renderProducts();
-      renderSalesToday();
       showErrorToast(error.message || "Erreur lors du retrait de la vente.");
     }
   }
@@ -1668,8 +1364,4 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await refreshAllData();
   renderBalanceCard();
-
-  if (navigator.onLine) {
-    trySyncPending();
-  }
 });
