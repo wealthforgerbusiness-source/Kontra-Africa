@@ -50,17 +50,7 @@
             <button type="button" class="dashboard-card__convert profit-hero-card__convert" id="btn-convert-profit">🔄 USD</button>
           </div>
           <p class="profit-hero-card__amount" id="daily-profit-value">—</p>
-          <div class="profit-hero-card__footer">
-            <div class="profit-hero-card__stat">
-              <span class="profit-hero-card__stat-label">Chiffre d'affaires</span>
-              <span class="profit-hero-card__stat-value" id="stock-total-revenue-value">—</span>
-            </div>
-            <div class="profit-hero-card__stat-divider" aria-hidden="true"></div>
-            <div class="profit-hero-card__stat">
-              <span class="profit-hero-card__stat-label">Total vendu</span>
-              <span class="profit-hero-card__stat-value" id="stock-total-sales-count">0 vente</span>
-            </div>
-          </div>
+          <p class="profit-hero-card__footer">Total vendu : <span id="stock-total-sales-count">0 vente</span></p>
         </section>
 
         <div class="dashboard-grid">
@@ -139,13 +129,10 @@
         <section class="panel">
           <h2 class="panel-title">Nouvelle vente</h2>
 
-          <div class="form-field product-autocomplete">
+          <div class="form-field">
             <label for="sale-product-search">Produit</label>
-            <div class="product-autocomplete__input-row">
-              <input type="text" id="sale-product-search" placeholder="Rechercher ou choisir un produit…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sale-product-suggestions" />
-              <button type="button" id="sale-product-toggle" class="product-autocomplete__toggle" aria-label="Afficher la liste des produits">▾</button>
-            </div>
-            <div id="sale-product-suggestions" class="product-autocomplete__list" role="listbox" hidden></div>
+            <input type="text" id="sale-product-search" list="sale-product-options" placeholder="Rechercher ou choisir un produit…" autocomplete="off" />
+            <datalist id="sale-product-options"></datalist>
           </div>
 
           <div class="form-field">
