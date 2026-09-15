@@ -707,9 +707,9 @@ function ensurePaginationControls() {
     'display:flex;align-items:center;gap:12px;margin-top:12px;';
 
   container.innerHTML = `
-    <button type="button" id="btnPrevPage" class="btn btn--secondary">Précédent</button>
+    <button type="button" id="btnPrevPage" class="btn btn-secondary btn-sm">Précédent</button>
     <span id="pageIndicator" style="font-size:14px;"></span>
-    <button type="button" id="btnNextPage" class="btn btn--secondary">Suivant</button>
+    <button type="button" id="btnNextPage" class="btn btn-secondary btn-sm">Suivant</button>
   `;
 
   if (table && table.parentNode) {
