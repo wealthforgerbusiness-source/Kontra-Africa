@@ -32,16 +32,21 @@ const { ALLOWED_ORIGINS } = require("./src/config");
 
 const app = express();
 
-// Render est derrière un proxy inverse : sans ce réglage, Express ignore
-// l'en-tête X-Forwarded-For, et express-rate-limit ne peut plus distinguer
-// les IP des utilisateurs (soit tout le monde partage la même IP fictive,
-// soit le rate-limit ne protège plus rien selon la version).
-// "1" = on fait confiance au premier proxy devant nous (celui de Render),
-// pas à toute la chaîne — évite qu'un client falsifie X-Forwarded-For.
-app.set("trust proxy", 1);
-
 // Le port est fourni par Render via la variable d'environnement PORT
 const PORT = process.env.PORT || 8080;
+
+// ============================================================
+// TRUST PROXY — INDISPENSABLE SUR RENDER
+// ============================================================
+//
+// Render place un reverse proxy devant l'application. Sans cette ligne,
+// Express croit que TOUTES les requêtes viennent de l'IP du proxy :
+// express-rate-limit met alors le monde entier dans le même compteur,
+// et le quota global est épuisé dès quelques dizaines d'utilisateurs.
+//
+// Avec trust proxy, Express lit l'en-tête X-Forwarded-For et retrouve
+// la vraie IP du client.
+app.set("trust proxy", 1);
 
 // ============================================================
 // SÉCURITÉ HTTP
@@ -58,16 +63,99 @@ app.use(
 // ============================================================
 // RATE LIMIT
 // ============================================================
+//
+// PROBLÈME CORRIGÉ ICI : le rate limit était calculé par adresse IP.
+// En RDC (et plus largement en Afrique), les opérateurs mobiles
+// (Vodacom, Airtel, Orange) font du NAT à grande échelle : des centaines
+// d'abonnés partagent la même IP publique. Un quota par IP revenait donc
+// à bloquer des utilisateurs légitimes à cause de l'activité d'inconnus
+// sur le même réseau mobile.
+//
+// SOLUTION : pour les routes authentifiées, on compte par utilisateur
+// (UID Firebase) plutôt que par IP. Chacun a son propre quota, quel que
+// soit son opérateur.
 
-// 15 requêtes / 15 minutes / IP pour les routes sensibles.
+/**
+ * Décode la partie "payload" d'un token Firebase SANS le vérifier.
+ *
+ * Ce décodage n'est PAS une vérification d'authentification et ne sert
+ * strictement qu'à choisir une clé de comptage pour le rate limit. La
+ * vraie vérification cryptographique du token reste faite plus loin par
+ * getVerifiedUid() dans chaque contrôleur : un token falsifié ne donne
+ * donc aucun accès, il permet juste de choisir son propre compteur —
+ * ce qui n'a aucun intérêt pour un attaquant, puisqu'un attaquant peut
+ * de toute façon déjà changer d'IP.
+ */
+function extractUidForRateLimit(req) {
+  const authorization = req.headers.authorization || "";
+
+  if (!authorization.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const idToken = authorization.substring(7).trim();
+  const parts = idToken.split(".");
+
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(parts[1], "base64").toString("utf8")
+    );
+
+    return payload.user_id || payload.sub || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Clé de comptage : l'UID quand l'utilisateur est identifiable,
+ * sinon l'IP (cas des appels anonymes, ex. première connexion).
+ */
+function rateLimitKey(req) {
+  const uid = extractUidForRateLimit(req);
+
+  if (uid) {
+    return `uid:${uid}`;
+  }
+
+  return `ip:${req.ip}`;
+}
+
+// Routes sensibles authentifiées (init-user, checkout, verify-license).
+// 60 requêtes / 15 min / utilisateur : largement suffisant pour un usage
+// normal, tout en bloquant un script qui boucle.
 const sensitiveRoutesLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKey,
 
   message: {
     error: "Trop de tentatives, réessaie dans quelques minutes.",
+  },
+});
+
+// Garde-fou global anti-abus, par IP, volontairement très large :
+// il n'est là que pour absorber un flood brutal depuis une seule source,
+// pas pour limiter l'usage normal. Le seuil est assez haut pour ne jamais
+// gêner un réseau mobile partagé par de nombreux utilisateurs légitimes.
+const globalAbuseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  // Le webhook Chariow est un appel server-to-server : il doit toujours
+  // passer, sous peine de perdre la confirmation d'un paiement client.
+  skip: (req) => req.path === "/chariow-webhook",
+
+  message: {
+    error: "Trop de requêtes, réessaie dans un instant.",
   },
 });
 
@@ -154,6 +242,10 @@ app.get("/health", (req, res) => {
 // ============================================================
 // ROUTES EXISTANTES
 // ============================================================
+
+// Garde-fou anti-flood appliqué à toutes les routes /api.
+// Le webhook Chariow en est exclu via l'option skip du limiter.
+app.use("/api", globalAbuseLimiter);
 
 app.post(
   "/api/init-user",
