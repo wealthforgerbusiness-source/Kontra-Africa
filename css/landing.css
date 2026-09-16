@@ -338,6 +338,12 @@ body.nav-open {
   margin-top: var(--space-7);
 }
 
+.hero__cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .hero__hint {
   margin-top: var(--space-3);
   font-size: var(--fs-sm);
