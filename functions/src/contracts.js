@@ -11,6 +11,27 @@ const { db, adminApp, ALLOWED_ORIGINS } = require('./config');
 
 const PDF_ACCESS_DURATION_MS = 24 * 60 * 60 * 1000;
 
+// Clé de comptage pour les routes publiques de contrat.
+//
+// PROBLÈME CORRIGÉ : ces limites étaient calculées par IP. Or les
+// opérateurs mobiles d'Afrique centrale font du NAT massif — des
+// centaines de signataires partagent la même IP publique. Un seul
+// utilisateur actif pouvait donc épuiser le quota et empêcher tous les
+// autres de signer leur propre contrat.
+//
+// On compte désormais par lien de contrat (le token dans l'URL) :
+// chaque contrat a son propre quota, ce qui protège toujours contre le
+// brute-force sur UN lien donné, sans pénaliser les autres signataires.
+function contractTokenKey(req) {
+  const token = req.params && req.params.token;
+
+  if (token) {
+    return `contract:${token}`;
+  }
+
+  return `ip:${req.ip}`;
+}
+
 // Limite stricte pour la signature publique d'un contrat : action sensible,
 // pas besoin d'être authentifié, donc plus exposée aux abus/brute-force sur le token.
 const signLimiter = rateLimit({
@@ -18,6 +39,7 @@ const signLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: contractTokenKey,
   message: { error: "Trop de tentatives, réessaie dans quelques minutes." },
 });
 
@@ -34,6 +56,7 @@ const publicReadLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: contractTokenKey,
   message: { error: "Trop de tentatives, réessaie dans quelques minutes." },
 });
 
