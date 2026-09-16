@@ -113,7 +113,8 @@
       </nav>
 
       <div class="site-header__actions">
-        <a href="/login.html" class="btn btn-primary header-cta">Se connecter ou Inscription</a>
+        <a href="/login.html?mode=login" class="btn btn-secondary header-cta">Se connecter</a>
+        <a href="/login.html?mode=signup" class="btn btn-primary header-cta">S'inscrire</a>
         <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
           <span class="nav-toggle__bar"></span>
           <span class="nav-toggle__bar"></span>
@@ -148,7 +149,8 @@
     </nav>
 
     <div class="mobile-nav-panel__actions">
-      <a href="/login.html" class="btn btn-primary btn-lg">Se connecter ou Inscription</a>
+      <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">S'inscrire</a>
+      <a href="/login.html?mode=login" class="btn btn-secondary btn-lg">Se connecter</a>
     </div>
   </div>
 
@@ -173,7 +175,10 @@
             Suivez vos finances au même endroit. Une seule app, sur votre téléphone comme sur votre ordinateur.
           </p>
           <div class="hero__actions">
-            <a href="/login.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
+            <div class="hero__cta-group">
+              <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">S'inscrire — Essai gratuit</a>
+              <a href="/login.html?mode=login" class="btn btn-secondary btn-lg">Se connecter</a>
+            </div>
             <p class="hero__hint">3 jours offerts, sans carte bancaire</p>
           </div>
         </div>
@@ -370,7 +375,7 @@
           <div class="pricing-card__box">
             <p class="pricing-card__amount"><span class="pricing-card__currency">$</span>5<span class="pricing-card__period">/mois</span></p>
             <p class="pricing-card__trial">3 jours d'essai gratuit</p>
-            <a href="/login.html" class="btn btn-primary btn-lg pricing-card__cta">Commencer l'essai gratuit</a>
+            <a href="/login.html?mode=signup" class="btn btn-primary btn-lg pricing-card__cta">Commencer l'essai gratuit</a>
           </div>
         </div>
       </div>
@@ -470,7 +475,7 @@
             Rejoignez les utilisateurs qui gèrent déjà leurs contrats, leur stock et leurs finances sur Kontra-Africa.
             3 jours d'essai gratuit, sans carte bancaire.
           </p>
-          <a href="/login.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
+          <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
         </div>
       </div>
     </section>
