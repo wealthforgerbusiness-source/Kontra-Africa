@@ -233,6 +233,25 @@ const isMobileDevice =
 
 debugLog('📱 Détection appareil — standalone:', isStandalone, 'mobile:', isMobileDevice, '(popup utilisé en priorité dans tous les cas)');
 
+// ============================================================
+// DETECTION NAVIGATEUR INTEGRE (webview Facebook/Instagram/...)
+// ============================================================
+// Google bloque volontairement signInWithPopup() ET signInWithRedirect()
+// dans les navigateurs intégrés des apps sociales (politique anti-phishing
+// de Google depuis 2021) : le clic échoue immédiatement ou affiche un
+// message Google "ce navigateur n'est pas sécurisé", sans que Firebase
+// puisse contourner ça. Comme une bonne partie du trafic vient des pubs
+// Facebook, une part significative des utilisateurs ouvre login.html
+// directement dans le navigateur intégré de l'app Facebook/Messenger/
+// Instagram — d'où "je clique une fois, ça échoue, j'abandonne".
+function isInAppBrowserWebview() {
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Messenger|TikTok|musical_ly|Twitter/i.test(ua);
+}
+
+const inAppWebview = isInAppBrowserWebview();
+debugLog('🕸️ Navigateur intégré détecté (Facebook/Instagram/...) :', inAppWebview, '— UA:', navigator.userAgent);
+
 // ------------------------------------------------------------
 // DIAGNOSTIC DOMAINE (cause fréquente d'un getRedirectResult() qui
 // revient toujours null : le domaine réel de la page n'est pas dans
@@ -272,6 +291,11 @@ const retryBtn = document.getElementById('retryBtn');
 
 const openBrowserFallback = document.getElementById('openBrowserFallback');
 const openBrowserBtn = document.getElementById('openBrowserBtn');
+
+const loginFlow = document.getElementById('loginFlow');
+const webviewNotice = document.getElementById('webviewNotice');
+const webviewOpenBtn = document.getElementById('webviewOpenBtn');
+const webviewCopyBtn = document.getElementById('webviewCopyBtn');
 
 
 // ============================================================
@@ -379,6 +403,9 @@ function translateAuthError(error) {
 
     case 'auth/internal-error':
       return "Google a rencontré une erreur interne. Réessayez.";
+
+    case 'auth/operation-not-supported-in-this-environment':
+      return "Google bloque la connexion depuis cette application (Facebook, Instagram...). Ouvrez ce lien dans Chrome ou Safari.";
 
     default:
       return "La connexion avec Google a échoué. Réessayez.";
@@ -976,10 +1003,54 @@ if (openBrowserBtn) {
 }
 
 // ============================================================
-// INITIALISATION
+// BLOCAGE PRECOCE SI NAVIGATEUR INTEGRE (Facebook/Instagram/...)
 // ============================================================
+// On ne tente même pas signInWithPopup/Redirect ici : dans ces webviews,
+// Google les bloque systématiquement. Autant l'expliquer tout de suite à
+// l'utilisateur plutôt que de le laisser cliquer sur un bouton qui échouera
+// à coup sûr.
 
-checkRedirectResult();
+if (inAppWebview && loginFlow && webviewNotice) {
+
+  debugLog('⛔ Navigateur intégré détecté au chargement — flux Google masqué, affichage du message d\'ouverture externe');
+
+  loginFlow.hidden = true;
+  webviewNotice.hidden = false;
+
+  if (webviewOpenBtn) {
+    webviewOpenBtn.addEventListener('click', () => {
+      debugLog('🌍 Clic "Ouvrir dans le navigateur" (depuis webview intégré)');
+      // Sur Android, certains navigateurs intégrés (Facebook notamment)
+      // ouvrent réellement Chrome via window.open() depuis un geste
+      // utilisateur direct. Sur iOS ça reste généralement sans effet
+      // (limitation de l'app hôte) — d'où le bouton "Copier le lien" en
+      // solution de repli universelle juste à côté.
+      window.open(window.location.href, '_blank');
+    });
+  }
+
+  if (webviewCopyBtn) {
+    webviewCopyBtn.addEventListener('click', async () => {
+      debugLog('📋 Clic "Copier le lien" (depuis webview intégré)');
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        webviewCopyBtn.textContent = 'Lien copié ✓';
+        setTimeout(() => { webviewCopyBtn.textContent = 'Copier le lien'; }, 3000);
+      } catch (err) {
+        debugLog('⚠️ Échec copie presse-papiers:', err?.message || err);
+        webviewCopyBtn.textContent = 'Copie impossible — sélectionnez le lien manuellement';
+      }
+    });
+  }
+
+} else {
+
+  // ============================================================
+  // INITIALISATION NORMALE (navigateur standard)
+  // ============================================================
+
+  checkRedirectResult();
+}
 
 debugLog(
   '✅ Kontra-Africa Login chargé'
