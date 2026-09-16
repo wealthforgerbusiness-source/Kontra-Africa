@@ -27,6 +27,18 @@
         <h1 class="login-card__title">Bienvenue sur Kontra-Africa</h1>
         <p class="login-card__subtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
       </div>
+      <!-- Bloc affiché UNIQUEMENT dans un navigateur intégré (Facebook,
+           Instagram, Messenger, TikTok...) : Google bloque purement et
+           simplement signInWithPopup/Redirect dans ces webviews, donc on
+           n'affiche même pas le bouton Google — ça échouerait à coup sûr.
+           Voir détection isInAppBrowserWebview() dans login.js. -->
+      <div class="login-state login-state--fallback" id="webviewNotice" hidden>
+        <p>Vous êtes arrivé·e depuis une application (Facebook, Instagram, Messenger…). Google n'autorise pas la connexion depuis ce navigateur intégré.</p>
+        <p><strong>Ouvrez ce lien dans Chrome ou Safari</strong> pour vous connecter :</p>
+        <button type="button" id="webviewOpenBtn" class="btn btn-secondary">Ouvrir dans le navigateur</button>
+        <button type="button" id="webviewCopyBtn" class="btn btn-secondary">Copier le lien</button>
+      </div>
+      <div id="loginFlow">
       <!-- Case à cocher obligatoire : CGU + Politique de confidentialité -->
       <label class="login-card__terms" for="termsCheckbox">
         <input type="checkbox" id="termsCheckbox" class="login-card__terms-checkbox">
@@ -63,6 +75,7 @@
           <p>La connexion prend plus de temps que prévu dans l'application installée.</p>
           <button type="button" id="openBrowserBtn" class="btn btn-secondary">Ouvrir dans le navigateur</button>
         </div>
+      </div>
       </div>
       <p class="login-card__trial">Essai gratuit de 3 jours, sans carte bancaire requise</p>
     </div>
