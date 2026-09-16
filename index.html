@@ -34,28 +34,35 @@
 
     // Si une session Firebase est déjà active (PWA rouverte, retour sur le site),
     // on saute directement le dashboard au lieu de rester bloqué sur la landing.
-    const AUTH_CHECK_TIMEOUT_MS = 2500;
-    let decided = false;
+    const AUTH_CHECK_TIMEOUT_MS = 4000;
+    let revealed = false;
+    let redirected = false;
 
-    const stopChecking = () => {
-      if (decided) return;
-      decided = true;
+    // Ne fait qu'afficher la landing (retire le voile visuel). Ne bloque
+    // JAMAIS une redirection qui arriverait après coup : sur une PWA
+    // fraîchement installée, Firebase peut répondre après le timeout de
+    // sécurité (cold start : SDK non caché, IndexedDB à froid, etc.).
+    const revealLanding = () => {
+      if (revealed) return;
+      revealed = true;
       document.documentElement.classList.remove('auth-checking');
     };
 
     onAuthStateChanged(auth, (user) => {
-      if (decided) return;
+      if (redirected) return;
       if (user) {
-        decided = true;
+        redirected = true;
         window.location.replace('/dashboard.html');
         return;
       }
-      stopChecking();
+      revealLanding();
     });
 
     // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
-    // sans session locale), on affiche quand même la landing après 2,5s.
-    setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
+    // sans session locale), on affiche quand même la landing après 4s.
+    // Si Firebase répond APRÈS ce délai avec un user connecté, la
+    // redirection vers le dashboard se fera quand même (voir ci-dessus).
+    setTimeout(revealLanding, AUTH_CHECK_TIMEOUT_MS);
   </script>
 
   <style>
