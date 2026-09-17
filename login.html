@@ -24,8 +24,8 @@
         <img src="/logo.webp" alt="Kontra-Africa" class="login-card__logo">
       </a>
       <div class="login-card__intro">
-        <h1 class="login-card__title" id="loginTitle">Bienvenue sur Kontra-Africa</h1>
-        <p class="login-card__subtitle" id="loginSubtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
+        <h1 class="login-card__title">Bienvenue sur Kontra-Africa</h1>
+        <p class="login-card__subtitle">Connectez-vous pour créer vos contrats et suivre vos finances.</p>
       </div>
       <!-- Bloc affiché UNIQUEMENT dans un navigateur intégré (Facebook,
            Instagram, Messenger, TikTok...) : Google bloque purement et
@@ -43,9 +43,9 @@
       <label class="login-card__terms" for="termsCheckbox">
         <input type="checkbox" id="termsCheckbox" class="login-card__terms-checkbox">
         <span>
-          En continuant, j'accepte les
+          En créant un compte, j'accepte les
           <a href="/terms.html" target="_blank" rel="noopener">Conditions Générales d'Utilisation</a>
-          et la
+          et je confirme avoir lu la
           <a href="/privacy.html" target="_blank" rel="noopener">Politique de confidentialité</a>.
         </span>
       </label>
@@ -58,7 +58,7 @@
             <path fill="#4CAF50" d="M24 45c5.4 0 10.3-2.1 14-5.5l-6.5-5.4c-2 1.4-4.6 2.4-7.5 2.4-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9 40.6 16 45 24 45z"/>
             <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.4C41.4 35.9 45 30.5 45 24c0-1.4-.1-2.8-.4-3.5z"/>
           </svg>
-          <span id="googleBtnLabel">Continuer avec Google</span>
+          <span>Continuer avec Google</span>
         </button>
         <div class="login-state login-state--loading" id="loadingState" hidden>
           <span class="spinner" aria-hidden="true"></span>
@@ -77,7 +77,8 @@
         </div>
       </div>
       </div>
-      <p class="login-card__trial" id="trialHint">Essai gratuit de 3 jours, sans carte bancaire requise</p>
+      <p class="login-card__trial">Essai gratuit de 3 jours, sans carte bancaire requise</p>
+      <p class="login-card__switch">Pas encore de compte ? <a href="/inscription.html">Créer un compte</a></p>
     </div>
     <!-- Notification d'erreur : toast indépendant, n'écrase jamais le bouton
          de connexion en dessous. Fermeture manuelle via le bouton X. -->
@@ -88,36 +89,6 @@
       </div>
     </div>
   </main>
-  <!-- Adapte le texte de la page selon que l'utilisateur vient du bouton
-       "S'inscrire" (?mode=signup) ou "Se connecter" (?mode=login) sur la
-       page d'accueil. Le mécanisme de connexion (Google) reste le même
-       dans les deux cas — Firebase crée automatiquement le compte au
-       premier login — seul le texte affiché change, pour que chacun
-       comprenne clairement où il se trouve. -->
-  <script>
-    (function () {
-      var params = new URLSearchParams(window.location.search);
-      var mode = params.get('mode') === 'signup' ? 'signup' : 'login';
-
-      var title = document.getElementById('loginTitle');
-      var subtitle = document.getElementById('loginSubtitle');
-      var btnLabel = document.getElementById('googleBtnLabel');
-      var trialHint = document.getElementById('trialHint');
-
-      if (mode === 'signup') {
-        document.title = 'Créer un compte — Kontra-Africa';
-        if (title) title.textContent = 'Créez votre compte';
-        if (subtitle) subtitle.textContent = 'Créez votre compte gratuitement pour créer vos contrats et suivre vos finances.';
-        if (btnLabel) btnLabel.textContent = "S'inscrire avec Google";
-      } else {
-        document.title = 'Connexion — Kontra-Africa';
-        if (title) title.textContent = 'Content de vous revoir';
-        if (subtitle) subtitle.textContent = 'Connectez-vous pour retrouver vos contrats et vos finances.';
-        if (btnLabel) btnLabel.textContent = 'Se connecter avec Google';
-        if (trialHint) trialHint.hidden = true;
-      }
-    })();
-  </script>
   <script type="module" src="/js/login.js"></script>
   <script src="/js/sw-register.js"></script>
 </body>
