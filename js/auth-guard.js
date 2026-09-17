@@ -25,6 +25,13 @@ const CHECKOUT_TIMEOUT_MS = 60000;
 // juste de rediriger l'utilisateur.
 const AUTH_RESTORE_TIMEOUT_MS = 15000;
 
+// Temps qu'on laisse à Firebase pour restaurer une session existante quand
+// AUCUNE connexion n'était en attente (ex: simple rechargement du
+// dashboard). Plus court que ci-dessus car il n'y a alors aucune raison
+// d'attendre un aller-retour Google — juste la lecture locale d'IndexedDB,
+// normalement quasi instantanée.
+const NO_PENDING_RESTORE_TIMEOUT_MS = 3000;
+
 // Clé utilisée par login.js avant le redirect Google.
 const REDIRECT_KEY = 'kontra_auth_pending';
 
@@ -92,6 +99,11 @@ function toDate(value) {
 
 function waitForAuthUser() {
 
+  // Capturé une fois au démarrage (pas à chaque callback) : sert à choisir
+  // la durée du filet de sécurité ci-dessous.
+  const redirectPendingAtStart =
+    localStorage.getItem(REDIRECT_KEY) === '1';
+
   return new Promise((resolve) => {
 
     let resolved = false;
@@ -148,9 +160,20 @@ function waitForAuthUser() {
             REDIRECT_KEY
           ) === '1';
 
+        // Peu importe redirectPending : on ne tranche JAMAIS "pas connecté"
+        // sur le tout premier callback null de onAuthStateChanged. Cette
+        // toute première notification peut arriver avant que Firebase ait
+        // fini de relire la session depuis IndexedDB (restauration async à
+        // chaque chargement de page) — trancher trop vite déconnecte de
+        // vrais utilisateurs connectés (ex: simple F5 sur le dashboard).
+        // On laisse donc toujours faire le setTimeout ci-dessous, avec une
+        // durée courte quand rien n'est en attente (cas normal) et plus
+        // longue juste après une connexion (redirectPending), où Firebase
+        // peut avoir un peu plus de retard à récupérer la session.
         if (!redirectPending) {
-
-          finish(null);
+          console.log(
+            '🔐 Aucune connexion en attente — attente courte de restauration Firebase avant de conclure.'
+          );
         }
 
         // Sinon on NE redirige PAS immédiatement.
@@ -170,7 +193,9 @@ function waitForAuthUser() {
         finish(null);
 
       },
-      AUTH_RESTORE_TIMEOUT_MS
+      redirectPendingAtStart
+        ? AUTH_RESTORE_TIMEOUT_MS
+        : NO_PENDING_RESTORE_TIMEOUT_MS
     );
 
   });
