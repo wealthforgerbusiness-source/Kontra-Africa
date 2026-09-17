@@ -32,30 +32,46 @@
     import { auth } from '/js/firebase-config.js';
     import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
-    // Si une session Firebase est déjà active (PWA rouverte, retour sur le site),
-    // on saute directement le dashboard au lieu de rester bloqué sur la landing.
-    const AUTH_CHECK_TIMEOUT_MS = 2500;
-    let decided = false;
+    // Ce raccourci ("session déjà active → direct au dashboard") n'a de
+    // sens que pour la PWA installée : on ouvre l'app depuis l'écran
+    // d'accueil du téléphone pour retrouver son espace, pas pour revoir la
+    // landing page. Sur le site web classique (navigateur normal, lien
+    // partagé, pub Facebook...), on doit TOUJOURS voir la landing, même si
+    // une session Firebase existe déjà en arrière-plan (ex: testée une fois
+    // dans ce navigateur) — sinon impossible de revenir sur la page
+    // d'accueil une fois connecté, y compris pour un visiteur qui clique
+    // sur une pub en étant déjà identifié sur un compte différent.
+    const isStandaloneApp =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true; // iOS
 
-    const stopChecking = () => {
-      if (decided) return;
-      decided = true;
+    if (!isStandaloneApp) {
       document.documentElement.classList.remove('auth-checking');
-    };
+    } else {
 
-    onAuthStateChanged(auth, (user) => {
-      if (decided) return;
-      if (user) {
+      const AUTH_CHECK_TIMEOUT_MS = 2500;
+      let decided = false;
+
+      const stopChecking = () => {
+        if (decided) return;
         decided = true;
-        window.location.replace('/dashboard.html');
-        return;
-      }
-      stopChecking();
-    });
+        document.documentElement.classList.remove('auth-checking');
+      };
 
-    // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
-    // sans session locale), on affiche quand même la landing après 2,5s.
-    setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
+      onAuthStateChanged(auth, (user) => {
+        if (decided) return;
+        if (user) {
+          decided = true;
+          window.location.replace('/dashboard.html');
+          return;
+        }
+        stopChecking();
+      });
+
+      // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
+      // sans session locale), on affiche quand même la landing après 2,5s.
+      setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
+    }
   </script>
 
   <style>
