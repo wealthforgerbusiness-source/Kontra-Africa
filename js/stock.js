@@ -878,7 +878,7 @@ function renderProducts() {
   const query = (productSearch.value || "").trim().toLowerCase();
   const hasSearch = query.length > 0;
   const filtered = [...products.values()].filter(
-    (p) => !query || p.name.toLowerCase().includes(query)
+    (p) => !p.archived && (!query || p.name.toLowerCase().includes(query))
   );
 
   if (filtered.length === 0) {
@@ -923,26 +923,62 @@ function renderProductCard(product) {
       </span>
     </div>
     <div class="product-card__actions">
-      <button class="btn btn-credit btn-sm" data-action="sell" ${isOut ? 'disabled title="Rupture de stock"' : ""}>Vendre</button>
       <button class="btn btn-secondary btn-sm" data-action="edit-product">Modifier</button>
+      <button class="btn btn-debit btn-sm" data-action="delete-product">Supprimer</button>
     </div>
   `;
-
-  const sellBtn = card.querySelector('[data-action="sell"]');
-  if (!isOut) {
-    sellBtn.addEventListener("click", () => {
-      switchTab("ventes");
-      saleProductSearch.value = product.name;
-      updateSaleStockHint();
-      saleQuantity.focus();
-    });
-  }
 
   card.querySelector('[data-action="edit-product"]').addEventListener("click", () => {
     openEditProductModal(product);
   });
 
+  card.querySelector('[data-action="delete-product"]').addEventListener("click", () => {
+    handleDeleteProduct(product);
+  });
+
   return card;
+}
+
+// ============================================================
+// Suppression d'un produit
+// ============================================================
+// Le backend archive plutôt que supprimer définitivement (voir
+// DELETE /api/stock/products/:id côté serveur, qui met juste archived:true
+// pour ne jamais perdre l'historique des ventes déjà liées à ce produit).
+// Ici, côté écran, on le retire immédiatement de la liste affichée.
+
+async function handleDeleteProduct(product) {
+  if (
+    !(await showConfirm(
+      `Supprimer "${product.name}" ? Cette action est définitive dans la liste des produits (les ventes déjà enregistrées restent dans l'historique).`,
+      "Supprimer le produit"
+    ))
+  ) {
+    return;
+  }
+
+  const previous = product;
+
+  // Retrait optimiste : disparaît de l'écran tout de suite, avant même la
+  // réponse du serveur.
+  products.delete(product.id);
+  renderProducts();
+
+  try {
+    await authFetch(`/products/${product.id}`, { method: "DELETE" });
+    showSuccessToast("Produit supprimé.");
+  } catch (error) {
+    // Échec : on remet le produit dans la liste, il n'a pas vraiment été
+    // supprimé côté serveur.
+    products.set(previous.id, previous);
+    renderProducts();
+
+    if (isNetworkError(error)) {
+      showErrorToast("Connexion internet requise pour supprimer un produit.");
+    } else {
+      showErrorToast(error.message || "Erreur lors de la suppression du produit.");
+    }
+  }
 }
 
 function findProductByName(name) {
@@ -1275,6 +1311,24 @@ formProduct.addEventListener("submit", async (event) => {
   if (existingId) {
     await handleUpdateProduct(existingId, payload);
   } else {
+    // Bloque la création d'un doublon : sans ça, rien n'empêchait de créer
+    // le même produit plusieurs fois (aucune vérification n'existait avant
+    // ce correctif). Comparaison insensible à la casse/espaces, uniquement
+    // parmi les produits actifs (un produit supprimé n'empêche pas de
+    // recréer un produit du même nom).
+    const normalizedName = payload.name.trim().toLowerCase();
+    const duplicate = [...products.values()].find(
+      (p) => !p.archived && p.name.trim().toLowerCase() === normalizedName
+    );
+
+    if (duplicate) {
+      showFormError(
+        formProduct,
+        `"${duplicate.name}" existe déjà — modifie ce produit plutôt que d'en créer un autre.`
+      );
+      return;
+    }
+
     await handleCreateProduct(payload);
   }
 });
