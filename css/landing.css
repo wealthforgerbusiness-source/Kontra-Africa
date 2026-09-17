@@ -124,10 +124,21 @@ body {
   background: var(--color-primary-dark);
 }
 
-/* Sur très petit écran, on garde les 2 boutons visibles mais on retire le
-   libellé "essai gratuit" du bouton secondaire pour laisser la place —
-   seul le bouton "Se connecter" est concerné, le CTA principal
-   d'inscription garde toujours son texte complet, plus important. */
+/* Sous 480px, logo + nom de marque + 2 boutons + hamburger ne tiennent pas
+   sur une seule ligne sans déborder de l'écran (constaté : le bouton
+   "Essai gratuit" sortait du cadre). On masque alors le bouton
+   "Se connecter" du header — il reste joignable via le menu hamburger, qui
+   l'a déjà en entier — pour garder le nom "Kontra-Africa" ET le bouton
+   d'inscription (le plus important pour la conversion) visibles sans rien
+   casser. */
+@media (max-width: 480px) {
+  .header-cta.btn-login {
+    display: none;
+  }
+}
+
+/* En dessous de 420px, on resserre encore le seul bouton restant
+   ("Essai gratuit") pour garder de la marge avec le hamburger. */
 @media (max-width: 420px) {
   .header-cta {
     padding: 0 var(--space-3);
