@@ -34,35 +34,28 @@
 
     // Si une session Firebase est déjà active (PWA rouverte, retour sur le site),
     // on saute directement le dashboard au lieu de rester bloqué sur la landing.
-    const AUTH_CHECK_TIMEOUT_MS = 4000;
-    let revealed = false;
-    let redirected = false;
+    const AUTH_CHECK_TIMEOUT_MS = 2500;
+    let decided = false;
 
-    // Ne fait qu'afficher la landing (retire le voile visuel). Ne bloque
-    // JAMAIS une redirection qui arriverait après coup : sur une PWA
-    // fraîchement installée, Firebase peut répondre après le timeout de
-    // sécurité (cold start : SDK non caché, IndexedDB à froid, etc.).
-    const revealLanding = () => {
-      if (revealed) return;
-      revealed = true;
+    const stopChecking = () => {
+      if (decided) return;
+      decided = true;
       document.documentElement.classList.remove('auth-checking');
     };
 
     onAuthStateChanged(auth, (user) => {
-      if (redirected) return;
+      if (decided) return;
       if (user) {
-        redirected = true;
+        decided = true;
         window.location.replace('/dashboard.html');
         return;
       }
-      revealLanding();
+      stopChecking();
     });
 
     // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
-    // sans session locale), on affiche quand même la landing après 4s.
-    // Si Firebase répond APRÈS ce délai avec un user connecté, la
-    // redirection vers le dashboard se fera quand même (voir ci-dessus).
-    setTimeout(revealLanding, AUTH_CHECK_TIMEOUT_MS);
+    // sans session locale), on affiche quand même la landing après 2,5s.
+    setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
   </script>
 
   <style>
@@ -120,8 +113,8 @@
       </nav>
 
       <div class="site-header__actions">
-        <a href="/login.html?mode=login" class="btn btn-secondary header-cta">Se connecter</a>
-        <a href="/login.html?mode=signup" class="btn btn-primary header-cta">S'inscrire</a>
+        <a href="/login.html" class="header-cta-secondary">Se connecter</a>
+        <a href="/inscription.html" class="btn btn-primary header-cta">Essai gratuit</a>
         <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
           <span class="nav-toggle__bar"></span>
           <span class="nav-toggle__bar"></span>
@@ -156,8 +149,8 @@
     </nav>
 
     <div class="mobile-nav-panel__actions">
-      <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">S'inscrire</a>
-      <a href="/login.html?mode=login" class="btn btn-secondary btn-lg">Se connecter</a>
+      <a href="/login.html" class="btn btn-secondary btn-lg">Se connecter</a>
+      <a href="/inscription.html" class="btn btn-primary btn-lg">Essai gratuit</a>
     </div>
   </div>
 
@@ -182,10 +175,7 @@
             Suivez vos finances au même endroit. Une seule app, sur votre téléphone comme sur votre ordinateur.
           </p>
           <div class="hero__actions">
-            <div class="hero__cta-group">
-              <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">S'inscrire — Essai gratuit</a>
-              <a href="/login.html?mode=login" class="btn btn-secondary btn-lg">Se connecter</a>
-            </div>
+            <a href="/inscription.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
             <p class="hero__hint">3 jours offerts, sans carte bancaire</p>
           </div>
         </div>
@@ -382,7 +372,7 @@
           <div class="pricing-card__box">
             <p class="pricing-card__amount"><span class="pricing-card__currency">$</span>5<span class="pricing-card__period">/mois</span></p>
             <p class="pricing-card__trial">3 jours d'essai gratuit</p>
-            <a href="/login.html?mode=signup" class="btn btn-primary btn-lg pricing-card__cta">Commencer l'essai gratuit</a>
+            <a href="/inscription.html" class="btn btn-primary btn-lg pricing-card__cta">Commencer l'essai gratuit</a>
           </div>
         </div>
       </div>
@@ -482,7 +472,7 @@
             Rejoignez les utilisateurs qui gèrent déjà leurs contrats, leur stock et leurs finances sur Kontra-Africa.
             3 jours d'essai gratuit, sans carte bancaire.
           </p>
-          <a href="/login.html?mode=signup" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
+          <a href="/inscription.html" class="btn btn-primary btn-lg">Commencer l'essai gratuit</a>
         </div>
       </div>
     </section>
