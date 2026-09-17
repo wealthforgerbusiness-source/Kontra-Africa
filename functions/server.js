@@ -135,8 +135,13 @@ const sensitiveRoutesLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: rateLimitKey,
 
-  message: {
-    error: "Trop de tentatives, réessaie dans quelques minutes.",
+  handler: (req, res) => {
+    console.warn(
+      `[RATE-LIMIT] ⛔ Route sensible bloquée — clé: ${rateLimitKey(req)}, chemin: ${req.originalUrl}`
+    );
+    res.status(429).json({
+      error: "Trop de tentatives, réessaie dans quelques minutes.",
+    });
   },
 });
 
@@ -249,6 +254,12 @@ app.use("/api", globalAbuseLimiter);
 
 app.post(
   "/api/init-user",
+  (req, res, next) => {
+    console.log(
+      `[SERVER] 📥 POST /api/init-user reçu — IP: ${req.ip}, Origin: ${req.headers.origin || "(absent)"}, a un header Authorization: ${Boolean(req.headers.authorization)}`
+    );
+    next();
+  },
   sensitiveRoutesLimiter,
   initUser
 );
