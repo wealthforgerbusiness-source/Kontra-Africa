@@ -15,21 +15,35 @@ const { adminApp } = require("./config");
 async function getVerifiedUser(req) {
   const authorization = req.headers.authorization || "";
 
+  console.log(
+    `[AUTH] Vérification token — Authorization présent: ${Boolean(authorization)}, longueur: ${authorization.length}`
+  );
+
   if (!authorization.startsWith("Bearer ")) {
+    console.warn("[AUTH] Rejeté : pas de header 'Bearer <token>'.");
     return null;
   }
 
   const idToken = authorization.substring(7).trim();
 
+  console.log(`[AUTH] Token extrait, longueur: ${idToken.length}. Vérification auprès de Firebase Admin...`);
+
   try {
     const decoded = await getAuth(adminApp).verifyIdToken(idToken);
+
+    console.log(
+      `[AUTH] Token VALIDE — uid: ${decoded.uid}, email: ${decoded.email || "(absent)"}, email_verified: ${Boolean(decoded.email_verified)}`
+    );
+
     return {
       uid: decoded.uid,
       email: decoded.email || null,
       emailVerified: Boolean(decoded.email_verified),
     };
   } catch (error) {
-    console.error("Token Firebase invalide :", error.message);
+    console.error(
+      `[AUTH] Token INVALIDE — code: ${error.code || "inconnu"}, message: ${error.message}`
+    );
     return null;
   }
 }
