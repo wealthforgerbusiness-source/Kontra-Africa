@@ -101,14 +101,12 @@ window.addEventListener('visibilitychange', () => {
 // IMPORTS
 // ============================================================
 
-import { auth, googleProvider } from '/js/firebase-config.js';
+import { auth, googleProvider, authPersistenceReady } from '/js/firebase-config.js';
 
 import {
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
-  setPersistence,
-  browserLocalPersistence
+  getRedirectResult
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const API_BASE_URL = 'https://kontra-africa.onrender.com';
@@ -183,26 +181,14 @@ const serverWarmupPromise = (async () => {
 })();
 
 // ============================================================
-// PERSISTENCE FIREBASE (configurée UNE SEULE FOIS, ici, au chargement du
-// script — plus jamais au moment du clic)
+// PERSISTENCE FIREBASE
 // ============================================================
-// Avant, setPersistence() était appelé à l'intérieur de startGoogleSignIn(),
-// donc `await` juste avant signInWithPopup(). Un `await` — même court —
-// placé entre le clic de l'utilisateur et l'appel à signInWithPopup() peut
-// suffire à faire perdre le "geste utilisateur" aux yeux du navigateur, qui
-// bloque alors le popup Google SANS forcément renvoyer une erreur claire
-// (le popup n'apparaît juste jamais). En configurant la persistence une
-// seule fois ici, dès le chargement de la page, elle est quasi toujours déjà
-// terminée au moment du clic — on retire ainsi un délai inutile du chemin
-// critique menant à l'ouverture du popup.
-
-const persistenceReadyPromise = setPersistence(auth, browserLocalPersistence)
-  .then(() => {
-    debugLog('🔐 Persistence Firebase configurée (au chargement de la page)');
-  })
-  .catch((err) => {
-    debugLog('⚠️ Échec de configuration de la persistence Firebase:', err?.message || err);
-  });
+// Configurée UNE SEULE FOIS pour toute l'app, dans firebase-config.js
+// (voir authPersistenceReady là-bas) — plus ici. On se contente d'attendre
+// cette promesse partagée, déjà lancée dès l'import du module, dès le
+// chargement de la page (donc quasi toujours déjà résolue au moment du
+// clic — voir plus bas pourquoi ce timing compte pour signInWithPopup()).
+const persistenceReadyPromise = authPersistenceReady;
 
 // ============================================================
 // DETECTION MOBILE / STANDALONE
