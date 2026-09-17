@@ -173,7 +173,13 @@ router.get("/products", async (req, res) => {
       .limit(500)
       .get();
 
-    const products = snapshot.docs.map(serializeProduct);
+    // Filtré en mémoire plutôt qu'avec .where("archived", "==", false) :
+    // évite d'exiger un index composite Firestore supplémentaire pour
+    // "archived == false" + "orderBy(createdAt)", et 500 documents max
+    // rend ce filtrage en JS négligeable en coût.
+    const products = snapshot.docs
+      .filter((doc) => !doc.data().archived)
+      .map(serializeProduct);
 
     return res.status(200).json({
       products,
