@@ -80,15 +80,6 @@ body {
   white-space: nowrap;
 }
 
-/* Sous 480px, le header doit tenir logo + 2 boutons + hamburger : on
-   retire le nom texte de la marque et on ne garde que le logo, pour
-   laisser toute la place aux boutons "Se connecter" / "Essai gratuit". */
-@media (max-width: 480px) {
-  .brand__text {
-    display: none;
-  }
-}
-
 .main-nav {
   display: none;
   align-items: center;
@@ -118,6 +109,19 @@ body {
   padding: 0 var(--space-4);
   font-size: var(--fs-sm);
   white-space: nowrap;
+}
+
+/* "Se connecter" : bouton plein violet (fond = l'ancienne couleur du
+   texte), texte blanc — même traitement visuel que "Essai gratuit" (plein
+   orange), juste une couleur différente pour distinguer les deux actions. */
+.btn-login {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  border: none;
+}
+
+.btn-login:hover {
+  background: var(--color-primary-dark);
 }
 
 /* Sur très petit écran, on garde les 2 boutons visibles mais on retire le
