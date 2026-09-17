@@ -618,6 +618,12 @@ async function completeSignIn(firebaseUser) {
 
   } catch (err) {
 
+    // La connexion Google a réussi mais la préparation du compte a échoué :
+    // on retire la clé ici puisqu'elle n'a plus été retirée avant l'appel à
+    // completeSignIn() (voir commentaire dans startGoogleSignIn). Sans ça,
+    // elle resterait posée pour rien jusqu'à son expiration (AUTH_PENDING_STALE_MS).
+    localStorage.removeItem(AUTH_PENDING_KEY);
+
     debugLog(
       '❌ Impossible de préparer le compte :',
       err,
@@ -697,7 +703,10 @@ async function checkRedirectResult() {
 
     if (result && result.user) {
 
-      localStorage.removeItem(AUTH_PENDING_KEY);
+      // Voir le commentaire équivalent dans startGoogleSignIn : on NE retire
+      // PAS la clé ici, elle doit rester posée jusqu'à dashboard.html pour
+      // que auth-guard.js sache qu'une connexion vient d'avoir lieu. Le
+      // nettoyage en cas d'échec est fait dans le catch de completeSignIn().
 
       debugLog(
         '✅ Google connecté (redirect) :',
@@ -854,7 +863,26 @@ async function startGoogleSignIn() {
 
     debugLog('🌐 signInWithPopup() résolu');
     setOperation('aucune opération en cours (popup résolu)');
-    localStorage.removeItem(AUTH_PENDING_KEY);
+
+    // IMPORTANT : on NE retire PAS AUTH_PENDING_KEY ici.
+    //
+    // BUG TROUVÉ : avant ce correctif, la clé était effacée dès que le popup
+    // réussissait, donc avant même d'arriver sur /dashboard.html. Résultat :
+    // auth-guard.js (sur dashboard.html) démarre une TOUTE NOUVELLE page —
+    // Firebase doit y restaurer la session depuis IndexedDB, ce qui prend un
+    // instant (pas instantané). Sans la clé posée, auth-guard croit qu'aucune
+    // connexion n'est en cours, accepte le premier résultat "aucun
+    // utilisateur" de onAuthStateChanged (celui envoyé AVANT que la
+    // restauration soit terminée) et renvoie donc l'utilisateur direct sur
+    // /login.html — juste après une connexion Google pourtant réussie. C'est
+    // exactement le "je clique, ça a l'air de marcher, et ça me renvoie sur
+    // login" remonté par les utilisateurs, aussi bien en inscription qu'en
+    // connexion (même code des deux côtés).
+    //
+    // La clé reste donc posée jusqu'à ce que auth-guard.js la retire
+    // lui-même une fois la session confirmée (voir requireAppAccess()). En
+    // cas d'échec de completeSignIn() (init-user KO), c'est ce bloc-ci qui
+    // la retire, dans le catch ci-dessous.
 
     // --------------------------------------------------------
     // VERIFICATION UTILISATEUR
