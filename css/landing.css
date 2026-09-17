@@ -80,6 +80,15 @@ body {
   white-space: nowrap;
 }
 
+/* Sous 480px, le header doit tenir logo + 2 boutons + hamburger : on
+   retire le nom texte de la marque et on ne garde que le logo, pour
+   laisser toute la place aux boutons "Se connecter" / "Essai gratuit". */
+@media (max-width: 480px) {
+  .brand__text {
+    display: none;
+  }
+}
+
 .main-nav {
   display: none;
   align-items: center;
@@ -104,10 +113,22 @@ body {
 }
 
 .header-cta {
-  display: none;
-  min-height: 40px;
-  padding: 0 var(--space-5);
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0 var(--space-4);
   font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+/* Sur très petit écran, on garde les 2 boutons visibles mais on retire le
+   libellé "essai gratuit" du bouton secondaire pour laisser la place —
+   seul le bouton "Se connecter" est concerné, le CTA principal
+   d'inscription garde toujours son texte complet, plus important. */
+@media (max-width: 420px) {
+  .header-cta {
+    padding: 0 var(--space-3);
+    font-size: 13px;
+  }
 }
 
 /* Hamburger — 3 traits horizontaux, zone tactile 44x44 */
@@ -149,7 +170,6 @@ body {
 
 @media (min-width: 900px) {
   .main-nav { display: flex; }
-  .header-cta { display: inline-flex; }
   .nav-toggle { display: none; }
 }
 
@@ -336,12 +356,6 @@ body.nav-open {
 
 .hero__actions {
   margin-top: var(--space-7);
-}
-
-.hero__cta-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
 }
 
 .hero__hint {
