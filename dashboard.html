@@ -276,13 +276,40 @@
 
       <div class="app-page-header">
 
-        <h1 id="dashboardGreeting">
-          Bonjour
-        </h1>
+        <div class="app-page-header__row">
 
-        <p class="app-page-header__subtitle">
-          Voici un aperçu de votre activité.
-        </p>
+          <div>
+            <h1 id="dashboardGreeting">
+              Bonjour
+            </h1>
+
+            <p class="app-page-header__subtitle">
+              Voici un aperçu de votre activité.
+            </p>
+          </div>
+
+          <!-- ===================================================
+               BOUTON D'INSTALLATION PWA
+               Bouton permanent (contrairement à la bannière
+               dismissible ci-dessous). Géré par js/install-button.js :
+               - Installe l'app au clic (Chrome/Android)
+               - Affiche les instructions sur iOS/Safari
+               - Indique "déjà installée" si l'app tourne déjà en mode
+                 standalone
+          ==================================================== -->
+          <button
+            type="button"
+            class="btn btn-secondary app-page-header__install-btn"
+            id="installAppBtn"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 3v12m0 0-4-4m4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="installAppBtnLabel">Installer l'application</span>
+          </button>
+
+        </div>
 
       </div>
 
@@ -619,6 +646,11 @@
   <script
     type="module"
     src="/js/install-prompt.js"
+  ></script>
+
+  <script
+    type="module"
+    src="/js/install-button.js"
   ></script>
 
   <!-- =========================================================
