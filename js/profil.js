@@ -38,54 +38,76 @@ const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
 const resubscribeCountry = document.getElementById('resubscribe-country');
 const resubscribePhone = document.getElementById('resubscribe-phone');
 
-// Devise de paiement ($ USD / FC CDF) — voir /api/pricing et checkout.js
-// pour l'explication complète du bug corrigé (prix affiché déconnecté du
-// montant réellement facturé côté SasPay).
+// Devise de paiement ($ USD / monnaie locale du pays choisi) — voir
+// /api/pricing et checkout.js. CORRECTIF : la monnaie locale n'est PAS
+// fixée sur CDF, elle dépend du pays sélectionné dans resubscribeCountry
+// (7 des 8 pays pris en charge utilisent le franc CFA XOF/XAF, pas le
+// CDF — voir js/phone-countries.js).
 const resubscribeCurrencyToggle = document.getElementById('resubscribe-currency-toggle');
 const resubscribeCurrencyUsdBtn = document.getElementById('resubscribeCurrencyUsd');
-const resubscribeCurrencyCdfBtn = document.getElementById('resubscribeCurrencyCdf');
+const resubscribeCurrencyLocalBtn = document.getElementById('resubscribeCurrencyLocal');
+const resubscribeCurrencyLocalLabel = document.getElementById('resubscribeCurrencyLocalLabel');
 const resubscribePriceRow = document.getElementById('resubscribe-price');
 const resubscribePriceSymbol = document.getElementById('resubscribePriceSymbol');
 const resubscribePriceAmount = document.getElementById('resubscribePriceAmount');
 
-let selectedCurrency = 'USD';
-let pricingInfo = { priceUsd: 5, priceCdf: 11250 }; // valeurs de secours, écrasées par /api/pricing
+let selectedCurrencyMode = 'USD'; // 'USD' ou 'LOCAL' — envoyé tel quel à /api/checkout
+let pricingInfo = { priceUsd: 5, localCurrency: null, localAmount: null }; // valeurs de secours, écrasées par /api/pricing
 
 function renderResubscribePrice() {
   if (!resubscribePriceSymbol || !resubscribePriceAmount) return;
-  if (selectedCurrency === 'USD') {
+  if (selectedCurrencyMode === 'USD') {
     resubscribePriceSymbol.textContent = '$';
     resubscribePriceAmount.textContent = pricingInfo.priceUsd;
+  } else if (pricingInfo.localCurrency) {
+    resubscribePriceSymbol.textContent = '';
+    resubscribePriceAmount.textContent = `${pricingInfo.localAmount.toLocaleString('fr-FR')} ${pricingInfo.localCurrency}`;
   } else {
     resubscribePriceSymbol.textContent = '';
-    resubscribePriceAmount.textContent = `${pricingInfo.priceCdf.toLocaleString('fr-FR')} FC`;
+    resubscribePriceAmount.textContent = '…';
   }
 }
 
-if (resubscribeCurrencyUsdBtn && resubscribeCurrencyCdfBtn) {
+if (resubscribeCurrencyUsdBtn && resubscribeCurrencyLocalBtn) {
   resubscribeCurrencyUsdBtn.addEventListener('click', () => {
-    selectedCurrency = 'USD';
+    selectedCurrencyMode = 'USD';
     resubscribeCurrencyUsdBtn.classList.add('is-active');
-    resubscribeCurrencyCdfBtn.classList.remove('is-active');
+    resubscribeCurrencyLocalBtn.classList.remove('is-active');
     renderResubscribePrice();
   });
-  resubscribeCurrencyCdfBtn.addEventListener('click', () => {
-    selectedCurrency = 'CDF';
-    resubscribeCurrencyCdfBtn.classList.add('is-active');
+  resubscribeCurrencyLocalBtn.addEventListener('click', () => {
+    selectedCurrencyMode = 'LOCAL';
+    resubscribeCurrencyLocalBtn.classList.add('is-active');
     resubscribeCurrencyUsdBtn.classList.remove('is-active');
     renderResubscribePrice();
   });
 }
 
-fetch(`${API_BASE}/api/pricing`)
-  .then((r) => r.json())
-  .then((data) => {
-    if (data && data.success) {
-      pricingInfo = { priceUsd: data.priceUsd, priceCdf: data.priceCdf };
-      renderResubscribePrice();
-    }
-  })
-  .catch(() => { /* on garde les valeurs de secours */ });
+function fetchResubscribePricing(countryCode) {
+  fetch(`${API_BASE}/api/pricing?country=${encodeURIComponent(countryCode)}`)
+    .then((r) => r.json())
+    .then((data) => {
+      if (data && data.success) {
+        pricingInfo = {
+          priceUsd: data.priceUsd,
+          localCurrency: data.localCurrency,
+          localAmount: data.localAmount
+        };
+        if (resubscribeCurrencyLocalLabel) {
+          resubscribeCurrencyLocalLabel.textContent = data.localCurrency || 'Monnaie locale';
+        }
+        renderResubscribePrice();
+      }
+    })
+    .catch(() => { /* on garde les valeurs de secours */ });
+}
+
+if (resubscribeCountry) {
+  fetchResubscribePricing(resubscribeCountry.value || 'CD');
+  resubscribeCountry.addEventListener('change', () => {
+    fetchResubscribePricing(resubscribeCountry.value);
+  });
+}
 
 // Filet de secours : remplace l'ancienne saisie manuelle de clé de licence.
 // Même structure HTML que l'ancien license-key-row, juste des id différents
@@ -292,7 +314,7 @@ async function handleResubscribe() {
         firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
         lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
         phone: { number: phoneNumber, countryCode },
-        currency: selectedCurrency
+        currency: selectedCurrencyMode
       }),
       signal: controller.signal,
     });
