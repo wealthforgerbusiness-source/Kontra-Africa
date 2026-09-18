@@ -14,8 +14,8 @@ const rateLimit = require("express-rate-limit");
 
 const { initUser } = require("./src/auth");
 const { checkout } = require("./src/checkout");
-const { chariowWebhook } = require("./src/webhook");
-const { verifyLicenseKey } = require("./src/license-verify");
+const { saspayWebhook } = require("./src/webhook");
+const { verifyPayment } = require("./src/verify-payment");
 const contractsRouter = require("./src/contracts");
 
 // ============================================================
@@ -125,7 +125,7 @@ function rateLimitKey(req) {
   return `ip:${req.ip}`;
 }
 
-// Routes sensibles authentifiées (init-user, checkout, verify-license).
+// Routes sensibles authentifiées (init-user, checkout, verify-payment).
 // 60 requêtes / 15 min / utilisateur : largement suffisant pour un usage
 // normal, tout en bloquant un script qui boucle.
 const sensitiveRoutesLimiter = rateLimit({
@@ -155,9 +155,9 @@ const globalAbuseLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 
-  // Le webhook Chariow est un appel server-to-server : il doit toujours
+  // Le webhook SasPay est un appel server-to-server : il doit toujours
   // passer, sous peine de perdre la confirmation d'un paiement client.
-  skip: (req) => req.path === "/chariow-webhook",
+  skip: (req) => req.path === "/saspay-webhook",
 
   message: {
     error: "Trop de requêtes, réessaie dans un instant.",
@@ -171,7 +171,7 @@ const globalAbuseLimiter = rateLimit({
 const corsOptions = {
   origin(origin, callback) {
     // Requêtes sans Origin :
-    // server-to-server, curl, webhook Chariow, etc.
+    // server-to-server, curl, webhook SasPay, etc.
     if (!origin) {
       return callback(null, true);
     }
@@ -212,7 +212,7 @@ app.use(cors(corsOptions));
 // BODY PARSER JSON
 // ============================================================
 
-// Capture également le corps brut pour la signature Chariow.
+// Capture également le corps brut pour la signature SasPay.
 app.use(
   bodyParser.json({
     limit: "5mb",
@@ -249,7 +249,7 @@ app.get("/health", (req, res) => {
 // ============================================================
 
 // Garde-fou anti-flood appliqué à toutes les routes /api.
-// Le webhook Chariow en est exclu via l'option skip du limiter.
+// Le webhook SasPay en est exclu via l'option skip du limiter.
 app.use("/api", globalAbuseLimiter);
 
 app.post(
@@ -270,17 +270,17 @@ app.post(
   checkout
 );
 
-// Webhook Chariow : server-to-server,
+// Webhook SasPay : server-to-server,
 // donc pas de rate limit par IP.
 app.post(
-  "/api/chariow-webhook",
-  chariowWebhook
+  "/api/saspay-webhook",
+  saspayWebhook
 );
 
 app.post(
-  "/api/verify-license",
+  "/api/verify-payment",
   sensitiveRoutesLimiter,
-  verifyLicenseKey
+  verifyPayment
 );
 
 // ============================================================
