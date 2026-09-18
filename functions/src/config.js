@@ -39,6 +39,26 @@ const SASPAY_API_URL = "https://api.saspay.me/api/v1";
 const TRIAL_DURATION_DAYS = 3;
 
 // ============================================================
+// PRIX DE L'ABONNEMENT
+// ============================================================
+// PROBLÈME CORRIGÉ ICI : checkout.js envoyait un montant totalement
+// déconnecté du vrai prix ("5000.00" en "XOF") — c'était l'exemple brut
+// de la doc SasPay, jamais remplacé par le vrai prix ni la vraie devise.
+// SasPay ne convertit RIEN automatiquement : il faut calculer nous-mêmes
+// le montant à facturer, dans la devise choisie, à partir de ce prix
+// officiel.
+//
+// Prix officiel affiché dans l'app (voir paywall__price dans
+// auth-guard.js) : 5 $ / mois.
+//
+// ⚠️ USD_TO_CDF_RATE doit être mis à jour régulièrement (le franc
+// congolais bouge). Pour changer le taux SANS redéployer le code : ajoute
+// la variable d'environnement USD_TO_CDF_RATE sur Render (ou Netlify) —
+// sinon la valeur par défaut ci-dessous est utilisée.
+const SUBSCRIPTION_PRICE_USD = 5;
+const USD_TO_CDF_RATE = Number(process.env.USD_TO_CDF_RATE) || 2250;
+
+// ============================================================
 // SASPAY WEBHOOK
 // ============================================================
 // Secret partagé avec SasPay pour authentifier les appels webhook.
@@ -88,4 +108,6 @@ module.exports = {
   APP_BASE_URL,
   ALLOWED_ORIGINS,
   TRIAL_DURATION_DAYS,
+  SUBSCRIPTION_PRICE_USD,
+  USD_TO_CDF_RATE,
 };
