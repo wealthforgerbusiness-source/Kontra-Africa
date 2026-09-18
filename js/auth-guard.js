@@ -504,13 +504,42 @@ function renderPaywall(user) {
           Kontra-Africa.
         </p>
 
+        <!-- ===================================================
+             CHOIX DE LA DEVISE DE PAIEMENT
+             Bascule l'affichage du prix ET la devise réellement
+             envoyée à /api/checkout (voir startCheckout plus bas).
+        ==================================================== -->
+        <div
+          class="paywall__currency-toggle"
+          role="group"
+          aria-label="Devise de paiement"
+        >
+          <button
+            type="button"
+            id="paywallCurrencyUsd"
+            class="paywall__currency-btn is-active"
+            data-currency="USD"
+          >
+            $ USD
+          </button>
+
+          <button
+            type="button"
+            id="paywallCurrencyCdf"
+            class="paywall__currency-btn"
+            data-currency="CDF"
+          >
+            FC CDF
+          </button>
+        </div>
+
         <div class="paywall__price">
 
-          <span class="paywall__currency">
+          <span class="paywall__currency" id="paywallPriceSymbol">
             $
           </span>
 
-          5
+          <span id="paywallPriceAmount">5</span>
 
           <span class="paywall__period">
             /mois
@@ -603,49 +632,6 @@ function renderPaywall(user) {
         </p>
 
 
-        <div class="paywall__license">
-
-          <p class="paywall__license-question">
-            💳 Déjà payé ?
-          </p>
-
-          <label
-            for="paywallLicenseKey"
-            class="paywall__license-label"
-          >
-            Entre ta clé de licence (reçue par email)
-          </label>
-
-          <div class="paywall__license-row">
-
-            <input
-              type="text"
-              id="paywallLicenseKey"
-              class="paywall__license-input"
-              placeholder="ABCD-1234-EFGH-5678-IJKL"
-              autocomplete="off"
-              autocapitalize="characters"
-            >
-
-            <button
-              type="button"
-              id="paywallVerifyLicenseBtn"
-              class="btn btn-secondary paywall__license-btn"
-            >
-              Vérifier
-            </button>
-
-          </div>
-
-          <p
-            class="paywall__license-error"
-            id="paywallLicenseError"
-            hidden
-          ></p>
-
-        </div>
-
-
         <button
           type="button"
           id="paywallLogout"
@@ -703,33 +689,6 @@ function renderPaywall(user) {
       'paywallLogout'
     );
 
-  const verifyLicenseBtn =
-    document.getElementById(
-      'paywallVerifyLicenseBtn'
-    );
-
-  const licenseInput =
-    document.getElementById(
-      'paywallLicenseKey'
-    );
-
-  const licenseError =
-    document.getElementById(
-      'paywallLicenseError'
-    );
-
-
-  verifyLicenseBtn.addEventListener(
-    'click',
-    () =>
-      verifyLicense(
-        user,
-        licenseInput,
-        licenseError,
-        verifyLicenseBtn
-      )
-  );
-
 
   // ----------------------------------------------------------
   // Préfixe d'indicatif (+243, +225, ...) affiché devant le
@@ -781,6 +740,77 @@ function renderPaywall(user) {
   updateDialPrefix();
 
 
+  // ----------------------------------------------------------
+  // DEVISE DE PAIEMENT — $ USD ou FC CDF
+  // ----------------------------------------------------------
+  // PROBLÈME CORRIGÉ ICI : le prix affiché ("5 $") était fixe alors que le
+  // montant réellement facturé côté SasPay était un placeholder totalement
+  // différent (voir checkout.js). On récupère maintenant le vrai prix
+  // depuis /api/pricing (source unique de vérité, même valeurs que celles
+  // utilisées pour créer la session de paiement), et on propose les deux
+  // devises au client.
+
+  let selectedCurrency = 'USD';
+
+  // Valeurs de secours affichées le temps que /api/pricing réponde
+  // (ou si l'appel échoue) — à ne mettre à jour ici QUE si le prix
+  // officiel change ET que /api/pricing est indisponible pour une raison
+  // quelconque. La vraie source de vérité reste toujours le serveur.
+  let pricingInfo = {
+    priceUsd: 5,
+    priceCdf: 11250
+  };
+
+  const priceSymbolEl =
+    document.getElementById('paywallPriceSymbol');
+
+  const priceAmountEl =
+    document.getElementById('paywallPriceAmount');
+
+  const currencyUsdBtn =
+    document.getElementById('paywallCurrencyUsd');
+
+  const currencyCdfBtn =
+    document.getElementById('paywallCurrencyCdf');
+
+  function renderPrice() {
+    if (selectedCurrency === 'USD') {
+      priceSymbolEl.textContent = '$';
+      priceAmountEl.textContent = pricingInfo.priceUsd;
+    } else {
+      priceSymbolEl.textContent = '';
+      priceAmountEl.textContent =
+        `${pricingInfo.priceCdf.toLocaleString('fr-FR')} FC`;
+    }
+  }
+
+  function selectCurrency(currency) {
+    selectedCurrency = currency;
+    currencyUsdBtn.classList.toggle('is-active', currency === 'USD');
+    currencyCdfBtn.classList.toggle('is-active', currency === 'CDF');
+    renderPrice();
+  }
+
+  currencyUsdBtn.addEventListener('click', () => selectCurrency('USD'));
+  currencyCdfBtn.addEventListener('click', () => selectCurrency('CDF'));
+
+  fetch(`${API_BASE_URL}/api/pricing`)
+    .then((r) => r.json())
+    .then((data) => {
+      if (data && data.success) {
+        pricingInfo = {
+          priceUsd: data.priceUsd,
+          priceCdf: data.priceCdf
+        };
+        renderPrice();
+      }
+    })
+    .catch(() => {
+      // Appel échoué (serveur qui démarre, réseau...) : on garde les
+      // valeurs de secours ci-dessus, déjà affichées à l'écran.
+    });
+
+
   checkoutBtn.addEventListener(
     'click',
     () => {
@@ -826,7 +856,8 @@ function renderPaywall(user) {
             phoneNumber,
 
           countryCode
-        }
+        },
+        selectedCurrency
       );
 
     }
@@ -848,6 +879,7 @@ async function startCheckout(
   user,
   zone,
   phone,
+  currency = 'CDF',
   isRetryAttempt = false
 ) {
 
@@ -930,7 +962,9 @@ async function startCheckout(
 
               countryCode:
                 phone.countryCode
-            }
+            },
+
+            currency
 
           }),
 
@@ -965,6 +999,7 @@ async function startCheckout(
         user,
         zone,
         phone,
+        currency,
         true
       );
     }
@@ -1080,7 +1115,8 @@ async function startCheckout(
           startCheckout(
             user,
             zone,
-            phone
+            phone,
+            currency
           )
       );
 
@@ -1089,119 +1125,6 @@ async function startCheckout(
     clearTimeout(
       timeoutId
     );
-  }
-}
-
-
-// ============================================================
-// VÉRIFICATION LICENCE
-// ============================================================
-
-async function verifyLicense(
-  user,
-  inputEl,
-  errorEl,
-  buttonEl
-) {
-
-  errorEl.hidden =
-    true;
-
-  const licenseKey =
-    inputEl.value.trim();
-
-
-  if (!licenseKey) {
-
-    errorEl.textContent =
-      "Entre la clé de licence reçue par email après ton paiement.";
-
-    errorEl.hidden =
-      false;
-
-    return;
-  }
-
-
-  buttonEl.disabled =
-    true;
-
-  buttonEl.textContent =
-    'Vérification…';
-
-
-  try {
-
-    const idToken =
-      await user.getIdToken();
-
-    const response =
-      await fetch(
-        `${API_BASE_URL}/api/verify-license`,
-        {
-          method: 'POST',
-
-          headers: {
-            'Content-Type':
-              'application/json',
-
-            'Authorization':
-              `Bearer ${idToken}`
-          },
-
-          body: JSON.stringify({
-            licenseKey
-          })
-        }
-      );
-
-
-    const data =
-      await response.json();
-
-
-    if (
-      data &&
-      data.valid &&
-      data.reactivated
-    ) {
-
-      window.location.reload();
-
-      return;
-    }
-
-
-    errorEl.textContent =
-      (
-        data &&
-        data.error
-      ) ||
-      "Clé de licence invalide.";
-
-    errorEl.hidden =
-      false;
-
-  } catch (err) {
-
-    console.error(
-      'Erreur de vérification de licence :',
-      err
-    );
-
-    errorEl.textContent =
-      "Impossible de vérifier la clé pour le moment. Réessaie dans un instant.";
-
-    errorEl.hidden =
-      false;
-
-  } finally {
-
-    buttonEl.disabled =
-      false;
-
-    buttonEl.textContent =
-      'Vérifier';
   }
 }
 
