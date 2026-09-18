@@ -57,7 +57,7 @@ const TRIAL_DURATION_DAYS = 3;
 // (XOF pour l'Afrique de l'Ouest, XAF pour le Cameroun, Afrique centrale).
 // La devise à facturer dépend donc du PAYS choisi par le client, pas d'une
 // devise fixe.
-const SUBSCRIPTION_PRICE_USD = 5;
+const SUBSCRIPTION_PRICE_USD = 1;
 
 // Taux de change USD -> devise locale, un par devise réellement utilisée
 // par l'un des 8 pays. Modifiable via variables d'environnement sans
