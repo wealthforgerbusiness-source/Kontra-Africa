@@ -4,19 +4,6 @@ const { getFirestore } = require("firebase-admin/firestore");
 // ============================================================
 // FIREBASE ADMIN
 // ============================================================
-// IMPORTANT : firebase-admin v14+ a supprimé l'ancienne API
-// "namespaced" (admin.auth(), admin.credential.cert(),
-// admin.firestore.FieldValue...). On utilise donc uniquement
-// l'API modulaire partout (voir aussi verify-auth.js et
-// contracts.js qui ont été mis à jour en conséquence).
-//
-// Render n'a pas de disque persistant : on ne peut pas utiliser
-// applicationDefault() qui cherche un fichier via
-// GOOGLE_APPLICATION_CREDENTIALS. On charge donc le JSON du
-// service account depuis une variable d'env (FIREBASE_SERVICE_ACCOUNT),
-// à définir sur Render avec le contenu complet du fichier JSON
-// téléchargé dans Firebase Console > Paramètres > Comptes de service.
-
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   throw new Error(
     "FIREBASE_SERVICE_ACCOUNT manquante : ajoute la clé JSON du service account dans les variables d'environnement Render."
@@ -40,29 +27,25 @@ const adminApp = initializeApp({
 const db = getFirestore(adminApp);
 
 // ============================================================
-// VARIABLES D'ENVIRONNEMENT
+// VARIABLES D'ENVIRONNEMENT — SASPAY
 // ============================================================
 
-const CHARIOW_API_KEY = process.env.CHARIOW_API_KEY;
-const CHARIOW_API_URL = "https://api.chariow.com/v1";
-const CHARIOW_PRODUCT_ID = "prd_tqwlmf8w";
+const SASPAY_SECRET_KEY = process.env.SASPAY_SECRET_KEY;
+const SASPAY_API_URL = "https://api.saspay.me/api/v1";
 
 const TRIAL_DURATION_DAYS = 3;
 
 // ============================================================
-// CHARIOW WEBHOOK
+// SASPAY WEBHOOK
 // ============================================================
-// Secret partagé avec Chariow pour authentifier les appels
-// webhook.
-// Doit être identique à celui configuré côté Chariow.
+// Secret partagé avec SasPay pour authentifier les appels webhook.
+// Doit être identique à celui configuré côté dashboard SasPay.
 
-const CHARIOW_WEBHOOK_SECRET = process.env.CHARIOW_WEBHOOK_SECRET;
+const SASPAY_WEBHOOK_SECRET = process.env.SASPAY_WEBHOOK_SECRET;
 
 // ============================================================
 // FRONTEND
 // ============================================================
-// URL publique du frontend.
-// Peut être remplacée par APP_BASE_URL dans Render.
 
 const APP_BASE_URL =
   process.env.APP_BASE_URL || "https://kontra-africa-app.onrender.com";
@@ -74,7 +57,6 @@ const APP_BASE_URL =
 const ALLOWED_ORIGINS = [
   APP_BASE_URL,
 
-  // Autoriser localhost uniquement hors production
   ...(process.env.NODE_ENV !== "production"
     ? [
         "http://localhost:3000",
@@ -84,7 +66,6 @@ const ALLOWED_ORIGINS = [
       ]
     : []),
 
-  // Origines supplémentaires définies dans Render
   ...((process.env.EXTRA_ALLOWED_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
@@ -98,10 +79,9 @@ const ALLOWED_ORIGINS = [
 module.exports = {
   adminApp,
   db,
-  CHARIOW_API_KEY,
-  CHARIOW_API_URL,
-  CHARIOW_PRODUCT_ID,
-  CHARIOW_WEBHOOK_SECRET,
+  SASPAY_SECRET_KEY,
+  SASPAY_API_URL,
+  SASPAY_WEBHOOK_SECRET,
   APP_BASE_URL,
   ALLOWED_ORIGINS,
   TRIAL_DURATION_DAYS,
