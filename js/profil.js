@@ -10,11 +10,17 @@ renderAppNav('profil'); // sidebar desktop + bottom nav mobile
 const API_BASE = 'https://kontra-africa.onrender.com';
 const CHECKOUT_TIMEOUT_MS = 60000; // le backend Render (plan gratuit) peut mettre jusqu'à ~50s à répondre après une inactivité (cold start)
 
+// Clé localStorage : on garde la référence de la dernière tentative de
+// paiement pour pouvoir la vérifier automatiquement au retour, sans rien
+// demander à l'utilisateur (contrairement à l'ancienne clé de licence
+// Chariow, qui lui était envoyée par email et qu'il devait recopier).
+const PENDING_REFERENCE_STORAGE_KEY = 'kontra_pending_payment_reference';
+
 // Délai avant d'abandonner l'attente automatique après un retour de
-// paiement (?payment=success) et de proposer la saisie manuelle de la clé
-// en secours. Couvre : le webhook Chariow qui peut mettre plusieurs
-// secondes à arriver, ET un éventuel cold start de Render pendant que le
-// webhook traite la requête côté serveur.
+// paiement (?payment=success) et de proposer la vérification manuelle en
+// secours. Couvre : le webhook SasPay qui peut mettre plusieurs secondes à
+// arriver, ET un éventuel cold start de Render pendant que le webhook
+// traite la requête côté serveur.
 const PAYMENT_RETURN_TIMEOUT_MS = 45000;
 
 // ---------- Éléments DOM ----------
@@ -31,9 +37,12 @@ const subscriptionError = document.getElementById('subscription-error');
 const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
 const resubscribeCountry = document.getElementById('resubscribe-country');
 const resubscribePhone = document.getElementById('resubscribe-phone');
-const licenseKeyRow = document.getElementById('license-key-row');
-const licenseKeyInput = document.getElementById('license-key-input');
-const btnVerifyLicense = document.getElementById('btn-verify-license');
+
+// Filet de secours : remplace l'ancienne saisie manuelle de clé de licence.
+// Même structure HTML que l'ancien license-key-row, juste des id différents
+// (voir profil.html) — pas d'input texte requis, juste un bouton.
+const verifyPaymentRow = document.getElementById('payment-reference-row');
+const btnVerifyPayment = document.getElementById('btn-verify-payment');
 
 if (resubscribeCountry) {
   resubscribeCountry.innerHTML = buildCountryOptionsHtml();
@@ -43,7 +52,7 @@ const btnLogout = document.getElementById('btn-logout');
 
 let currentUser = null;
 
-// ---------- Retour de paiement Chariow (?payment=success) ----------
+// ---------- Retour de paiement SasPay (?payment=success) ----------
 // IMPORTANT : ce paramètre d'URL n'est qu'un signal d'affichage. N'importe
 // qui peut le taper dans la barre d'adresse sans avoir payé — il ne
 // débloque JAMAIS rien par lui-même. La seule source de vérité pour
@@ -74,12 +83,12 @@ function startPaymentPendingUI() {
   paymentReturnTimeoutId = setTimeout(() => {
     if (!awaitingPaymentActivation) return; // déjà résolu entre-temps
     paymentPendingText.textContent =
-      "Ça prend plus de temps que prévu. Si tu as reçu ta clé de licence par email, tu peux l'activer directement ci-dessous.";
-    // On force l'affichage du champ clé même si le statut Firestore
-    // n'est pas encore "expired"/"cancelled" (cas normal ici : il est
-    // probablement encore "trial" ou l'ancien statut expiré), car
+      "Ça prend plus de temps que prévu. Tu peux vérifier ton paiement manuellement ci-dessous.";
+    // On force l'affichage du bouton de vérification même si le statut
+    // Firestore n'est pas encore "expired"/"cancelled" (cas normal ici : il
+    // est probablement encore "trial" ou l'ancien statut expiré), car
     // renderSubscriptionStatus() ne le révèle pas dans ce cas.
-    if (licenseKeyRow) licenseKeyRow.hidden = false;
+    if (verifyPaymentRow) verifyPaymentRow.hidden = false;
   }, PAYMENT_RETURN_TIMEOUT_MS);
 }
 
@@ -91,6 +100,7 @@ function resolvePaymentPendingUI() {
     paymentReturnTimeoutId = null;
   }
   if (paymentPendingBanner) paymentPendingBanner.hidden = true;
+  clearStoredReference();
 }
 
 // ---------- Auth + garde d'accès (paywall si essai/abonnement terminé) ----------
@@ -137,10 +147,10 @@ function renderSubscriptionStatus(data) {
   subscriptionMessage.classList.remove('status-trial', 'status-active', 'status-expired');
   btnResubscribe.hidden = true;
   if (resubscribePhoneRow) resubscribePhoneRow.hidden = true;
-  // Ne pas re-masquer licenseKeyRow s'il vient d'être révélé par le
+  // Ne pas re-masquer verifyPaymentRow s'il vient d'être révélé par le
   // fallback "ça prend plus de temps que prévu" ci-dessus, tant qu'on
   // attend encore une activation.
-  if (licenseKeyRow && !awaitingPaymentActivation) licenseKeyRow.hidden = true;
+  if (verifyPaymentRow && !awaitingPaymentActivation) verifyPaymentRow.hidden = true;
   subscriptionError.hidden = true;
 
   if (status === 'trial') {
@@ -161,9 +171,9 @@ function renderSubscriptionStatus(data) {
     btnResubscribe.hidden = false;
     if (resubscribePhoneRow) resubscribePhoneRow.hidden = false;
     // Filet de secours : si le paiement a réussi côté opérateur mais que le
-    // webhook Chariow n'est jamais arrivé, l'utilisateur peut débloquer son
-    // compte lui-même avec la clé de licence reçue après paiement.
-    if (licenseKeyRow) licenseKeyRow.hidden = false;
+    // webhook SasPay n'est jamais arrivé, et qu'on a encore une référence
+    // de paiement en attente en local, on propose la vérification manuelle.
+    if (verifyPaymentRow && getStoredReference()) verifyPaymentRow.hidden = false;
   } else {
     subscriptionMessage.textContent = 'Statut d’abonnement inconnu.';
   }
@@ -172,6 +182,27 @@ function renderSubscriptionStatus(data) {
 function formatDate(value) {
   const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
   return date ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : null;
+}
+
+// ---------- Stockage local de la référence de paiement en cours ----------
+function storeReference(reference) {
+  try {
+    localStorage.setItem(PENDING_REFERENCE_STORAGE_KEY, reference);
+  } catch (_) { /* stockage indisponible, tant pis — le webhook reste la voie principale */ }
+}
+
+function getStoredReference() {
+  try {
+    return localStorage.getItem(PENDING_REFERENCE_STORAGE_KEY);
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearStoredReference() {
+  try {
+    localStorage.removeItem(PENDING_REFERENCE_STORAGE_KEY);
+  } catch (_) { /* rien à faire */ }
 }
 
 // ---------- Réabonnement ----------
@@ -220,6 +251,9 @@ async function handleResubscribe() {
     const result = await res.json();
 
     if (result.checkoutUrl) {
+      // On garde la référence en local pour pouvoir vérifier le paiement
+      // nous-mêmes au retour, si le webhook n'est jamais arrivé.
+      if (result.reference) storeReference(result.reference);
       window.location.href = result.checkoutUrl;
       return;
     }
@@ -238,54 +272,53 @@ async function handleResubscribe() {
   }
 }
 
-// ---------- Vérification manuelle de la clé de licence ----------
-if (btnVerifyLicense) {
-  btnVerifyLicense.addEventListener('click', handleVerifyLicense);
+// ---------- Vérification manuelle du paiement (filet de secours) ----------
+if (btnVerifyPayment) {
+  btnVerifyPayment.addEventListener('click', handleVerifyPayment);
 }
 
-async function handleVerifyLicense() {
-  if (!currentUser || !licenseKeyInput) return;
+async function handleVerifyPayment() {
+  if (!currentUser) return;
   subscriptionError.hidden = true;
 
-  const key = licenseKeyInput.value.trim();
+  const reference = getStoredReference();
 
-  if (!key) {
-    subscriptionError.textContent = 'Entre ta clé de licence pour continuer.';
+  if (!reference) {
+    subscriptionError.textContent = "Aucun paiement récent à vérifier. Relance un abonnement d'abord.";
     subscriptionError.hidden = false;
     return;
   }
 
-  btnVerifyLicense.disabled = true;
-  const originalLabel = btnVerifyLicense.textContent;
-  btnVerifyLicense.textContent = 'Vérification…';
+  btnVerifyPayment.disabled = true;
+  const originalLabel = btnVerifyPayment.textContent;
+  btnVerifyPayment.textContent = 'Vérification…';
 
   try {
     const idToken = await currentUser.getIdToken();
-    const res = await fetch(`${API_BASE}/api/verify-license`, {
+    const res = await fetch(`${API_BASE}/api/verify-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ licenseKey: key }),
+      body: JSON.stringify({ reference }),
     });
 
     const result = await res.json().catch(() => ({}));
 
-    if (!res.ok || !result.valid) {
-      throw new Error(result.error || "Clé de licence invalide.");
+    if (!res.ok || !result.verified) {
+      throw new Error(result.error || result.message || "Aucun paiement confirmé trouvé pour l'instant.");
     }
 
     // La confirmation visuelle vient du onSnapshot (subscriptionStatus
     // passe à "active" en direct) — resolvePaymentPendingUI() s'en charge
-    // déjà si on était en attente après un paiement.
-    licenseKeyInput.value = '';
+    // déjà, y compris le nettoyage de la référence stockée.
   } catch (error) {
-    subscriptionError.textContent = error.message || "Erreur lors de la vérification de la clé.";
+    subscriptionError.textContent = error.message || "Erreur lors de la vérification du paiement.";
     subscriptionError.hidden = false;
   } finally {
-    btnVerifyLicense.disabled = false;
-    btnVerifyLicense.textContent = originalLabel;
+    btnVerifyPayment.disabled = false;
+    btnVerifyPayment.textContent = originalLabel;
   }
 }
 
