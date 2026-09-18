@@ -5,6 +5,9 @@
 
 // Pays actuellement pris en charge (mêmes marchés que la page d'accueil).
 // `code` = code pays ISO envoyé tel quel au backend (`phone.countryCode`).
+// Gabon (GA) et Congo-Brazzaville (CG) retirés : pas de réseau mobile money
+// actif chez SasPay pour ces deux pays (voir docs.saspay.me/api-reference/
+// reference/formats) — seule la carte bancaire y fonctionnerait.
 export const COUNTRIES = [
   { code: 'CD', name: 'RD Congo', dial: '+243', flag: '🇨🇩', flagImage: 'rdc.png' },
   { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮', flagImage: 'cote-ivoire.png' },
@@ -14,8 +17,6 @@ export const COUNTRIES = [
   { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', flagImage: 'benin.png' },
   { code: 'BF', name: 'Burkina Faso', dial: '+226', flag: '🇧🇫', flagImage: 'burkina-faso.png' },
   { code: 'ML', name: 'Mali', dial: '+223', flag: '🇲🇱', flagImage: 'mali.png' },
-  { code: 'GA', name: 'Gabon', dial: '+241', flag: '🇬🇦', flagImage: 'gabon.png' },
-  { code: 'CG', name: 'Congo-Brazzaville', dial: '+242', flag: '🇨🇬', flagImage: 'congo-brazzaville.png' },
 ];
 
 const DEFAULT_COUNTRY_CODE = 'CD';
