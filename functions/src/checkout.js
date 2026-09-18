@@ -2,22 +2,36 @@
  * Contrôleur pour initier une session de paiement SasPay.
  */
 
-const { db, SASPAY_API_URL, SASPAY_SECRET_KEY, APP_BASE_URL, SUBSCRIPTION_PRICE_USD, USD_TO_CDF_RATE } = require("./config");
+const { db, SASPAY_API_URL, SASPAY_SECRET_KEY, APP_BASE_URL, SUBSCRIPTION_PRICE_USD, EXCHANGE_RATES, COUNTRY_CURRENCY } = require("./config");
 
 // PROBLÈME CORRIGÉ ICI : ce fichier envoyait auparavant un montant fixe
 // ("5000.00" en "XOF") laissé tel quel depuis l'exemple de la doc SasPay —
-// ni le vrai prix (5 $), ni la vraie devise (RDC utilise le CDF, pas le
-// XOF ouest-africain). Le montant est maintenant calculé à partir du prix
-// officiel (SUBSCRIPTION_PRICE_USD, voir config.js) et de la devise
-// choisie par le client.
-const SUPPORTED_CURRENCIES = ["USD", "CDF"];
+// ni le vrai prix (5 $), ni la vraie devise (ça dépend du pays du client,
+// pas d'une devise unique). Le montant est maintenant calculé à partir du
+// prix officiel (SUBSCRIPTION_PRICE_USD, voir config.js) et soit de la
+// devise locale du pays choisi par le client, soit directement en USD.
 
-function computeAmount(currency) {
-  if (currency === "USD") {
-    return SUBSCRIPTION_PRICE_USD.toFixed(2);
+/**
+ * Résout la devise et le montant à facturer.
+ *
+ * @param {string} mode         "USD" (payer en dollars) ou "LOCAL" (payer
+ *                               dans la monnaie du pays du client).
+ * @param {string|null} countryCode  Code ISO2 du pays (phone.countryCode),
+ *                               requis uniquement si mode === "LOCAL".
+ */
+function resolveCurrencyAndAmount(mode, countryCode) {
+  if (mode === "USD") {
+    return { currency: "USD", amount: SUBSCRIPTION_PRICE_USD.toFixed(2) };
   }
-  // CDF : conversion au taux configuré (voir USD_TO_CDF_RATE dans config.js)
-  return (SUBSCRIPTION_PRICE_USD * USD_TO_CDF_RATE).toFixed(2);
+
+  const currency = COUNTRY_CURRENCY[countryCode];
+  if (!currency) {
+    return null; // pays non supporté pour le paiement en monnaie locale
+  }
+
+  const rate = EXCHANGE_RATES[currency];
+  const amount = (SUBSCRIPTION_PRICE_USD * rate).toFixed(2);
+  return { currency, amount };
 }
 
 exports.checkout = async (req, res) => {
@@ -36,17 +50,29 @@ exports.checkout = async (req, res) => {
       return res.status(400).json({ error: "Une adresse email est requise pour initier le paiement." });
     }
 
-    // Devise choisie par le client (bouton $ / FC côté frontend). CDF par
-    // défaut si rien n'est fourni (comportement historique de l'app).
-    const currency = String(req.body.currency || "CDF").toUpperCase();
+    // Mode de paiement choisi par le client (bouton $ / monnaie locale
+    // côté frontend). "LOCAL" par défaut si rien n'est fourni.
+    const mode = String(req.body.currency || "LOCAL").toUpperCase();
 
-    if (!SUPPORTED_CURRENCIES.includes(currency)) {
+    if (!["USD", "LOCAL"].includes(mode)) {
       return res.status(400).json({
-        error: `Devise non supportée : ${currency}. Utilise USD ou CDF.`
+        error: `Mode de paiement non supporté : ${mode}. Utilise USD ou LOCAL.`
       });
     }
 
-    const amount = computeAmount(currency);
+    const countryCode = phone && phone.countryCode
+      ? String(phone.countryCode).toUpperCase()
+      : null;
+
+    const resolved = resolveCurrencyAndAmount(mode, countryCode);
+
+    if (!resolved) {
+      return res.status(400).json({
+        error: `Paiement en monnaie locale non disponible pour ce pays (${countryCode || "inconnu"}). Réessaie en payant en dollars ($).`
+      });
+    }
+
+    const { currency, amount } = resolved;
 
     // référence unique pour retrouver cette session précisément au moment du webhook
     const reference = `kontra_${firebaseUid}_${Date.now()}`;
