@@ -1,72 +1,42 @@
 /**
- * Contrôleur pour initier une session de paiement Chariow.
+ * Contrôleur pour initier une session de paiement SasPay.
  */
-const { CHARIOW_API_URL, CHARIOW_API_KEY, CHARIOW_PRODUCT_ID, APP_BASE_URL } = require("./config");
-const { getVerifiedUser } = require("./verify-auth");
+
+const { db, SASPAY_API_URL, SASPAY_SECRET_KEY, APP_BASE_URL } = require("./config");
+
+const SUBSCRIPTION_AMOUNT = "5000.00"; // adapte selon ton offre réelle
+const SUBSCRIPTION_CURRENCY = "XOF";   // adapte selon la devise facturée en RDC
 
 exports.checkout = async (req, res) => {
   try {
-    const user = await getVerifiedUser(req);
+    const { firebaseUid, email, firstName, lastName, phone } = req.body;
 
-    if (!user) {
-      return res.status(401).json({ error: "Authentification requise ou invalide." });
+    if (!firebaseUid) {
+      return res.status(400).json({ error: "Le firebaseUid est requis." });
     }
 
-    const { firebaseUid: _ignoredUid, email: _ignoredEmail } = req.body; // jamais utilisés, volontairement
-
-    // IMPORTANT : l'email vient du token Firebase vérifié, jamais du body.
-    // C'est cet email que Chariow utilise pour créer le client et pour
-    // ENVOYER LA CLÉ DE LICENCE PAR MAIL — un email non vérifié pourrait
-    // envoyer la clé de quelqu'un d'autre à un tiers.
-    const email = user.email;
-
-    if (!email) {
-      return res.status(400).json({
-        error: "Ton compte n'a pas d'adresse email valide — la clé de licence ne pourrait pas t'être envoyée. Contacte le support.",
-      });
-    }
-
-    const { firstName, lastName, phone } = req.body;
-
-    const phoneNumber = phone && phone.number ? String(phone.number).replace(/\D/g, '') : '';
-    const phoneCountryCode = phone && phone.countryCode ? String(phone.countryCode) : '';
-
-    if (!phoneNumber || phoneNumber.length < 8 || !phoneCountryCode) {
-      return res.status(400).json({ error: "Un numéro Mobile Money valide est requis pour le paiement." });
-    }
+    // référence unique pour retrouver cette session précisément au moment du webhook
+    const reference = `kontra_${firebaseUid}_${Date.now()}`;
 
     const payload = {
-      product_id: CHARIOW_PRODUCT_ID,
-      email,
-      first_name: firstName || "Client",
-      last_name: lastName || "Inconnu",
-      phone: {
-        number: phoneNumber,
-        country_code: phoneCountryCode
-      },
-      // Sans ce paramètre, Chariow renvoie le client vers sa page de post-achat
-      // par défaut (celle du compte/boutique Chariow) au lieu de le ramener dans
-      // l'app. On le ramène directement sur son profil.
-      // ATTENTION (15/09) : à vérifier auprès du support Chariow que
-      // "redirect_url" est bien le nom de champ attendu par leur API de
-      // checkout — des tests réels ont montré une redirection vers le
-      // domaine Chariow par défaut au lieu de cette URL, ce qui peut aussi
-      // venir d'un APP_BASE_URL vide/mal configuré sur Render.
-      redirect_url: `${APP_BASE_URL}/profil.html?payment=success`,
-      // CORRECTIF (15/09) : Chariow n'accepte PAS "custom_metadata" (objet).
-      // Confirmé via un Pulse test réel : le payload attend "custom_fields",
-      // un TABLEAU de paires { name, value }. L'ancien format ci-dessous
-      // était silencieusement ignoré par Chariow depuis le début — c'est la
-      // cause racine du firebase_uid manquant dans tous les webhooks reçus.
-      custom_fields: [
-        { name: "firebase_uid", value: user.uid }
-      ]
+      amount: SUBSCRIPTION_AMOUNT,
+      currency: SUBSCRIPTION_CURRENCY,
+      description: "Abonnement Kontra Africa",
+      customer_email: email || "",
+      customer_name: `${firstName || "Client"} ${lastName || ""}`.trim(),
+      reference: reference,
+      // Sans ce paramètre, SasPay renvoie le client vers sa page par défaut
+      // au lieu de le ramener dans l'app. On le ramène directement sur son profil.
+      return_url: `${APP_BASE_URL}/profil.html?payment=success`,
+      metadata: {
+        firebase_uid: firebaseUid
+      }
     };
 
-    const response = await fetch(`${CHARIOW_API_URL}/checkout`, {
+    const response = await fetch(`${SASPAY_API_URL}/checkout-sessions/`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${CHARIOW_API_KEY}`,
+        "Authorization": `Bearer ${SASPAY_SECRET_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
@@ -74,30 +44,30 @@ exports.checkout = async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Erreur API Chariow:", response.status, errorText);
-      let chariowMessage = null;
+      console.error("Erreur API SasPay:", response.status, errorText);
+
+      let saspayMessage = null;
       try {
-        chariowMessage = JSON.parse(errorText).message;
+        saspayMessage = JSON.parse(errorText).message;
       } catch (_) { /* corps non-JSON, on garde le message générique */ }
+
       const statusToForward = response.status >= 400 && response.status < 500 ? response.status : 502;
-      return res.status(statusToForward).json({ error: chariowMessage || "Erreur de communication avec le service de paiement." });
+      return res.status(statusToForward).json({ error: saspayMessage || "Erreur de communication avec le service de paiement." });
     }
 
-    const responseData = await response.json();
-    const data = responseData.data || responseData;
+    const data = await response.json();
 
-    // NOTE : la branche "already_purchased" a été retirée. D'après la doc
-    // Chariow, un produit de type Licence autorise TOUJOURS le rachat
-    // (chaque achat génère une nouvelle clé) — "already_purchased" ne peut
-    // se produire que sur des produits Downloadable/Course/Bundle, pas sur
-    // le tien. La garder aurait permis d'accorder 30 jours gratuits sans
-    // paiement si le type de produit change un jour côté Chariow.
-    if (data.step === "payment") {
-      return res.status(200).json({ checkoutUrl: data.payment.checkout_url });
-    } else {
-      console.warn("Étape inattendue:", data.step);
-      return res.status(200).json({ checkoutUrl: data.payment?.checkout_url || null, step: data.step });
-    }
+    // trace la session en attente, liée précisément à cet utilisateur et à cette référence
+    await db.collection("paiements_en_attente").doc(reference).set({
+      firebaseUid,
+      email: email || "",
+      sessionId: data.id,
+      status: "PENDING",
+      createdAt: new Date()
+    });
+
+    return res.status(200).json({ checkoutUrl: data.checkout_url, reference });
+
   } catch (error) {
     console.error("Erreur dans checkout:", error);
     return res.status(500).json({ error: "Erreur serveur interne." });
