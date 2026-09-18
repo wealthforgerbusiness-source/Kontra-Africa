@@ -15,6 +15,14 @@ exports.checkout = async (req, res) => {
       return res.status(400).json({ error: "Le firebaseUid est requis." });
     }
 
+    // SasPay exige customer_email (required + format email) : un "" passé
+    // silencieusement peut faire échouer leur validation ou produire un
+    // comportement inattendu. On le vérifie nous-mêmes, avec un message clair.
+    if (!email) {
+      console.error("checkout: email manquant pour firebaseUid", firebaseUid);
+      return res.status(400).json({ error: "Une adresse email est requise pour initier le paiement." });
+    }
+
     // référence unique pour retrouver cette session précisément au moment du webhook
     const reference = `kontra_${firebaseUid}_${Date.now()}`;
 
@@ -24,12 +32,16 @@ exports.checkout = async (req, res) => {
       description: "Abonnement Kontra Africa",
       customer_email: email || "",
       customer_name: `${firstName || "Client"} ${lastName || ""}`.trim(),
-      reference: reference,
       // Sans ce paramètre, SasPay renvoie le client vers sa page par défaut
       // au lieu de le ramener dans l'app. On le ramène directement sur son profil.
       return_url: `${APP_BASE_URL}/profil.html?payment=success`,
+      // "reference" n'est pas un champ documenté à la racine du body SasPay
+      // (voir docs.saspay.me/api-reference/payments/checkout-create) — seul
+      // "metadata" accepte des clés libres. On l'y range pour rester conforme
+      // au schéma et pouvoir la retrouver depuis le webhook si besoin.
       metadata: {
-        firebase_uid: firebaseUid
+        firebase_uid: firebaseUid,
+        reference: reference
       }
     };
 
@@ -57,10 +69,25 @@ exports.checkout = async (req, res) => {
 
     const data = await response.json();
 
+    // Garde-fou : SasPay répond normalement avec `id` + `checkout_url` sur un
+    // 2xx (voir docs.saspay.me/api-reference/payments/checkout-create). Si ce
+    // n'est pas le cas (scope de clé API, session mal formée côté SasPay,
+    // etc.), on logue la réponse brute et on renvoie une erreur propre au lieu
+    // de planter au moment d'écrire dans Firestore avec un sessionId vide.
+    if (!data || !data.id || !data.checkout_url) {
+      console.error(
+        "checkout: réponse SasPay inattendue (id/checkout_url manquant) :",
+        JSON.stringify(data)
+      );
+      return res.status(502).json({
+        error: "Réponse invalide du service de paiement. Réessaie dans un instant."
+      });
+    }
+
     // trace la session en attente, liée précisément à cet utilisateur et à cette référence
     await db.collection("paiements_en_attente").doc(reference).set({
       firebaseUid,
-      email: email || "",
+      email,
       sessionId: data.id,
       status: "PENDING",
       createdAt: new Date()
