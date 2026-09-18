@@ -28,7 +28,7 @@ const stockRouter = require("./src/stock");
 // CONFIG
 // ============================================================
 
-const { ALLOWED_ORIGINS, SUBSCRIPTION_PRICE_USD, USD_TO_CDF_RATE } = require("./src/config");
+const { ALLOWED_ORIGINS, SUBSCRIPTION_PRICE_USD, EXCHANGE_RATES, COUNTRY_CURRENCY } = require("./src/config");
 
 const app = express();
 
@@ -250,17 +250,38 @@ app.get("/health", (req, res) => {
 // Sert de source unique de vérité pour le prix affiché côté frontend
 // (paywall, page profil) — évite exactement le bug corrigé dans
 // checkout.js : un prix affiché ($5) totalement déconnecté du montant
-// réellement facturé (avant : 5000 XOF, un exemple de doc jamais adapté).
-// Le frontend appelle cette route pour afficher le prix dans les deux
-// devises, calculé avec EXACTEMENT le même taux que celui utilisé pour
-// créer la session de paiement.
+// réellement facturé.
+//
+// ?country=CI (code ISO2, voir js/phone-countries.js pour les 8 pays
+// pris en charge) fait renvoyer la devise locale ET le montant local de
+// CE pays précis, calculés avec EXACTEMENT le même taux que celui utilisé
+// pour créer la session de paiement (checkout.js) — impossible que les
+// deux divergent puisque c'est la même source (config.js).
+// Sans ?country, seul le prix en USD est renvoyé.
 app.get("/api/pricing", (req, res) => {
-  res.status(200).json({
+  const countryCode = req.query.country
+    ? String(req.query.country).toUpperCase()
+    : null;
+
+  const response = {
     success: true,
     priceUsd: SUBSCRIPTION_PRICE_USD,
-    usdToCdfRate: USD_TO_CDF_RATE,
-    priceCdf: Number((SUBSCRIPTION_PRICE_USD * USD_TO_CDF_RATE).toFixed(2)),
-  });
+  };
+
+  if (countryCode) {
+    const currency = COUNTRY_CURRENCY[countryCode];
+
+    if (currency) {
+      const rate = EXCHANGE_RATES[currency];
+      response.localCurrency = currency;
+      response.localAmount = Number((SUBSCRIPTION_PRICE_USD * rate).toFixed(2));
+    } else {
+      response.localCurrency = null;
+      response.localAmount = null;
+    }
+  }
+
+  res.status(200).json(response);
 });
 
 // ============================================================
