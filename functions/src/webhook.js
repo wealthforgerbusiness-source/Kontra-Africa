@@ -55,10 +55,15 @@ exports.saspayWebhook = async (req, res) => {
     }
 
     const body = req.body || {};
-    const eventType = body.event || "unknown_event";
-    const data = body.data || {};
 
-    console.log(`Webhook SasPay reçu. Événement : ${eventType}`);
+    // Comme pour checkout.js et verify-payment.js : reste tolérant si SasPay
+    // enveloppe le payload webhook dans { success, event, data, code } plutôt
+    // que de l'envoyer à plat. On log toujours le payload brut ci-dessous pour
+    // confirmer/ajuster ce point si besoin.
+    const eventType = body.event || body.type || "unknown_event";
+    const data = body.data || body;
+
+    console.log(`Webhook SasPay reçu. Événement : ${eventType}. Payload brut :`, JSON.stringify(body));
 
     const reference = data.reference || null;
     const transactionId = data.id || null;
@@ -89,7 +94,14 @@ exports.saspayWebhook = async (req, res) => {
 
     const userRef = db.collection("users").doc(resolvedUid);
 
-    if (eventType === "transaction.success") {
+    // On normalise pour rester tolérant tant que la convention exacte de
+    // nommage des événements SasPay n'est pas confirmée par un vrai webhook
+    // reçu (vérifier les logs Render après un paiement réel).
+    const normalizedEvent = String(eventType).toLowerCase();
+    const isSuccessEvent = normalizedEvent.includes("success") || normalizedEvent.includes("paid");
+    const isFailedOrCancelledEvent = normalizedEvent.includes("fail") || normalizedEvent.includes("cancel");
+
+    if (isSuccessEvent) {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // abonnement 30 jours, adapte si besoin
 
@@ -104,7 +116,7 @@ exports.saspayWebhook = async (req, res) => {
 
       console.log(`Statut de ${resolvedUid} mis à jour : active (transaction ${transactionId}).`);
 
-    } else if (eventType === "transaction.failed" || eventType === "transaction.cancelled") {
+    } else if (isFailedOrCancelledEvent) {
       // Même prudence que l'ancien système Chariow : une tentative ratée ne
       // doit jamais écraser un abonnement encore actif et non expiré (les
       // webhooks peuvent arriver en désordre / en retry).
