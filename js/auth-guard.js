@@ -525,11 +525,11 @@ function renderPaywall(user) {
 
           <button
             type="button"
-            id="paywallCurrencyCdf"
+            id="paywallCurrencyLocal"
             class="paywall__currency-btn"
-            data-currency="CDF"
+            data-currency="LOCAL"
           >
-            FC CDF
+            <span id="paywallCurrencyLocalLabel">Monnaie locale</span>
           </button>
         </div>
 
@@ -741,24 +741,30 @@ function renderPaywall(user) {
 
 
   // ----------------------------------------------------------
-  // DEVISE DE PAIEMENT — $ USD ou FC CDF
+  // DEVISE DE PAIEMENT — $ USD ou monnaie locale du pays choisi
   // ----------------------------------------------------------
-  // PROBLÈME CORRIGÉ ICI : le prix affiché ("5 $") était fixe alors que le
-  // montant réellement facturé côté SasPay était un placeholder totalement
-  // différent (voir checkout.js). On récupère maintenant le vrai prix
-  // depuis /api/pricing (source unique de vérité, même valeurs que celles
-  // utilisées pour créer la session de paiement), et on propose les deux
-  // devises au client.
+  // PROBLÈME CORRIGÉ ICI (x2) :
+  // 1) le prix affiché ("5 $") était fixe alors que le montant réellement
+  //    facturé côté SasPay était un placeholder totalement différent
+  //    (voir checkout.js).
+  // 2) la "monnaie locale" était codée en dur sur CDF — or CDF n'est la
+  //    devise que de la RD Congo. Les 7 autres pays pris en charge (voir
+  //    js/phone-countries.js) utilisent le franc CFA (XOF ou XAF). La
+  //    devise locale doit donc suivre le PAYS sélectionné dans le
+  //    formulaire, pas être fixe.
+  //
+  // On récupère le vrai prix (USD + devise locale du pays choisi) depuis
+  // /api/pricing?country=XX — source unique de vérité, mêmes valeurs que
+  // celles utilisées pour créer la session de paiement.
 
-  let selectedCurrency = 'USD';
+  let selectedCurrencyMode = 'USD'; // 'USD' ou 'LOCAL' — envoyé tel quel à /api/checkout
 
-  // Valeurs de secours affichées le temps que /api/pricing réponde
-  // (ou si l'appel échoue) — à ne mettre à jour ici QUE si le prix
-  // officiel change ET que /api/pricing est indisponible pour une raison
-  // quelconque. La vraie source de vérité reste toujours le serveur.
+  // Valeurs de secours affichées le temps que /api/pricing réponde (ou si
+  // l'appel échoue). La vraie source de vérité reste toujours le serveur.
   let pricingInfo = {
     priceUsd: 5,
-    priceCdf: 11250
+    localCurrency: null,
+    localAmount: null
   };
 
   const priceSymbolEl =
@@ -770,45 +776,74 @@ function renderPaywall(user) {
   const currencyUsdBtn =
     document.getElementById('paywallCurrencyUsd');
 
-  const currencyCdfBtn =
-    document.getElementById('paywallCurrencyCdf');
+  const currencyLocalBtn =
+    document.getElementById('paywallCurrencyLocal');
+
+  const currencyLocalLabelEl =
+    document.getElementById('paywallCurrencyLocalLabel');
 
   function renderPrice() {
-    if (selectedCurrency === 'USD') {
+    if (selectedCurrencyMode === 'USD') {
       priceSymbolEl.textContent = '$';
       priceAmountEl.textContent = pricingInfo.priceUsd;
-    } else {
+    } else if (pricingInfo.localCurrency) {
       priceSymbolEl.textContent = '';
       priceAmountEl.textContent =
-        `${pricingInfo.priceCdf.toLocaleString('fr-FR')} FC`;
+        `${pricingInfo.localAmount.toLocaleString('fr-FR')} ${pricingInfo.localCurrency}`;
+    } else {
+      // Pays pas encore résolu (chargement) ou non supporté en local.
+      priceSymbolEl.textContent = '';
+      priceAmountEl.textContent = '…';
     }
   }
 
-  function selectCurrency(currency) {
-    selectedCurrency = currency;
-    currencyUsdBtn.classList.toggle('is-active', currency === 'USD');
-    currencyCdfBtn.classList.toggle('is-active', currency === 'CDF');
+  function selectCurrencyMode(mode) {
+    selectedCurrencyMode = mode;
+    currencyUsdBtn.classList.toggle('is-active', mode === 'USD');
+    currencyLocalBtn.classList.toggle('is-active', mode === 'LOCAL');
     renderPrice();
   }
 
-  currencyUsdBtn.addEventListener('click', () => selectCurrency('USD'));
-  currencyCdfBtn.addEventListener('click', () => selectCurrency('CDF'));
+  currencyUsdBtn.addEventListener('click', () => selectCurrencyMode('USD'));
+  currencyLocalBtn.addEventListener('click', () => selectCurrencyMode('LOCAL'));
 
-  fetch(`${API_BASE_URL}/api/pricing`)
-    .then((r) => r.json())
-    .then((data) => {
-      if (data && data.success) {
-        pricingInfo = {
-          priceUsd: data.priceUsd,
-          priceCdf: data.priceCdf
-        };
-        renderPrice();
-      }
-    })
-    .catch(() => {
-      // Appel échoué (serveur qui démarre, réseau...) : on garde les
-      // valeurs de secours ci-dessus, déjà affichées à l'écran.
-    });
+  function fetchPricingForCountry(countryCode) {
+    fetch(`${API_BASE_URL}/api/pricing?country=${encodeURIComponent(countryCode)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.success) {
+          pricingInfo = {
+            priceUsd: data.priceUsd,
+            localCurrency: data.localCurrency,
+            localAmount: data.localAmount
+          };
+
+          // Met à jour le libellé du bouton avec la vraie devise du pays
+          // (ex: "Payer en FCFA" pour un pays XOF, "Payer en FC" pour la
+          // RDC) au lieu du générique "Monnaie locale".
+          if (currencyLocalLabelEl) {
+            currencyLocalLabelEl.textContent = data.localCurrency
+              ? `${data.localCurrency}`
+              : 'Monnaie locale';
+          }
+
+          renderPrice();
+        }
+      })
+      .catch(() => {
+        // Appel échoué (serveur qui démarre, réseau...) : on garde les
+        // valeurs de secours déjà affichées à l'écran.
+      });
+  }
+
+  // Chargement initial pour le pays présélectionné, puis à chaque
+  // changement de pays dans le formulaire (mise à jour de updateDialPrefix
+  // déjà appelée ci-dessus).
+  fetchPricingForCountry(countrySelect.value);
+
+  countrySelect.addEventListener('change', () => {
+    fetchPricingForCountry(countrySelect.value);
+  });
 
 
   checkoutBtn.addEventListener(
@@ -857,7 +892,7 @@ function renderPaywall(user) {
 
           countryCode
         },
-        selectedCurrency
+        selectedCurrencyMode
       );
 
     }
