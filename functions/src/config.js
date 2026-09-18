@@ -25,6 +25,9 @@ const adminApp = initializeApp({
 
 // Firestore
 const db = getFirestore(adminApp);
+// Filet de sécurité : si jamais un champ undefined arrive jusqu'à un .set(),
+// Firestore l'ignore au lieu de lever une exception qui casse toute la requête.
+db.settings({ ignoreUndefinedProperties: true });
 
 // ============================================================
 // VARIABLES D'ENVIRONNEMENT — SASPAY
