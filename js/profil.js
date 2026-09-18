@@ -38,6 +38,55 @@ const resubscribePhoneRow = document.getElementById('resubscribe-phone-row');
 const resubscribeCountry = document.getElementById('resubscribe-country');
 const resubscribePhone = document.getElementById('resubscribe-phone');
 
+// Devise de paiement ($ USD / FC CDF) — voir /api/pricing et checkout.js
+// pour l'explication complète du bug corrigé (prix affiché déconnecté du
+// montant réellement facturé côté SasPay).
+const resubscribeCurrencyToggle = document.getElementById('resubscribe-currency-toggle');
+const resubscribeCurrencyUsdBtn = document.getElementById('resubscribeCurrencyUsd');
+const resubscribeCurrencyCdfBtn = document.getElementById('resubscribeCurrencyCdf');
+const resubscribePriceRow = document.getElementById('resubscribe-price');
+const resubscribePriceSymbol = document.getElementById('resubscribePriceSymbol');
+const resubscribePriceAmount = document.getElementById('resubscribePriceAmount');
+
+let selectedCurrency = 'USD';
+let pricingInfo = { priceUsd: 5, priceCdf: 11250 }; // valeurs de secours, écrasées par /api/pricing
+
+function renderResubscribePrice() {
+  if (!resubscribePriceSymbol || !resubscribePriceAmount) return;
+  if (selectedCurrency === 'USD') {
+    resubscribePriceSymbol.textContent = '$';
+    resubscribePriceAmount.textContent = pricingInfo.priceUsd;
+  } else {
+    resubscribePriceSymbol.textContent = '';
+    resubscribePriceAmount.textContent = `${pricingInfo.priceCdf.toLocaleString('fr-FR')} FC`;
+  }
+}
+
+if (resubscribeCurrencyUsdBtn && resubscribeCurrencyCdfBtn) {
+  resubscribeCurrencyUsdBtn.addEventListener('click', () => {
+    selectedCurrency = 'USD';
+    resubscribeCurrencyUsdBtn.classList.add('is-active');
+    resubscribeCurrencyCdfBtn.classList.remove('is-active');
+    renderResubscribePrice();
+  });
+  resubscribeCurrencyCdfBtn.addEventListener('click', () => {
+    selectedCurrency = 'CDF';
+    resubscribeCurrencyCdfBtn.classList.add('is-active');
+    resubscribeCurrencyUsdBtn.classList.remove('is-active');
+    renderResubscribePrice();
+  });
+}
+
+fetch(`${API_BASE}/api/pricing`)
+  .then((r) => r.json())
+  .then((data) => {
+    if (data && data.success) {
+      pricingInfo = { priceUsd: data.priceUsd, priceCdf: data.priceCdf };
+      renderResubscribePrice();
+    }
+  })
+  .catch(() => { /* on garde les valeurs de secours */ });
+
 // Filet de secours : remplace l'ancienne saisie manuelle de clé de licence.
 // Même structure HTML que l'ancien license-key-row, juste des id différents
 // (voir profil.html) — pas d'input texte requis, juste un bouton.
@@ -147,6 +196,8 @@ function renderSubscriptionStatus(data) {
   subscriptionMessage.classList.remove('status-trial', 'status-active', 'status-expired');
   btnResubscribe.hidden = true;
   if (resubscribePhoneRow) resubscribePhoneRow.hidden = true;
+  if (resubscribeCurrencyToggle) resubscribeCurrencyToggle.hidden = true;
+  if (resubscribePriceRow) resubscribePriceRow.hidden = true;
   // Ne pas re-masquer verifyPaymentRow s'il vient d'être révélé par le
   // fallback "ça prend plus de temps que prévu" ci-dessus, tant qu'on
   // attend encore une activation.
@@ -170,6 +221,8 @@ function renderSubscriptionStatus(data) {
     subscriptionMessage.classList.add('status-expired');
     btnResubscribe.hidden = false;
     if (resubscribePhoneRow) resubscribePhoneRow.hidden = false;
+    if (resubscribeCurrencyToggle) resubscribeCurrencyToggle.hidden = false;
+    if (resubscribePriceRow) { resubscribePriceRow.hidden = false; renderResubscribePrice(); }
     // Filet de secours : si le paiement a réussi côté opérateur mais que le
     // webhook SasPay n'est jamais arrivé, et qu'on a encore une référence
     // de paiement en attente en local, on propose la vérification manuelle.
@@ -238,7 +291,8 @@ async function handleResubscribe() {
       body: JSON.stringify({
         firstName: currentUser.displayName ? currentUser.displayName.split(' ')[0] : 'Client',
         lastName: currentUser.displayName ? currentUser.displayName.split(' ').slice(1).join(' ') || 'Inconnu' : 'Inconnu',
-        phone: { number: phoneNumber, countryCode }
+        phone: { number: phoneNumber, countryCode },
+        currency: selectedCurrency
       }),
       signal: controller.signal,
     });
