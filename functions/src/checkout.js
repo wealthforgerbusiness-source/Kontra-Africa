@@ -2,10 +2,23 @@
  * Contrôleur pour initier une session de paiement SasPay.
  */
 
-const { db, SASPAY_API_URL, SASPAY_SECRET_KEY, APP_BASE_URL } = require("./config");
+const { db, SASPAY_API_URL, SASPAY_SECRET_KEY, APP_BASE_URL, SUBSCRIPTION_PRICE_USD, USD_TO_CDF_RATE } = require("./config");
 
-const SUBSCRIPTION_AMOUNT = "5000.00"; // adapte selon ton offre réelle
-const SUBSCRIPTION_CURRENCY = "XOF";   // adapte selon la devise facturée en RDC
+// PROBLÈME CORRIGÉ ICI : ce fichier envoyait auparavant un montant fixe
+// ("5000.00" en "XOF") laissé tel quel depuis l'exemple de la doc SasPay —
+// ni le vrai prix (5 $), ni la vraie devise (RDC utilise le CDF, pas le
+// XOF ouest-africain). Le montant est maintenant calculé à partir du prix
+// officiel (SUBSCRIPTION_PRICE_USD, voir config.js) et de la devise
+// choisie par le client.
+const SUPPORTED_CURRENCIES = ["USD", "CDF"];
+
+function computeAmount(currency) {
+  if (currency === "USD") {
+    return SUBSCRIPTION_PRICE_USD.toFixed(2);
+  }
+  // CDF : conversion au taux configuré (voir USD_TO_CDF_RATE dans config.js)
+  return (SUBSCRIPTION_PRICE_USD * USD_TO_CDF_RATE).toFixed(2);
+}
 
 exports.checkout = async (req, res) => {
   try {
@@ -23,12 +36,24 @@ exports.checkout = async (req, res) => {
       return res.status(400).json({ error: "Une adresse email est requise pour initier le paiement." });
     }
 
+    // Devise choisie par le client (bouton $ / FC côté frontend). CDF par
+    // défaut si rien n'est fourni (comportement historique de l'app).
+    const currency = String(req.body.currency || "CDF").toUpperCase();
+
+    if (!SUPPORTED_CURRENCIES.includes(currency)) {
+      return res.status(400).json({
+        error: `Devise non supportée : ${currency}. Utilise USD ou CDF.`
+      });
+    }
+
+    const amount = computeAmount(currency);
+
     // référence unique pour retrouver cette session précisément au moment du webhook
     const reference = `kontra_${firebaseUid}_${Date.now()}`;
 
     const payload = {
-      amount: SUBSCRIPTION_AMOUNT,
-      currency: SUBSCRIPTION_CURRENCY,
+      amount,
+      currency,
       description: "Abonnement Kontra Africa",
       customer_email: email || "",
       customer_name: `${firstName || "Client"} ${lastName || ""}`.trim(),
@@ -93,6 +118,8 @@ exports.checkout = async (req, res) => {
       firebaseUid,
       email,
       sessionId: data.id,
+      currency,
+      amount,
       status: "PENDING",
       createdAt: new Date()
     });
