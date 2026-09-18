@@ -67,17 +67,21 @@ exports.checkout = async (req, res) => {
       return res.status(statusToForward).json({ error: saspayMessage || "Erreur de communication avec le service de paiement." });
     }
 
-    const data = await response.json();
+    const rawData = await response.json();
 
-    // Garde-fou : SasPay répond normalement avec `id` + `checkout_url` sur un
-    // 2xx (voir docs.saspay.me/api-reference/payments/checkout-create). Si ce
+    // La doc SasPay montre un exemple de réponse "plate", mais en pratique
+    // l'API enveloppe la session créée dans { success, data: {...}, code }.
+    // On gère les deux formes pour rester robuste si ça change côté SasPay.
+    const data = rawData && rawData.data ? rawData.data : rawData;
+
+    // Garde-fou : on doit obtenir `id` + `checkout_url` sur un 2xx. Si ce
     // n'est pas le cas (scope de clé API, session mal formée côté SasPay,
     // etc.), on logue la réponse brute et on renvoie une erreur propre au lieu
     // de planter au moment d'écrire dans Firestore avec un sessionId vide.
     if (!data || !data.id || !data.checkout_url) {
       console.error(
         "checkout: réponse SasPay inattendue (id/checkout_url manquant) :",
-        JSON.stringify(data)
+        JSON.stringify(rawData)
       );
       return res.status(502).json({
         error: "Réponse invalide du service de paiement. Réessaie dans un instant."
