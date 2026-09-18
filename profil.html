@@ -37,7 +37,7 @@
       <section class="panel">
         <h2 class="panel-title">Abonnement</h2>
         <div id="subscription-status" class="subscription-status">
-          <!-- Affiché juste après un retour de paiement Chariow
+          <!-- Affiché juste après un retour de paiement SasPay
                (?payment=success), tant que le webhook n'a pas encore
                confirmé l'activation côté serveur. Purement informatif :
                ce n'est jamais ce paramètre d'URL qui débloque l'accès. -->
@@ -60,12 +60,9 @@
             Se réabonner
           </button>
 
-          <div id="license-key-row" class="resubscribe-phone-row" hidden>
-            <label for="license-key-input" class="resubscribe-phone-label">Déjà payé ? Entre ta clé de licence Chariow</label>
-            <div class="resubscribe-phone-inputs">
-              <input type="text" id="license-key-input" class="resubscribe-phone-input" placeholder="ABCD-1234-EFGH-5678-IJKL" autocomplete="off">
-              <button type="button" id="btn-verify-license" class="btn btn-secondary">Vérifier la clé</button>
-            </div>
+          <div id="payment-reference-row" class="resubscribe-phone-row" hidden>
+            <label class="resubscribe-phone-label">Paiement déjà effectué mais pas encore confirmé ?</label>
+            <button type="button" id="btn-verify-payment" class="btn btn-secondary">Vérifier mon paiement</button>
           </div>
 
           <p id="subscription-error" class="form-error" role="alert" hidden></p>
