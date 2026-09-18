@@ -4,19 +4,20 @@
  * (stockée côté frontend après le retour de checkout, voir profil.js),
  * et on interroge directement l'API SasPay pour connaître le vrai statut —
  * utile si le webhook a été manqué ou retardé.
- *
- * ATTENTION : à confirmer avant mise en prod — le endpoint et les champs
- * de réponse exacts ("Retrieve a checkout session") n'ont pas pu être
- * vérifiés dans cette session. Vérifie sur docs.saspay.me/api-reference
- * le format de réponse réel (nom du champ de statut, valeurs possibles)
- * et ajuste isSessionPaid() ci-dessous en conséquence.
  */
 const { db, SASPAY_API_URL, SASPAY_SECRET_KEY } = require("./config");
 const { getVerifiedUid } = require("./verify-auth");
 
+// Valeurs vues confirmées en prod pour "status" : PENDING (voir checkout.js).
+// Par cohérence avec les enums SasPay observés ailleurs (tout en MAJUSCULES,
+// ex. fee_charge_mode: ADD_ON/DEDUCTED), on part du principe que le statut
+// "payé" est PAID. On reste tolérant sur la casse et sur d'autres libellés
+// plausibles pour ne pas bloquer si SasPay utilise une variante.
+const PAID_STATUS_VALUES = ["paid", "success", "succeeded", "completed"];
+
 function isSessionPaid(sessionData) {
-  // À ajuster selon la vraie réponse SasPay — hypothèse de départ :
-  return sessionData.status === "paid" || sessionData.payment_status === "success";
+  const status = (sessionData.status || sessionData.payment_status || "").toLowerCase();
+  return PAID_STATUS_VALUES.includes(status);
 }
 
 exports.verifyPayment = async (req, res) => {
@@ -59,9 +60,16 @@ exports.verifyPayment = async (req, res) => {
       return res.status(502).json({ error: "Impossible de vérifier le paiement pour le moment. Réessaie dans quelques minutes." });
     }
 
-    const sessionData = await response.json();
+    const rawSessionData = await response.json();
+
+    // Même piège que dans checkout.js : l'API SasPay enveloppe la ressource
+    // dans { success, data: {...}, code } plutôt que de la renvoyer à plat.
+    const sessionData = rawSessionData && rawSessionData.data ? rawSessionData.data : rawSessionData;
 
     if (!isSessionPaid(sessionData)) {
+      console.log(
+        `verifyPayment : session ${sessionId} pas encore payée (statut reçu : ${JSON.stringify(rawSessionData)})`
+      );
       return res.status(200).json({ verified: false, message: "Aucun paiement confirmé trouvé pour cette référence." });
     }
 
