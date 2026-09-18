@@ -903,6 +903,9 @@ async function startCheckout(
 
           body: JSON.stringify({
 
+            firebaseUid:
+              user.uid,
+
             email:
               user.email || '',
 
@@ -1035,7 +1038,7 @@ async function startCheckout(
 
     // IMPORTANT (sécurité) : "message" peut provenir du corps de réponse
     // de notre propre API, qui elle-même relaie parfois un message brut
-    // renvoyé par l'API Chariow (voir functions/src/checkout.js). On ne
+    // renvoyé par l'API SasPay (voir functions/src/checkout.js). On ne
     // doit donc JAMAIS l'injecter directement dans du innerHTML : si ce
     // texte contenait un jour du HTML/JS, il s'exécuterait dans le
     // navigateur de l'utilisateur (XSS). On construit le HTML statique
