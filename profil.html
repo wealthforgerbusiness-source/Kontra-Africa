@@ -48,6 +48,22 @@
 
           <p id="subscription-message" class="subscription-message">Chargement…</p>
 
+          <!-- ===================================================
+               CHOIX DE LA DEVISE DE PAIEMENT
+               Bascule l'affichage du prix ET la devise réellement
+               envoyée à /api/checkout (voir js/profil.js).
+          ==================================================== -->
+          <div id="resubscribe-currency-toggle" class="paywall__currency-toggle" role="group" aria-label="Devise de paiement" hidden>
+            <button type="button" id="resubscribeCurrencyUsd" class="paywall__currency-btn is-active" data-currency="USD">$ USD</button>
+            <button type="button" id="resubscribeCurrencyCdf" class="paywall__currency-btn" data-currency="CDF">FC CDF</button>
+          </div>
+
+          <div id="resubscribe-price" class="paywall__price" hidden>
+            <span class="paywall__currency" id="resubscribePriceSymbol">$</span>
+            <span id="resubscribePriceAmount">5</span>
+            <span class="paywall__period">/mois</span>
+          </div>
+
           <div id="resubscribe-phone-row" class="resubscribe-phone-row" hidden>
             <label for="resubscribe-phone" class="resubscribe-phone-label">Numéro Mobile Money (pour le paiement)</label>
             <div class="resubscribe-phone-inputs">
