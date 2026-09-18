@@ -28,7 +28,7 @@ const stockRouter = require("./src/stock");
 // CONFIG
 // ============================================================
 
-const { ALLOWED_ORIGINS } = require("./src/config");
+const { ALLOWED_ORIGINS, SUBSCRIPTION_PRICE_USD, USD_TO_CDF_RATE } = require("./src/config");
 
 const app = express();
 
@@ -241,6 +241,25 @@ app.get("/health", (req, res) => {
     service: "Kontra-Africa Backend",
     status: "online",
     timestamp: new Date().toISOString(),
+  });
+});
+
+// ============================================================
+// PRIX DE L'ABONNEMENT (public, lecture seule)
+// ============================================================
+// Sert de source unique de vérité pour le prix affiché côté frontend
+// (paywall, page profil) — évite exactement le bug corrigé dans
+// checkout.js : un prix affiché ($5) totalement déconnecté du montant
+// réellement facturé (avant : 5000 XOF, un exemple de doc jamais adapté).
+// Le frontend appelle cette route pour afficher le prix dans les deux
+// devises, calculé avec EXACTEMENT le même taux que celui utilisé pour
+// créer la session de paiement.
+app.get("/api/pricing", (req, res) => {
+  res.status(200).json({
+    success: true,
+    priceUsd: SUBSCRIPTION_PRICE_USD,
+    usdToCdfRate: USD_TO_CDF_RATE,
+    priceCdf: Number((SUBSCRIPTION_PRICE_USD * USD_TO_CDF_RATE).toFixed(2)),
   });
 });
 
