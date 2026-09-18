@@ -101,8 +101,20 @@ function waitForAuthUser() {
 
   // Capturé une fois au démarrage (pas à chaque callback) : sert à choisir
   // la durée du filet de sécurité ci-dessous.
+  //
+  // CORRECTIF : login.js pose cette clé avec un TIMESTAMP
+  // (String(Date.now())), jamais la chaîne '1'. Le test `=== '1'` était
+  // donc TOUJOURS faux, ce qui faisait passer directement au timeout court
+  // de 3s (NO_PENDING_RESTORE_TIMEOUT_MS) même juste après une connexion
+  // Google, au lieu du timeout long de 15s (AUTH_RESTORE_TIMEOUT_MS) prévu
+  // pour laisser Firebase le temps de restaurer la session. Sur mobile /
+  // juste après un login, 3s est souvent trop court : la session pas
+  // encore restaurée est alors interprétée comme "pas connecté" et
+  // l'utilisateur est renvoyé vers /login.html — c'est exactement le
+  // "je me connecte, ça a l'air de marcher, puis retour à login" remonté.
+  // On vérifie donc juste que la clé existe (peu importe sa valeur).
   const redirectPendingAtStart =
-    localStorage.getItem(REDIRECT_KEY) === '1';
+    localStorage.getItem(REDIRECT_KEY) !== null;
 
   return new Promise((resolve) => {
 
@@ -158,7 +170,7 @@ function waitForAuthUser() {
         const redirectPending =
           localStorage.getItem(
             REDIRECT_KEY
-          ) === '1';
+          ) !== null;
 
         // Peu importe redirectPending : on ne tranche JAMAIS "pas connecté"
         // sur le tout premier callback null de onAuthStateChanged. Cette
