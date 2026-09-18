@@ -51,12 +51,36 @@ const TRIAL_DURATION_DAYS = 3;
 // Prix officiel affiché dans l'app (voir paywall__price dans
 // auth-guard.js) : 5 $ / mois.
 //
-// ⚠️ USD_TO_CDF_RATE doit être mis à jour régulièrement (le franc
-// congolais bouge). Pour changer le taux SANS redéployer le code : ajoute
-// la variable d'environnement USD_TO_CDF_RATE sur Render (ou Netlify) —
-// sinon la valeur par défaut ci-dessous est utilisée.
+// CORRECTIF SUIVANT : la RDC n'est pas le seul pays pris en charge (voir
+// COUNTRIES dans js/phone-countries.js — 8 pays au total). Le CDF n'est la
+// devise locale QUE pour la RDC. Les 7 autres pays utilisent le franc CFA
+// (XOF pour l'Afrique de l'Ouest, XAF pour le Cameroun, Afrique centrale).
+// La devise à facturer dépend donc du PAYS choisi par le client, pas d'une
+// devise fixe.
 const SUBSCRIPTION_PRICE_USD = 5;
-const USD_TO_CDF_RATE = Number(process.env.USD_TO_CDF_RATE) || 2250;
+
+// Taux de change USD -> devise locale, un par devise réellement utilisée
+// par l'un des 8 pays. Modifiable via variables d'environnement sans
+// redéployer le code (utile car ces taux bougent).
+const EXCHANGE_RATES = {
+  CDF: Number(process.env.USD_TO_CDF_RATE) || 2250, // RD Congo
+  XOF: Number(process.env.USD_TO_XOF_RATE) || 600,  // Côte d'Ivoire, Sénégal, Togo, Bénin, Burkina Faso, Mali
+  XAF: Number(process.env.USD_TO_XAF_RATE) || 600,  // Cameroun
+};
+
+// Devise locale par pays — code ISO2 tel qu'envoyé par le frontend
+// (phone.countryCode, voir js/phone-countries.js pour la liste complète
+// des 8 pays pris en charge).
+const COUNTRY_CURRENCY = {
+  CD: 'CDF', // RD Congo
+  CI: 'XOF', // Côte d'Ivoire
+  CM: 'XAF', // Cameroun
+  SN: 'XOF', // Sénégal
+  TG: 'XOF', // Togo
+  BJ: 'XOF', // Bénin
+  BF: 'XOF', // Burkina Faso
+  ML: 'XOF', // Mali
+};
 
 // ============================================================
 // SASPAY WEBHOOK
@@ -109,5 +133,6 @@ module.exports = {
   ALLOWED_ORIGINS,
   TRIAL_DURATION_DAYS,
   SUBSCRIPTION_PRICE_USD,
-  USD_TO_CDF_RATE,
+  EXCHANGE_RATES,
+  COUNTRY_CURRENCY,
 };
