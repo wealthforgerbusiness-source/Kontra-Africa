@@ -1116,3 +1116,145 @@
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   Trial nudge — bannière + fenêtre modale d'incitation au paiement
+   pendant l'essai gratuit (voir js/auth-guard.js : scheduleTrialNudge).
+   Injectés en JS, en dehors de #appShell, directement sur <body>.
+   ========================================================================== */
+
+.trial-banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary);
+  color: #FFFFFF;
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.trial-banner--urgent {
+  background: var(--color-accent);
+}
+
+.trial-banner__text {
+  font-weight: 600;
+}
+
+.trial-banner__cta {
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-full);
+  background: #FFFFFF;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.trial-banner__cta:active {
+  transform: scale(0.97);
+}
+
+.trial-banner--urgent .trial-banner__cta {
+  color: var(--color-accent-dark);
+}
+
+.trial-banner__close {
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  opacity: 0.8;
+  font-size: var(--fs-md);
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.trial-banner__close:hover {
+  opacity: 1;
+}
+
+.trial-nudge-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(26, 19, 48, 0.55);
+  backdrop-filter: blur(2px);
+  animation: trial-nudge-fade-in var(--duration-base) var(--ease-standard);
+}
+
+@keyframes trial-nudge-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.trial-nudge-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+}
+
+.trial-nudge-card__icon {
+  font-size: var(--fs-2xl);
+  margin-bottom: var(--space-3);
+}
+
+.trial-nudge-card__title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.trial-nudge-card__text {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-5);
+}
+
+.trial-nudge-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trial-nudge-card__actions .btn {
+  width: 100%;
+}
+
+.trial-nudge-card__later {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.trial-nudge-card__later:hover {
+  color: var(--color-text);
+}
+
+@media (max-width: 480px) {
+  .trial-banner {
+    justify-content: flex-start;
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+  }
+}
