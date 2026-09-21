@@ -2,515 +2,711 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kontra-Africa — Contrats signés sur WhatsApp, stock et finances</title>
-  <meta name="description" content="Créez un contrat, envoyez-le à signer sur WhatsApp, recevez le PDF automatiquement. Gestion de stock et suivi financier dans une seule app. 3 jours d'essai gratuit, paiement en Mobile Money." />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kontra-Africa — Faites signer vos contrats sur WhatsApp | Essai gratuit 3 jours</title>
+  <meta name="description" content="Créez un contrat, envoyez le lien de signature sur WhatsApp, recevez le PDF signé. Stock et finances inclus. 3 jours gratuits, sans carte bancaire, paiement en Mobile Money." />
   <meta name="theme-color" content="#5B3FE0" />
+  <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/logo.webp" type="image/webp" />
   <link rel="apple-touch-icon" href="/logo.webp" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Kontra-Africa — Vos contrats signés en un échange WhatsApp" />
-  <meta property="og:description" content="Contrats, signatures, stock et finances dans une seule app. 3 jours offerts, sans carte bancaire." />
+  <meta property="og:title" content="Kontra-Africa — Vos contrats signés sur WhatsApp" />
+  <meta property="og:description" content="Contrats, signatures, stock et finances. 3 jours gratuits, sans carte bancaire." />
   <meta property="og:image" content="/images/illustrations/01-hero.webp" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
 
   <script>document.documentElement.classList.add("js");</script>
 
-  <style>
+  <!-- =====================================================================
+       1) VOS TOKENS (copiés tels quels pour que la page marche seule).
+       Si votre fichier de tokens est déjà chargé, supprimez ce bloc <style>
+       et ajoutez : <link rel="stylesheet" href="/css/VOTRE-FICHIER-TOKENS.css" />
+       ===================================================================== -->
+  <style id="tokens">
     :root {
-      --brand: #5B3FE0;
-      --brand-dark: #4429c4;
-      --ink: #17151f;
-      --muted: #5c5870;
-      --bg: #ffffff;
-      --bg-soft: #f6f4fd;
-      --border: #e7e3f5;
-      --radius: 14px;
-      --max: 1160px;
+      color-scheme: light only;
+
+      --color-primary: #5B3FE0;
+      --color-primary-dark: #4A32BD;
+      --color-primary-light: #EFEBFC;
+      --color-accent: #FF8A3D;
+      --color-accent-dark: #E3712A;
+
+      --color-bg: #FAFAFB;
+      --color-surface: #FFFFFF;
+      --color-surface-alt: #F4F2FA;
+      --color-text: #1A1330;
+      --color-text-muted: #6B6478;
+      --color-text-faint: #9B96A8;
+      --color-border: #E9E7F2;
+      --color-border-strong: #D6D2E4;
+
+      --color-success: #1E9E6B;
+      --color-success-bg: #E8F7F0;
+      --color-warning: #C77B12;
+      --color-warning-bg: #FDF3E4;
+      --color-error: #D8402F;
+      --color-error-bg: #FBEAE8;
+
+      --font-display: 'Space Grotesk', 'Inter', sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+      --fs-xs: 0.75rem;
+      --fs-sm: 0.875rem;
+      --fs-base: 1rem;
+      --fs-md: 1.125rem;
+      --fs-lg: 1.375rem;
+      --fs-xl: 1.75rem;
+      --fs-2xl: 2.25rem;
+      --fs-3xl: 3rem;
+      --fs-4xl: 3.75rem;
+
+      --lh-tight: 1.15;
+      --lh-snug: 1.35;
+      --lh-normal: 1.6;
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.5rem;
+      --space-6: 2rem;
+      --space-7: 2.5rem;
+      --space-8: 3rem;
+      --space-9: 4rem;
+      --space-10: 6rem;
+      --space-11: 8rem;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 999px;
+
+      --shadow-sm: 0 1px 2px rgba(26, 19, 48, 0.06);
+      --shadow-md: 0 8px 24px rgba(26, 19, 48, 0.08);
+      --shadow-lg: 0 16px 48px rgba(26, 19, 48, 0.12);
+      --shadow-focus: 0 0 0 3px rgba(91, 63, 224, 0.25);
+
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --duration-fast: 150ms;
+      --duration-base: 240ms;
+      --duration-slow: 420ms;
+
+      --container-max: 1200px;
+      --header-height: 72px;
+      --bottom-nav-height: 64px;
     }
 
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    section[id] { scroll-margin-top: 72px; }
+    *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: var(--ink);
-      background: var(--bg);
+      font-family: var(--font-body);
+      font-size: var(--fs-base);
+      line-height: var(--lh-normal);
+      color: var(--color-text);
+      background: var(--color-bg);
+      -webkit-font-smoothing: antialiased;
     }
-
-    a { text-decoration: none; color: inherit; }
-    img { max-width: 100%; display: block; }
-    ul { margin: 0; padding: 0; list-style: none; }
+    img, svg { max-width: 100%; display: block; }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; }
+    h1, h2, h3, h4 { font-family: var(--font-display); line-height: var(--lh-tight); margin: 0; letter-spacing: -0.01em; }
+    p { margin: 0; }
+    ul, ol { margin: 0; padding: 0; list-style: none; }
+    :focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: var(--radius-sm); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+      }
+    }
+    input, select, textarea { color-scheme: light only; }
+    .container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--space-5); }
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.7rem 1.4rem;
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      border: 1.5px solid transparent;
-      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+      min-height: 48px; padding: 0 var(--space-6);
+      border-radius: var(--radius-full); border: none;
+      font-family: var(--font-body); font-weight: 600; font-size: var(--fs-base);
+      transition: transform var(--duration-fast) var(--ease-standard),
+                  box-shadow var(--duration-fast) var(--ease-standard),
+                  background var(--duration-fast) var(--ease-standard);
     }
-    .btn:hover { transform: translateY(-1px); }
-    .btn--primary { background: var(--brand); color: #fff; }
-    .btn--primary:hover { background: var(--brand-dark); }
-    .btn--ghost { color: var(--ink); }
-    .btn--outline { border-color: var(--border); color: var(--ink); }
-    .btn--outline:hover { border-color: var(--brand); }
-    .btn--lg { padding: 0.9rem 1.8rem; font-size: 1.02rem; }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--color-accent); color: #FFFFFF; box-shadow: 0 6px 20px rgba(255, 138, 61, 0.35); }
+    .btn-primary:hover { background: var(--color-accent-dark); box-shadow: 0 8px 24px rgba(255, 138, 61, 0.45); }
+    .btn-secondary { background: var(--color-surface); color: var(--color-primary); border: 1.5px solid var(--color-border-strong); }
+    .btn-secondary:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+    .btn-ghost { background: transparent; color: var(--color-text); }
+    .btn-ghost:hover { background: var(--color-surface-alt); }
+    .btn:disabled { opacity: 0.5; pointer-events: none; box-shadow: none; }
+    .btn-lg { min-height: 56px; padding: 0 var(--space-8); font-size: var(--fs-md); }
+  </style>
 
-    /* HEADER */
+  <!-- =====================================================================
+       2) STYLE DE LA PAGE (utilise uniquement les tokens ci-dessus)
+       ===================================================================== -->
+  <style>
+    :root { --color-whatsapp: #25D366; --color-whatsapp-dark: #1EBE5B; --header-total: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
+
+    body { padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px)); }
+    html.menu-open, html.menu-open body { overflow: hidden; }
+    section[id], article[id] { scroll-margin-top: calc(var(--header-total) + 8px); }
+    p { color: var(--color-text-muted); }
+
+    /* --- Utilitaires de boutons propres à la page --- */
+    .btn { text-align: center; }
+    .btn-sm { min-height: 40px; padding: 0 var(--space-4); font-size: var(--fs-sm); }
+    .btn-block { width: 100%; }
+    .btn-wa { background: var(--color-whatsapp); color: #06301A; box-shadow: 0 6px 18px rgba(37, 211, 102, 0.35); }
+    .btn-wa:hover { background: var(--color-whatsapp-dark); }
+
+    /* --- Titres & sections --- */
+    .eyebrow { color: var(--color-primary); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; margin-bottom: var(--space-2); }
+    h2 { font-size: clamp(var(--fs-xl), 5.5vw, var(--fs-2xl)); margin-bottom: var(--space-3); }
+    h3 { font-size: var(--fs-md); margin-bottom: var(--space-2); }
+    .section { padding-block: var(--space-8); }
+    .section-head { max-width: 640px; margin-bottom: var(--space-6); }
+    .center { text-align: center; }
+    .center .section-head { margin-inline: auto; }
+    @media (min-width: 900px) { .section { padding-block: var(--space-9); } }
+
+    /* ============ HEADER ============ */
     .site-header {
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 0.9rem clamp(1rem, 4vw, 3rem);
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding-top: env(safe-area-inset-top, 0px);
     }
-    .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; }
-    .brand img { width: 30px; height: 30px; border-radius: 8px; }
+    .header-in { display: flex; align-items: center; gap: var(--space-3); height: var(--header-height); }
+    .brand { display: flex; align-items: center; gap: var(--space-2); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md); }
+    .brand img { width: 32px; height: 32px; border-radius: var(--radius-sm); }
+    .header-cta { margin-left: auto; }
 
-    .nav {
-      display: flex;
-      align-items: center;
-      gap: clamp(1rem, 2vw, 2rem);
-    }
-    .nav a:not(.btn) { font-size: 0.92rem; color: var(--muted); }
-    .nav a:not(.btn):hover { color: var(--ink); }
-    .nav-actions { display: flex; gap: 0.6rem; }
-
+    /* Bouton hamburger → croix */
     .menu-toggle {
-      display: none;
-      flex-direction: column;
-      gap: 5px;
-      background: none;
-      border: none;
-      padding: 0.4rem;
-      cursor: pointer;
+      display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px;
+      width: 44px; height: 44px; margin-right: calc(var(--space-2) * -1);
+      background: none; border: 0; border-radius: var(--radius-sm);
     }
-    .menu-toggle span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; }
+    .menu-toggle span {
+      display: block; width: 22px; height: 2px; border-radius: 2px; background: var(--color-text);
+      transition: transform var(--duration-base) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+    }
+    .menu-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .menu-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .menu-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-    @media (max-width: 860px) {
-      .menu-toggle { display: flex; }
+    /* Panneau du menu (mobile) : plein écran sous le header */
+    .nav {
+      position: fixed; left: 0; right: 0; bottom: 0; top: var(--header-total); z-index: 49;
+      display: flex; flex-direction: column;
+      padding: var(--space-4) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+      background: var(--color-surface); overflow-y: auto;
+      visibility: hidden; opacity: 0; transform: translateY(-8px);
+      transition: opacity var(--duration-base) var(--ease-standard),
+                  transform var(--duration-base) var(--ease-standard),
+                  visibility 0s linear var(--duration-base);
+    }
+    .nav.is-open { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+    .nav-links a {
+      display: block; padding: var(--space-4) 0;
+      font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 500;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .nav-actions { display: grid; gap: var(--space-3); margin-top: var(--space-6); }
+
+    @media (min-width: 900px) {
+      .menu-toggle, .header-cta { display: none; }
       .nav {
-        position: fixed;
-        inset: 64px 0 auto 0;
-        flex-direction: column;
-        align-items: flex-start;
-        background: #fff;
-        padding: 1.2rem clamp(1rem, 4vw, 3rem) 1.6rem;
-        border-bottom: 1px solid var(--border);
-        transform: translateY(-8px);
-        opacity: 0;
-        pointer-events: none;
-        transition: transform 0.2s ease, opacity 0.2s ease;
+        position: static; flex-direction: row; align-items: center; margin-left: auto;
+        padding: 0; background: none; overflow: visible; gap: var(--space-6);
+        visibility: visible; opacity: 1; transform: none; transition: none;
       }
-      .nav--open { transform: translateY(0); opacity: 1; pointer-events: auto; }
-      .nav-actions { margin-top: 0.8rem; width: 100%; }
-      .nav-actions .btn { flex: 1; }
+      .nav-links { display: flex; gap: var(--space-5); }
+      .nav-links a { padding: 0; border: 0; font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 500; color: var(--color-text-muted); }
+      .nav-links a:hover { color: var(--color-text); }
+      .nav-actions { display: flex; margin: 0; gap: var(--space-2); }
+      .nav-actions .btn { min-height: 40px; padding: 0 var(--space-5); font-size: var(--fs-sm); }
     }
 
-    /* TYPO */
-    .eyebrow { color: var(--brand); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.6rem; }
-    h1, h2, h3 { line-height: 1.15; margin: 0 0 0.7rem; }
-    h1 { font-size: clamp(2rem, 5vw, 3.1rem); }
-    h2 { font-size: clamp(1.5rem, 3.2vw, 2.2rem); }
-    h3 { font-size: 1.1rem; }
-    p { color: var(--muted); line-height: 1.6; margin: 0 0 1rem; }
-
-    /* HERO */
-    .hero {
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: clamp(1.5rem, 4vw, 3rem);
-      align-items: center;
-      max-width: var(--max);
-      margin: 0 auto;
-      padding: clamp(2rem, 6vw, 4.5rem) clamp(1rem, 4vw, 3rem);
-    }
-    @media (max-width: 900px) {
-      .hero { grid-template-columns: 1fr; }
-      .hero-media { order: -1; }
-    }
-
-    .js .hero-copy, .js .hero-media {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity 0.55s ease, transform 0.55s ease;
-    }
-    .js .hero-copy.in { opacity: 1; transform: translateY(0); }
-    .js .hero-media.in { opacity: 1; transform: translateY(0); transition-delay: 0.12s; }
-
-    .hero-ctas { display: flex; flex-wrap: wrap; gap: 0.8rem; margin: 1.2rem 0 0.8rem; }
-    .hero-note { font-size: 0.88rem; margin: 0 0 1.1rem; }
-
-    .trust-row { display: flex; flex-wrap: wrap; gap: 0.7rem 1.4rem; }
+    /* ============ HERO ============ */
+    .hero { display: grid; gap: var(--space-6); padding-block: var(--space-6) var(--space-7); }
+    .hero h1 { font-size: clamp(var(--fs-2xl), 7.5vw, var(--fs-4xl)); margin-bottom: var(--space-4); }
+    .hero .lead { font-size: var(--fs-md); margin-bottom: var(--space-3); }
+    .hero-audience { font-size: var(--fs-sm); margin-bottom: var(--space-5); }
+    .hero-ctas { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .hero-ctas .btn { padding-inline: var(--space-5); }
+    .hero-note { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text); margin-bottom: var(--space-4); }
+    .trust-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .trust-row li {
-      font-size: 0.85rem;
-      color: var(--ink);
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      padding: 0.4rem 0.8rem;
-      border-radius: 999px;
+      font-size: var(--fs-xs); color: var(--color-text);
+      background: var(--color-surface-alt); border: 1px solid var(--color-border);
+      padding: var(--space-1) var(--space-3); border-radius: var(--radius-full);
+    }
+    .hero-media img { border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); margin-inline: auto; }
+    .js .hero-copy, .js .hero-media { opacity: 0; transform: translateY(18px); transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
+    .js .hero-copy.in, .js .hero-media.in { opacity: 1; transform: none; }
+    .js .hero-media.in { transition-delay: .12s; }
+    @media (min-width: 560px) { .hero-ctas { display: flex; flex-wrap: wrap; } }
+    @media (min-width: 900px) {
+      .hero { grid-template-columns: 1.05fr .95fr; align-items: center; gap: var(--space-9); padding-block: var(--space-9); }
+      .hero-ctas .btn { padding-inline: var(--space-6); }
     }
 
-    .hero-media img { border-radius: 20px; box-shadow: 0 20px 50px -20px rgba(91,63,224,0.35); }
-
-    /* SECTIONS */
-    .section {
-      max-width: var(--max);
-      margin: 0 auto;
-      padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1rem, 4vw, 3rem);
+    /* ============ CARROUSEL PAYS INFINI ============ */
+    .countries { background: var(--color-surface-alt); border-block: 1px solid var(--color-border); padding-block: var(--space-7); }
+    .countries .section-head { margin-bottom: var(--space-5); }
+    .marquee { overflow-x: auto; scroll-snap-type: x proximity; padding: var(--space-1) 0; scrollbar-width: none; }
+    .marquee::-webkit-scrollbar { display: none; }
+    .marquee.is-running {
+      overflow: hidden; scroll-snap-type: none;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+              mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
     }
-    .section-head { max-width: 640px; margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+    .marquee-track { display: flex; width: max-content; }
+    .marquee.is-running .marquee-track { animation: kx-scroll 45s linear infinite !important; animation-iteration-count: infinite !important; animation-duration: 45s !important; }
+    @keyframes kx-scroll { to { transform: translateX(-50%); } }
+    .marquee.is-running:active .marquee-track { animation-play-state: paused; }
+    @media (hover: hover) { .marquee.is-running:hover .marquee-track { animation-play-state: paused; } }
 
-    .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
-    .js .reveal.reveal--in { opacity: 1; transform: translateY(0); }
-
-    .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
-    @media (max-width: 860px) { .steps-grid { grid-template-columns: 1fr; } }
-    .step-card { position: relative; background: var(--bg-soft); border-radius: var(--radius); padding: 1.4rem; border: 1px solid var(--border); }
-    .step-card img { border-radius: 10px; margin-bottom: 1rem; }
-    .step-number { display: block; color: var(--brand); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; }
-
-    .section--split { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: clamp(1.5rem, 4vw, 3rem); align-items: center; }
-    .section--reverse .split-media { order: 2; }
-    @media (max-width: 860px) {
-      .section--split { grid-template-columns: 1fr; }
-      .section--reverse .split-media { order: -1; }
+    .country {
+      flex: 0 0 auto; width: 216px; margin-right: var(--space-4);
+      background: var(--color-surface); border: 1px solid var(--color-border);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      padding: var(--space-4); text-align: center; scroll-snap-align: start;
     }
-    .split-media img { border-radius: 18px; }
-    .check-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.5rem; color: var(--ink); }
-    .check-list li::before { content: "✓"; position: absolute; left: 0; color: var(--brand); font-weight: 700; }
+    .country img { width: 36px; height: 36px; margin: 0 auto var(--space-2); border-radius: var(--radius-sm); object-fit: cover; }
+    .country h3 { font-size: var(--fs-base); margin-bottom: var(--space-2); }
+    .momo-list { display: flex; flex-wrap: wrap; gap: var(--space-1); justify-content: center; }
+    .momo-list li {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: var(--fs-xs); background: var(--color-surface-alt); border: 1px solid var(--color-border);
+      border-radius: var(--radius-full); padding: 2px var(--space-2); color: var(--color-text);
+    }
+    .momo-list li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--color-primary)); }
+    .o-orange { --dot: #FF7900; } .o-mtn { --dot: #FFCC00; } .o-moov { --dot: #0072CE; }
+    .o-wave { --dot: #1DC8FF; } .o-airtel { --dot: #E40000; } .o-vodacom { --dot: #E60000; } .o-free { --dot: #CD1E25; }
 
-    .reasons { background: var(--bg-soft); border-radius: 28px; }
-    .reasons-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
-    @media (max-width: 960px) { .reasons-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 560px) { .reasons-grid { grid-template-columns: 1fr; } }
-    .reason-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.3rem; }
-    .reasons-cta { text-align: center; margin-top: 2rem; }
+    /* ============ ÉTAPES ============ */
+    .steps { display: grid; gap: var(--space-4); }
+    .step { background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); }
+    .step img { border-radius: var(--radius-sm); margin-bottom: var(--space-4); }
+    .step-n {
+      display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+      background: var(--color-primary); color: #fff; font-family: var(--font-display); font-weight: 700;
+      font-size: var(--fs-sm); margin-bottom: var(--space-3);
+    }
+    .cta-row { display: grid; justify-items: center; margin-top: var(--space-6); }
+    .cta-row .btn { width: 100%; max-width: 380px; }
+    @media (min-width: 860px) { .steps { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); } }
 
-    .pricing { text-align: center; }
-    .pricing .section-head { margin-left: auto; margin-right: auto; }
+    /* ============ FONCTIONNALITÉS ============ */
+    .features { display: grid; gap: var(--space-4); }
+    .feature { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+    .feature-body { padding: var(--space-5); }
+    .check-list li { position: relative; padding-left: var(--space-5); margin-bottom: var(--space-2); font-size: var(--fs-sm); color: var(--color-text); }
+    .check-list li::before { content: "✓"; position: absolute; left: 0; color: var(--color-success); font-weight: 700; }
+    @media (min-width: 860px) { .features { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); } }
+
+    /* ============ RAISONS ============ */
+    .reasons-wrap { background: var(--color-surface-alt); }
+    .reasons { display: grid; gap: var(--space-3); }
+    .reason { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); }
+    .reason p { font-size: var(--fs-sm); margin: 0; }
+    @media (min-width: 600px) { .reasons { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 960px) { .reasons { grid-template-columns: repeat(4, 1fr); } }
+
+    /* ============ TARIF ============ */
     .price-card {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.6rem;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      padding: 2rem clamp(1.5rem, 6vw, 4rem);
+      max-width: 440px; margin-inline: auto; background: var(--color-surface);
+      border: 2px solid var(--color-primary); border-radius: var(--radius-lg);
+      padding: var(--space-6) var(--space-5); box-shadow: var(--shadow-lg);
     }
-    .price { font-size: clamp(2.4rem, 6vw, 3.2rem); font-weight: 800; color: var(--ink); }
-    .price small { font-size: 1rem; font-weight: 500; color: var(--muted); }
-    .price-sub { color: var(--muted); margin-bottom: 0.6rem; }
+    .price { font-family: var(--font-display); font-size: clamp(var(--fs-3xl), 12vw, var(--fs-4xl)); font-weight: 700; line-height: 1; color: var(--color-text); }
+    .price small { font-family: var(--font-body); font-size: var(--fs-base); font-weight: 500; color: var(--color-text-muted); }
+    .price-badge {
+      display: inline-block; background: var(--color-success-bg); color: var(--color-success);
+      font-weight: 600; font-size: var(--fs-sm); padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full); margin: var(--space-3) 0 var(--space-4);
+    }
+    .price-card .check-list { text-align: left; margin-bottom: var(--space-5); }
 
-    .countries-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
-    @media (max-width: 900px) { .countries-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 520px) { .countries-grid { grid-template-columns: 1fr; } }
-    .country-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; text-align: center; }
-    .country-card img { width: 34px; height: 34px; margin: 0 auto 0.6rem; border-radius: 6px; object-fit: cover; }
-    .momo-list { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
-    .momo-list li { font-size: 0.74rem; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem 0.55rem; color: var(--ink); }
+    /* ============ FAQ ============ */
+    .faq { max-width: 760px; margin-inline: auto; display: grid; gap: var(--space-3); }
+    .faq details { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding-inline: var(--space-4); }
+    .faq summary {
+      cursor: pointer; font-weight: 600; padding: var(--space-4) 0; list-style: none;
+      display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; font-size: var(--fs-lg); color: var(--color-primary); line-height: 1; }
+    .faq details[open] summary::after { content: "–"; }
+    .faq details p { padding-bottom: var(--space-4); font-size: var(--fs-sm); }
 
-    .final-cta { text-align: center; background: var(--brand); color: #fff; border-radius: 28px; }
-    .final-cta .eyebrow, .final-cta p { color: rgba(255,255,255,0.85); }
-    .final-cta h2 { color: #fff; }
-    .final-cta .btn--primary { background: #fff; color: var(--brand); }
-    .final-cta .btn--primary:hover { background: #f2f0fd; }
+    /* ============ CTA FINAL ============ */
+    .final-wrap { padding-inline: var(--space-4); }
+    .final {
+      max-width: var(--container-max); margin-inline: auto; text-align: center;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      border-radius: var(--radius-lg); padding: var(--space-8) var(--space-5); box-shadow: var(--shadow-lg);
+    }
+    .final h2 { color: #fff; }
+    .final p { color: rgba(255,255,255,.88); margin-bottom: var(--space-5); }
+    .final .eyebrow { color: rgba(255,255,255,.85); }
+    .final .btn { width: 100%; max-width: 380px; }
+    @media (min-width: 900px) { .final { padding: var(--space-9) var(--space-6); } }
 
-    .contact { text-align: center; }
-    .contact-links { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; }
-
+    /* ============ CONTACT & FOOTER ============ */
+    .contact-links { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: center; }
     .site-footer {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.6rem;
-      padding: 2.5rem 1rem 3rem;
-      border-top: 1px solid var(--border);
-      text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+      padding: var(--space-6) var(--space-4) var(--space-7); border-top: 1px solid var(--color-border); text-align: center;
     }
-    .site-footer img { width: 28px; height: 28px; border-radius: 6px; }
-    .site-footer p { margin: 0; font-size: 0.85rem; }
+    .site-footer img { width: 28px; height: 28px; border-radius: var(--radius-sm); }
+    .site-footer p, .site-footer a { font-size: var(--fs-sm); }
+    .site-footer a { color: var(--color-text-muted); }
 
+    /* ============ BARRE CTA COLLANTE (mobile) ============ */
+    .sticky-cta {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      display: flex; align-items: center; gap: var(--space-3);
+      min-height: var(--bottom-nav-height);
+      padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+      background: var(--color-surface); border-top: 1px solid var(--color-border); box-shadow: var(--shadow-lg);
+      transform: translateY(110%); transition: transform var(--duration-base) var(--ease-standard);
+    }
+    .sticky-cta.show { transform: none; }
+    html.menu-open .sticky-cta { transform: translateY(110%); }
+    .sticky-cta span { flex: 1; font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; color: var(--color-text); }
+    @media (min-width: 900px) { .sticky-cta { display: none; } body { padding-bottom: 0; } }
+
+    /* ============ RÉVÉLATION AU SCROLL ============ */
+    .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
+    .js .reveal.reveal--in { opacity: 1; transform: none; }
     @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      .hero-copy, .hero-media, .reveal { transition: none !important; transform: none !important; opacity: 1 !important; }
+      .hero-copy, .hero-media, .reveal { opacity: 1 !important; transform: none !important; }
+      .marquee-track { animation: none !important; }
     }
   </style>
 </head>
 
 <body>
 
+  <!-- HEADER -->
   <header class="site-header">
-    <a href="/" class="brand">
-      <img src="/logo.webp" alt="Kontra-Africa" />
-      <span>Kontra-Africa</span>
-    </a>
+    <div class="container header-in">
+      <a href="/" class="brand">
+        <img src="/logo.webp" alt="" width="32" height="32" />
+        <span>Kontra-Africa</span>
+      </a>
 
-    <nav class="nav" id="nav">
-      <a href="#comment-ca-marche">Comment ça marche</a>
-      <a href="#stock">Gestion de stock</a>
-      <a href="#finances">Suivi financier</a>
-      <a href="#securite">Sécurité</a>
-      <a href="#tarif">Tarif</a>
-      <div class="nav-actions">
-        <a href="/login.html" class="btn btn--ghost">Se connecter</a>
-        <a href="/inscription.html" class="btn btn--primary">Essai gratuit</a>
-      </div>
-    </nav>
+      <a href="/inscription.html" class="btn btn-primary btn-sm header-cta" data-signup data-cta="header">Essai gratuit</a>
 
-    <button class="menu-toggle" id="menuToggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
+      <button class="menu-toggle" id="menuToggle" type="button"
+              aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav class="nav" id="nav" aria-label="Navigation principale">
+        <ul class="nav-links">
+          <li><a href="#comment-ca-marche">Comment ça marche</a></li>
+          <li><a href="#stock">Stock</a></li>
+          <li><a href="#finances">Finances</a></li>
+          <li><a href="#securite">Sécurité</a></li>
+          <li><a href="#tarif">Tarif</a></li>
+        </ul>
+        <div class="nav-actions">
+          <a href="/login.html" class="btn btn-secondary">Se connecter</a>
+          <a href="/inscription.html" class="btn btn-primary" data-signup data-cta="menu">Créer mon compte gratuit</a>
+        </div>
+      </nav>
+    </div>
   </header>
 
   <main id="main">
 
     <!-- HERO -->
-    <section class="hero">
+    <section class="container hero">
       <div class="hero-copy" id="heroCopy">
         <p class="eyebrow">Contrats · Signatures · Stock · Finances</p>
-        <h1>Vos contrats signés, en un échange WhatsApp</h1>
-        <p class="lead">
-          Créez un contrat, envoyez-le à signer sur WhatsApp, recevez le PDF automatiquement.
-          Suivez vos finances au même endroit — une seule app, sur téléphone comme sur ordinateur.
-        </p>
+        <h1>Faites signer vos contrats sur WhatsApp, sans papier ni déplacement</h1>
+        <p class="lead">Créez le contrat, envoyez le lien de signature, recevez le PDF signé. Suivez aussi votre stock et vos finances dans la même app.</p>
+        <p class="hero-audience">Pour commerçants, freelances, bailleurs et artisans.</p>
 
-        <div class="hero-ctas">
-          <a href="/inscription.html" class="btn btn--primary btn--lg">Créer mon premier contrat</a>
-          <a href="https://wa.me/243977092549" class="btn btn--outline btn--lg">Voir un exemple sur WhatsApp</a>
+        <div class="hero-ctas" id="heroCtas">
+          <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="hero-primary">Créer mon compte gratuit</a>
+          <a href="https://wa.me/243977092549?text=Bonjour%2C%20je%20voudrais%20voir%20un%20exemple%20de%20contrat%20Kontra-Africa"
+             class="btn btn-wa btn-lg" data-cta="hero-whatsapp">💬 Voir un exemple sur WhatsApp</a>
         </div>
 
-        <p class="hero-note">3 jours offerts, sans carte bancaire — annulez à tout moment.</p>
+        <p class="hero-note">3 jours offerts · sans carte bancaire · annulation à tout moment</p>
 
         <ul class="trust-row">
           <li>🔒 Signature horodatée et verrouillée</li>
-          <li>💳 Paiement en Mobile Money local</li>
-          <li>🌍 Disponible dans 8 pays</li>
+          <li>💳 Paiement Mobile Money</li>
+          <li>🌍 8 pays</li>
         </ul>
       </div>
 
       <div class="hero-media" id="heroMedia">
-        <img
-          src="/images/illustrations/01-hero.webp"
-          alt="Aperçu de l'application Kontra-Africa affichant un contrat prêt à signer"
-        />
+        <img src="/images/illustrations/01-hero.webp" fetchpriority="high"
+             alt="Aperçu de l'application Kontra-Africa affichant un contrat prêt à signer" />
+      </div>
+    </section>
+
+    <!-- PAYS : CARROUSEL INFINI -->
+    <section class="countries" aria-labelledby="countries-title">
+      <div class="container center">
+        <div class="section-head reveal">
+          <p class="eyebrow">Disponibilité</p>
+          <h2 id="countries-title">Payez avec le Mobile Money de votre pays</h2>
+        </div>
+      </div>
+
+      <div class="marquee" id="marquee" aria-label="Pays disponibles et moyens de paiement">
+        <div class="marquee-track" id="marqueeTrack">
+          <div class="country">
+            <img src="/assets/flags/benin.png" alt="Drapeau Bénin" width="36" height="36" loading="lazy" />
+            <h3>Bénin</h3>
+            <ul class="momo-list"><li>Celtiis Cash</li><li class="o-moov">Moov Money</li><li class="o-mtn">MTN MoMo</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/cote-ivoire.png" alt="Drapeau Côte d'Ivoire" width="36" height="36" loading="lazy" />
+            <h3>Côte d'Ivoire</h3>
+            <ul class="momo-list"><li class="o-orange">Orange Money</li><li class="o-mtn">MTN MoMo</li><li class="o-moov">Moov Money</li><li class="o-wave">Wave</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/cameroun.png" alt="Drapeau Cameroun" width="36" height="36" loading="lazy" />
+            <h3>Cameroun</h3>
+            <ul class="momo-list"><li class="o-mtn">MTN MoMo</li><li class="o-orange">Orange Money</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/senegal.png" alt="Drapeau Sénégal" width="36" height="36" loading="lazy" />
+            <h3>Sénégal</h3>
+            <ul class="momo-list"><li class="o-orange">Orange Money</li><li class="o-wave">Wave</li><li class="o-free">Free Money</li><li>Wizall</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/togo.png" alt="Drapeau Togo" width="36" height="36" loading="lazy" />
+            <h3>Togo</h3>
+            <ul class="momo-list"><li class="o-moov">Moov Money</li><li>Togocel Money</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/burkina-faso.png" alt="Drapeau Burkina Faso" width="36" height="36" loading="lazy" />
+            <h3>Burkina Faso</h3>
+            <ul class="momo-list"><li class="o-orange">Orange Money</li><li class="o-moov">Moov Money</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/mali.png" alt="Drapeau Mali" width="36" height="36" loading="lazy" />
+            <h3>Mali</h3>
+            <ul class="momo-list"><li class="o-orange">Orange Money</li><li class="o-moov">Moov Money</li><li>Mobi Cash</li></ul>
+          </div>
+          <div class="country">
+            <img src="/assets/flags/rdc.png" alt="Drapeau RDC" width="36" height="36" loading="lazy" />
+            <h3>RDC</h3>
+            <ul class="momo-list"><li class="o-orange">Orange Money</li><li class="o-airtel">Airtel Money</li><li class="o-vodacom">Vodacom M-Pesa</li></ul>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- COMMENT ÇA MARCHE -->
     <section id="comment-ca-marche" class="section">
-      <div class="section-head reveal">
-        <p class="eyebrow">Le parcours</p>
-        <h2>Trois étapes, un seul geste par étape</h2>
-      </div>
-
-      <div class="steps-grid">
-        <div class="step-card reveal">
-          <img src="/images/illustrations/02-contrat-signature.webp" alt="" />
-          <span class="step-number">01</span>
-          <h3>Créez et envoyez</h3>
-          <p>Rédigez votre contrat dans l'app, puis partagez le lien de signature directement sur WhatsApp au signataire.</p>
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Le parcours</p>
+          <h2>Trois étapes, un seul geste par étape</h2>
         </div>
-        <div class="step-card reveal">
-          <img src="/images/illustrations/03-pdf-automatique.webp" alt="" />
-          <span class="step-number">02</span>
-          <h3>Ça se signe, où que vous soyez</h3>
-          <p>Le signataire lit, accepte et signe depuis son téléphone, sans créer de compte. Le PDF final se génère seul, avec les deux signatures.</p>
+        <div class="steps">
+          <div class="step reveal">
+            <img src="/images/illustrations/02-contrat-signature.webp" alt="" loading="lazy" />
+            <span class="step-n">1</span>
+            <h3>Créez et envoyez</h3>
+            <p>Rédigez votre contrat dans l'app, puis partagez le lien de signature sur WhatsApp.</p>
+          </div>
+          <div class="step reveal">
+            <img src="/images/illustrations/03-pdf-automatique.webp" alt="" loading="lazy" />
+            <span class="step-n">2</span>
+            <h3>Il signe depuis son téléphone</h3>
+            <p>Le signataire lit et signe sans créer de compte. Le PDF final se génère seul, avec les deux signatures.</p>
+          </div>
+          <div class="step reveal">
+            <img src="/images/illustrations/04-suivi-financier.webp" alt="" loading="lazy" />
+            <span class="step-n">3</span>
+            <h3>Suivez ce qui rentre et sort</h3>
+            <p>Reliez chaque contrat signé à votre suivi financier : solde, épargne, historique.</p>
+          </div>
         </div>
-        <div class="step-card reveal">
-          <img src="/images/illustrations/04-suivi-financier.webp" alt="" />
-          <span class="step-number">03</span>
-          <h3>Suivez ce qui rentre et sort</h3>
-          <p>Chaque contrat signé peut se relier à votre suivi financier : solde, objectif d'épargne, historique, taux de change à jour.</p>
+        <div class="cta-row reveal">
+          <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="steps">Essayer gratuitement</a>
         </div>
       </div>
     </section>
 
-    <!-- SUIVI FINANCIER -->
-    <section id="finances" class="section section--split">
-      <div class="split-media reveal">
-        <img src="/images/illustrations/05-taux-change.webp" alt="Configuration du taux de change dans l'application" />
-      </div>
-      <div class="split-copy reveal">
-        <p class="eyebrow">Suivi financier</p>
-        <h2>Un solde clair, un objectif visible</h2>
-        <p>
-          Enregistrez vos entrées et sorties, fixez un objectif d'épargne et suivez sa progression.
-          Configurez votre propre taux de change pour que chaque montant reste juste, dans votre monnaie.
-        </p>
-        <ul class="check-list">
-          <li>Historique complet des transactions</li>
-          <li>Objectif d'épargne avec barre de progression</li>
-          <li>Taux de change personnalisable</li>
-        </ul>
+    <!-- FONCTIONNALITÉS -->
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Tout en un</p>
+          <h2>Une seule app pour gérer votre activité</h2>
+        </div>
+        <div class="features">
+          <article class="feature reveal" id="stock">
+            <img src="/images/illustrations/08-stock-ventes.webp" alt="Gestion de stock et des ventes dans l'application" loading="lazy" />
+            <div class="feature-body">
+              <h3>Stock et ventes</h3>
+              <p style="margin-bottom:var(--space-3)">Ajoutez vos produits, enregistrez chaque vente en quelques secondes : le bénéfice se calcule tout seul.</p>
+              <ul class="check-list">
+                <li>Bénéfice calculé à chaque vente</li>
+                <li>Alertes de stock bas</li>
+                <li>Rapport PDF journalier</li>
+              </ul>
+            </div>
+          </article>
+          <article class="feature reveal" id="finances">
+            <img src="/images/illustrations/05-taux-change.webp" alt="Configuration du taux de change dans l'application" loading="lazy" />
+            <div class="feature-body">
+              <h3>Suivi financier</h3>
+              <p style="margin-bottom:var(--space-3)">Un solde clair, un objectif d'épargne visible et votre propre taux de change pour rester juste dans votre monnaie.</p>
+              <ul class="check-list">
+                <li>Historique des transactions</li>
+                <li>Objectif d'épargne avec progression</li>
+                <li>Taux de change personnalisable</li>
+              </ul>
+            </div>
+          </article>
+          <article class="feature reveal" id="securite">
+            <img src="/images/illustrations/06-securite-confiance.webp" alt="Sécurité des données et des contrats" loading="lazy" />
+            <div class="feature-body">
+              <h3>Contrats verrouillés</h3>
+              <p style="margin-bottom:var(--space-3)">Connexion sécurisée par Google. Une fois signé, un contrat est horodaté : personne ne peut le modifier après coup.</p>
+              <ul class="check-list">
+                <li>Horodatage de chaque signature</li>
+                <li>Aucune modification après signature</li>
+                <li>Vos données restent les vôtres</li>
+              </ul>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
 
-    <!-- GESTION DE STOCK -->
-    <section id="stock" class="section section--split section--reverse">
-      <div class="split-media reveal">
-        <img src="/images/illustrations/08-stock-ventes.webp" alt="Illustration de la gestion de stock et des ventes dans l'application" />
-      </div>
-      <div class="split-copy reveal">
-        <p class="eyebrow">Gestion de stock</p>
-        <h2>Vos produits, vos ventes, votre bénéfice, en direct</h2>
-        <p>
-          Ajoutez vos produits avec prix d'achat et prix de vente, enregistrez chaque vente en
-          quelques secondes, et laissez l'application calculer automatiquement votre bénéfice.
-        </p>
-        <ul class="check-list">
-          <li>Calcul automatique du bénéfice à chaque vente</li>
-          <li>Alertes de stock bas</li>
-          <li>Rapport PDF journalier téléchargeable</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- SÉCURITÉ -->
-    <section id="securite" class="section section--split">
-      <div class="split-media reveal">
-        <img src="/images/illustrations/06-securite-confiance.webp" alt="Illustration représentant la sécurité des données et des contrats" />
-      </div>
-      <div class="split-copy reveal">
-        <p class="eyebrow">Sécurité</p>
-        <h2>Vos contrats et vos données restent les vôtres</h2>
-        <p>
-          Connexion sécurisée par Google, contrats horodatés et signatures conservées telles
-          quelles. Rien n'est modifiable après signature : ce que les deux parties ont accepté
-          reste la version finale.
-        </p>
-      </div>
-    </section>
-
-    <!-- 4 RAISONS -->
-    <section class="section reasons">
-      <div class="section-head reveal">
-        <p class="eyebrow">Pourquoi rester</p>
-        <h2>Ce qui fait qu'on ne repart pas</h2>
-      </div>
-      <div class="reasons-grid">
-        <div class="reason-card reveal">
-          <h3>Rien à installer pour commencer</h3>
-          <p>Créez votre premier contrat directement dans le navigateur. L'app s'ajoute à l'écran d'accueil plus tard, en un geste, si vous le souhaitez.</p>
+    <!-- RAISONS -->
+    <section class="section reasons-wrap">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Pourquoi essayer</p>
+          <h2>Ce qui vous évite d'hésiter</h2>
         </div>
-        <div class="reason-card reveal">
-          <h3>Payez comme vous le faites déjà</h3>
-          <p>Orange Money, MTN, Wave, Airtel, Moov… le paiement se fait avec le moyen Mobile Money de votre pays, pas une carte bancaire étrangère.</p>
+        <div class="reasons">
+          <div class="reason reveal">
+            <h3>Rien à installer</h3>
+            <p>Créez votre premier contrat dans le navigateur. Ajoutez l'app à l'écran d'accueil plus tard, si vous voulez.</p>
+          </div>
+          <div class="reason reveal">
+            <h3>Payez comme d'habitude</h3>
+            <p>Orange Money, MTN, Wave, Airtel, Moov… pas besoin de carte bancaire étrangère.</p>
+          </div>
+          <div class="reason reveal">
+            <h3>Signatures verrouillées</h3>
+            <p>Un contrat signé est horodaté et ne peut plus être modifié par aucune des deux parties.</p>
+          </div>
+          <div class="reason reveal">
+            <h3>3 jours pour juger</h3>
+            <p>Faites signer un vrai contrat pendant l'essai. Vous payez seulement si l'app vous fait gagner du temps.</p>
+          </div>
         </div>
-        <div class="reason-card reveal">
-          <h3>Vos signatures ne bougent plus</h3>
-          <p>Une fois signé, un contrat est horodaté et verrouillé. Aucune des deux parties ne peut le modifier après coup.</p>
+        <div class="cta-row reveal">
+          <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="reasons">Commencer mon essai gratuit</a>
         </div>
-        <div class="reason-card reveal">
-          <h3>3 jours pour juger sur pièce</h3>
-          <p>Créez, envoyez et faites signer un vrai contrat pendant l'essai. Vous payez seulement si ça vous fait gagner du temps.</p>
-        </div>
-      </div>
-      <div class="reasons-cta reveal">
-        <a href="/inscription.html" class="btn btn--primary btn--lg">Commencer mon essai gratuit</a>
       </div>
     </section>
 
     <!-- TARIF -->
-    <section id="tarif" class="section pricing">
-      <div class="section-head reveal">
-        <p class="eyebrow">Tarif</p>
-        <h2>Un seul abonnement, tout inclus</h2>
-        <p>Contrats illimités, gestion de stock, suivi financier, signature WhatsApp. Commencez gratuitement, sans engagement.</p>
-      </div>
-      <div class="price-card reveal">
-        <span class="price">$5<small>/mois</small></span>
-        <span class="price-sub">3 jours d'essai gratuit</span>
-        <a href="/inscription.html" class="btn btn--primary btn--lg">Inscription essai gratuit</a>
+    <section id="tarif" class="section center">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Tarif</p>
+          <h2>Un seul abonnement, tout inclus</h2>
+        </div>
+        <div class="price-card reveal">
+          <div class="price">$5<small>/mois</small></div>
+          <span class="price-badge">3 jours d'essai gratuit · sans carte</span>
+          <ul class="check-list">
+            <li>Contrats et signatures illimités</li>
+            <li>Signature par lien WhatsApp</li>
+            <li>Gestion de stock et ventes</li>
+            <li>Suivi financier et taux de change</li>
+            <li>PDF automatique après signature</li>
+          </ul>
+          <a href="/inscription.html" class="btn btn-primary btn-lg btn-block" data-signup data-cta="pricing">Créer mon compte gratuit</a>
+        </div>
       </div>
     </section>
 
-    <!-- DISPONIBILITÉ -->
-    <section class="section availability">
-      <div class="section-head reveal">
-        <p class="eyebrow">Disponibilité</p>
-        <h2>Disponible dans plusieurs pays d'Afrique francophone</h2>
-        <p>Accédez à Kontra-Africa depuis votre pays et payez avec le moyen Mobile Money que vous utilisez déjà.</p>
-      </div>
-      <div class="countries-grid">
-        <div class="country-card reveal">
-          <img src="/assets/flags/benin.png" alt="Drapeau Bénin" />
-          <h3>Bénin</h3>
-          <ul class="momo-list"><li>Celtiis Cash</li><li>Moov Money</li><li>MTN MoMo</li></ul>
+    <!-- FAQ -->
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="section-head center reveal">
+          <p class="eyebrow">Questions fréquentes</p>
+          <h2>Vos questions avant de vous lancer</h2>
         </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/cote-ivoire.png" alt="Drapeau Côte d'Ivoire" />
-          <h3>Côte d'Ivoire</h3>
-          <ul class="momo-list"><li>Orange Money</li><li>MTN MoMo</li><li>Moov Money</li><li>Wave</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/cameroun.png" alt="Drapeau Cameroun" />
-          <h3>Cameroun</h3>
-          <ul class="momo-list"><li>MTN MoMo</li><li>Orange Money</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/senegal.png" alt="Drapeau Sénégal" />
-          <h3>Sénégal</h3>
-          <ul class="momo-list"><li>Orange Money</li><li>Wave</li><li>Free Money</li><li>Wizall</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/togo.png" alt="Drapeau Togo" />
-          <h3>Togo</h3>
-          <ul class="momo-list"><li>Moov Money</li><li>Togocel Money</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/burkina-faso.png" alt="Drapeau Burkina Faso" />
-          <h3>Burkina Faso</h3>
-          <ul class="momo-list"><li>Orange Money</li><li>Moov Money</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/mali.png" alt="Drapeau Mali" />
-          <h3>Mali</h3>
-          <ul class="momo-list"><li>Orange Money</li><li>Moov Money</li><li>Mobi Cash</li></ul>
-        </div>
-        <div class="country-card reveal">
-          <img src="/assets/flags/rdc.png" alt="Drapeau RDC" />
-          <h3>RDC</h3>
-          <ul class="momo-list"><li>Orange Money</li><li>Airtel Money</li><li>Vodacom M-Pesa</li></ul>
+        <div class="faq reveal">
+          <details>
+            <summary>Ai-je besoin d'une carte bancaire ?</summary>
+            <p>Non. L'essai de 3 jours ne demande aucune carte. Ensuite, vous payez avec le Mobile Money de votre pays.</p>
+          </details>
+          <details>
+            <summary>La personne qui signe doit-elle créer un compte ?</summary>
+            <p>Non. Elle ouvre le lien reçu sur WhatsApp, lit le contrat et signe depuis son téléphone.</p>
+          </details>
+          <details>
+            <summary>Que se passe-t-il à la fin des 3 jours ?</summary>
+            <p>Vous choisissez de continuer avec l'abonnement à 5 $/mois, payé en Mobile Money. Sinon, vous pouvez arrêter à tout moment.</p>
+          </details>
+          <details>
+            <summary>Un contrat signé ici a-t-il une valeur légale ?</summary>
+            <p>Beaucoup de pays reconnaissent la signature électronique, mais la valeur juridique dépend du type de contrat et de la loi locale. Kontra-Africa horodate et verrouille chaque contrat pour garder une preuve de l'accord des deux parties.</p>
+          </details>
+          <details>
+            <summary>Ça marche sur mon téléphone ?</summary>
+            <p>Oui, directement dans le navigateur, sur Android comme sur iPhone. Vous pouvez aussi l'ajouter à l'écran d'accueil.</p>
+          </details>
         </div>
       </div>
     </section>
 
     <!-- CTA FINAL -->
-    <section class="section final-cta">
-      <div class="reveal">
-        <p class="eyebrow">Rejoignez-nous</p>
-        <h2>Prêt à signer votre premier contrat aujourd'hui ?</h2>
-        <p>3 jours d'essai gratuit, sans carte bancaire.</p>
-        <a href="/inscription.html" class="btn btn--primary btn--lg">Inscription essai gratuit</a>
-      </div>
-    </section>
+    <div class="final-wrap">
+      <section class="final" id="finalCta">
+        <div class="reveal">
+          <p class="eyebrow">Rejoignez-nous</p>
+          <h2>Prêt à faire signer votre premier contrat aujourd'hui ?</h2>
+          <p>3 jours gratuits, sans carte bancaire. Ça prend moins de 2 minutes pour commencer.</p>
+          <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="final">Créer mon compte gratuit</a>
+        </div>
+      </section>
+    </div>
 
     <!-- CONTACT -->
-    <section class="section contact">
-      <div class="reveal">
-        <p class="eyebrow">Contact</p>
-        <h2>Restons en contact</h2>
-        <p>Une question, une suggestion ? Écrivez-nous directement.</p>
+    <section class="section center">
+      <div class="container reveal">
+        <h2>Une question ?</h2>
+        <p style="margin-bottom:var(--space-5)">Écrivez-nous directement, on répond.</p>
         <div class="contact-links">
-          <a href="mailto:kontra.africa@gmail.com" class="btn btn--outline">Envoyer un message</a>
-          <a href="https://wa.me/243977092549" class="btn btn--outline">Discuter sur WhatsApp</a>
+          <a href="https://wa.me/243977092549?text=Bonjour%2C%20j%27ai%20une%20question%20sur%20Kontra-Africa" class="btn btn-wa" data-cta="contact-whatsapp">💬 WhatsApp</a>
+          <a href="mailto:kontra.africa@gmail.com" class="btn btn-secondary">Envoyer un e-mail</a>
         </div>
       </div>
     </section>
@@ -518,52 +714,114 @@
   </main>
 
   <footer class="site-footer">
-    <img src="/logo.webp" alt="Kontra-Africa" />
+    <img src="/logo.webp" alt="Kontra-Africa" width="28" height="28" />
+    <a href="/privacy.html">Confidentialité</a>
     <p>© <span id="year">2026</span> Kontra-Africa. Tous droits réservés.</p>
   </footer>
 
+  <!-- BARRE CTA COLLANTE (mobile) -->
+  <div class="sticky-cta" id="stickyCta" aria-hidden="true">
+    <span>3 jours gratuits<br />sans carte bancaire</span>
+    <a href="/inscription.html" class="btn btn-primary btn-sm" data-signup data-cta="sticky" tabindex="-1">Créer mon compte</a>
+  </div>
+
   <script>
     (function () {
-      // Année du footer
+      var root = document.documentElement;
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var desktopMQ = window.matchMedia("(min-width: 900px)");
+
       document.getElementById("year").textContent = new Date().getFullYear();
 
-      // Menu burger
+      /* ---------- MENU HAMBURGER ---------- */
       var nav = document.getElementById("nav");
       var toggle = document.getElementById("menuToggle");
 
       function setMenu(open) {
-        nav.classList.toggle("nav--open", open);
+        nav.classList.toggle("is-open", open);
+        root.classList.toggle("menu-open", open);
         toggle.setAttribute("aria-expanded", String(open));
         toggle.setAttribute("aria-label", open ? "Fermer le menu" : "Ouvrir le menu");
       }
-
       toggle.addEventListener("click", function () {
-        setMenu(!nav.classList.contains("nav--open"));
+        setMenu(!nav.classList.contains("is-open"));
       });
-      nav.querySelectorAll("a").forEach(function (a) {
-        a.addEventListener("click", function () { setMenu(false); });
+      nav.addEventListener("click", function (e) {
+        if (e.target.closest("a")) setMenu(false);
       });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && nav.classList.contains("is-open")) {
+          setMenu(false);
+          toggle.focus();
+        }
+      });
+      function onResize(e) { if (e.matches) setMenu(false); }
+      if (desktopMQ.addEventListener) desktopMQ.addEventListener("change", onResize);
+      else desktopMQ.addListener(onResize);
 
-      // Entrée du hero : une seule séquence au chargement
+      /* ---------- ENTRÉE DU HERO ---------- */
       setTimeout(function () {
         document.getElementById("heroCopy").classList.add("in");
         document.getElementById("heroMedia").classList.add("in");
       }, 60);
 
-      // Révélation au scroll (une seule fois par élément)
+      /* ---------- RÉVÉLATION AU SCROLL ---------- */
       var items = document.querySelectorAll(".reveal");
       if ("IntersectionObserver" in window) {
-        var observer = new IntersectionObserver(function (entries) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("reveal--in");
-              observer.unobserve(entry.target);
-            }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) { en.target.classList.add("reveal--in"); io.unobserve(en.target); }
           });
-        }, { threshold: 0.2 });
-        items.forEach(function (el) { observer.observe(el); });
+        }, { threshold: 0.12, rootMargin: "0px 0px -4% 0px" });
+        items.forEach(function (el) { io.observe(el); });
       } else {
         items.forEach(function (el) { el.classList.add("reveal--in"); });
+      }
+
+      /* ---------- CARROUSEL PAYS INFINI ---------- */
+      var marquee = document.getElementById("marquee");
+      var track = document.getElementById("marqueeTrack");
+      if (!reduceMotion) {
+        Array.prototype.slice.call(track.children).forEach(function (card) {
+          var clone = card.cloneNode(true);
+          clone.setAttribute("aria-hidden", "true");
+          track.appendChild(clone);
+        });
+        marquee.classList.add("is-running");
+      }
+
+      /* ---------- UTM conservés vers l'inscription ---------- */
+      if (location.search) {
+        document.querySelectorAll("a[data-signup]").forEach(function (a) {
+          a.href += (a.href.indexOf("?") > -1 ? "&" : "") + location.search.slice(1);
+        });
+      }
+
+      /* ---------- SUIVI DES CLICS CTA ---------- */
+      document.addEventListener("click", function (e) {
+        var el = e.target.closest("[data-cta]");
+        if (!el) return;
+        var where = el.getAttribute("data-cta");
+        try {
+          if (window.gtag) gtag("event", "cta_click", { location: where });
+          if (window.plausible) plausible("cta_click", { props: { location: where } });
+        } catch (err) {}
+      });
+
+      /* ---------- BARRE CTA COLLANTE ---------- */
+      var sticky = document.getElementById("stickyCta");
+      var heroVisible = true, finalVisible = false;
+      function updateSticky() {
+        var show = !heroVisible && !finalVisible;
+        sticky.classList.toggle("show", show);
+        sticky.setAttribute("aria-hidden", String(!show));
+        sticky.querySelector("a").tabIndex = show ? 0 : -1;
+      }
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (en) { heroVisible = en[0].isIntersecting; updateSticky(); })
+          .observe(document.getElementById("heroCtas"));
+        new IntersectionObserver(function (en) { finalVisible = en[0].isIntersecting; updateSticky(); })
+          .observe(document.getElementById("finalCta"));
       }
     })();
   </script>
