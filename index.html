@@ -199,6 +199,7 @@
       display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px;
       width: 44px; height: 44px; margin-right: calc(var(--space-2) * -1);
       background: none; border: 0; border-radius: var(--radius-sm);
+      position: relative; z-index: 51;
     }
     .menu-toggle span {
       display: block; width: 22px; height: 2px; border-radius: 2px; background: var(--color-text);
@@ -208,36 +209,59 @@
     .menu-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
     .menu-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-    /* Panneau du menu (mobile) : plein écran sous le header */
-    .nav {
-      position: fixed; left: 0; right: 0; bottom: 0; top: var(--header-total); z-index: 49;
-      display: flex; flex-direction: column;
-      padding: var(--space-4) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
-      background: var(--color-surface); overflow-y: auto;
-      visibility: hidden; opacity: 0; transform: translateY(-8px);
-      transition: opacity var(--duration-base) var(--ease-standard),
-                  transform var(--duration-base) var(--ease-standard),
-                  visibility 0s linear var(--duration-base);
+    /* Voile derrière le tiroir (mobile) */
+    .nav-overlay {
+      position: fixed; inset: 0; z-index: 48;
+      background: rgba(17, 12, 33, 0.5);
+      -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+      opacity: 0; visibility: hidden;
+      transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear var(--duration-base);
     }
-    .nav.is-open { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+    .nav-overlay.is-open { opacity: 1; visibility: visible; transition-delay: 0s; }
+
+    /* Tiroir du menu (mobile) : glisse depuis la gauche */
+    .nav {
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 49;
+      width: min(85vw, 340px);
+      display: flex; flex-direction: column;
+      padding: calc(var(--space-6) + env(safe-area-inset-top, 0px)) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+      background: var(--color-surface); overflow-y: auto;
+      box-shadow: 24px 0 64px rgba(17, 12, 33, 0.18);
+      visibility: hidden; transform: translateX(-100%);
+      transition: transform var(--duration-slow) var(--ease-standard),
+                  visibility 0s linear var(--duration-slow);
+    }
+    .nav.is-open { visibility: visible; transform: none; transition-delay: 0s; }
+
+    .nav-brand-row {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md);
+      padding-bottom: var(--space-4); margin-bottom: var(--space-5);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .nav-brand-row img { width: 30px; height: 30px; border-radius: var(--radius-sm); }
+
     .nav-links a {
       display: block; padding: var(--space-4) 0;
       font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 500;
       border-bottom: 1px solid var(--color-border);
+      transition: color var(--duration-fast) var(--ease-standard), padding-left var(--duration-fast) var(--ease-standard);
     }
-    .nav-actions { display: grid; gap: var(--space-3); margin-top: var(--space-6); }
+    .nav-links a:active { color: var(--color-primary); padding-left: var(--space-2); }
+    .nav-actions { display: grid; gap: var(--space-3); margin-top: auto; padding-top: var(--space-6); }
 
     @media (min-width: 900px) {
-      .menu-toggle, .header-cta { display: none; }
+      .menu-toggle, .header-cta, .nav-overlay, .nav-brand-row { display: none; }
       .nav {
-        position: static; flex-direction: row; align-items: center; margin-left: auto;
-        padding: 0; background: none; overflow: visible; gap: var(--space-6);
-        visibility: visible; opacity: 1; transform: none; transition: none;
+        position: static; width: auto; flex-direction: row; align-items: center; margin-left: auto;
+        padding: 0; background: none; overflow: visible; gap: var(--space-6); box-shadow: none;
+        visibility: visible; transform: none; transition: none;
       }
       .nav-links { display: flex; gap: var(--space-5); }
       .nav-links a { padding: 0; border: 0; font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 500; color: var(--color-text-muted); }
       .nav-links a:hover { color: var(--color-text); }
-      .nav-actions { display: flex; margin: 0; gap: var(--space-2); }
+      .nav-links a:active { padding-left: 0; }
+      .nav-actions { display: flex; margin: 0; padding: 0; gap: var(--space-2); }
       .nav-actions .btn { min-height: 40px; padding: 0 var(--space-5); font-size: var(--fs-sm); }
     }
 
@@ -419,7 +443,13 @@
         <span></span><span></span><span></span>
       </button>
 
+      <div class="nav-overlay" id="navOverlay"></div>
+
       <nav class="nav" id="nav" aria-label="Navigation principale">
+        <div class="nav-brand-row">
+          <img src="/logo.webp" alt="" width="30" height="30" />
+          <span>Kontra-Africa</span>
+        </div>
         <ul class="nav-links">
           <li><a href="#comment-ca-marche">Comment ça marche</a></li>
           <li><a href="#stock">Stock</a></li>
@@ -733,12 +763,14 @@
 
       document.getElementById("year").textContent = new Date().getFullYear();
 
-      /* ---------- MENU HAMBURGER ---------- */
+      /* ---------- MENU HAMBURGER (tiroir depuis la gauche) ---------- */
       var nav = document.getElementById("nav");
       var toggle = document.getElementById("menuToggle");
+      var overlay = document.getElementById("navOverlay");
 
       function setMenu(open) {
         nav.classList.toggle("is-open", open);
+        overlay.classList.toggle("is-open", open);
         root.classList.toggle("menu-open", open);
         toggle.setAttribute("aria-expanded", String(open));
         toggle.setAttribute("aria-label", open ? "Fermer le menu" : "Ouvrir le menu");
@@ -746,6 +778,7 @@
       toggle.addEventListener("click", function () {
         setMenu(!nav.classList.contains("is-open"));
       });
+      overlay.addEventListener("click", function () { setMenu(false); });
       nav.addEventListener("click", function (e) {
         if (e.target.closest("a")) setMenu(false);
       });
