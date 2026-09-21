@@ -21,11 +21,6 @@
 
   <script>document.documentElement.classList.add("js");</script>
 
-  <!-- =====================================================================
-       1) VOS TOKENS (copiés tels quels pour que la page marche seule).
-       Si votre fichier de tokens est déjà chargé, supprimez ce bloc <style>
-       et ajoutez : <link rel="stylesheet" href="/css/VOTRE-FICHIER-TOKENS.css" />
-       ===================================================================== -->
   <style id="tokens">
     :root {
       color-scheme: light only;
@@ -154,9 +149,6 @@
     .btn-lg { min-height: 56px; padding: 0 var(--space-8); font-size: var(--fs-md); }
   </style>
 
-  <!-- =====================================================================
-       2) STYLE DE LA PAGE (utilise uniquement les tokens ci-dessus)
-       ===================================================================== -->
   <style>
     :root { --color-whatsapp: #25D366; --color-whatsapp-dark: #1EBE5B; --header-total: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
 
@@ -165,14 +157,12 @@
     section[id], article[id] { scroll-margin-top: calc(var(--header-total) + 8px); }
     p { color: var(--color-text-muted); }
 
-    /* --- Utilitaires de boutons propres à la page --- */
     .btn { text-align: center; }
     .btn-sm { min-height: 40px; padding: 0 var(--space-4); font-size: var(--fs-sm); }
     .btn-block { width: 100%; }
     .btn-wa { background: var(--color-whatsapp); color: #06301A; box-shadow: 0 6px 18px rgba(37, 211, 102, 0.35); }
     .btn-wa:hover { background: var(--color-whatsapp-dark); }
 
-    /* --- Titres & sections --- */
     .eyebrow { color: var(--color-primary); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; margin-bottom: var(--space-2); }
     h2 { font-size: clamp(var(--fs-xl), 5.5vw, var(--fs-2xl)); margin-bottom: var(--space-3); }
     h3 { font-size: var(--fs-md); margin-bottom: var(--space-2); }
@@ -194,7 +184,6 @@
     .brand img { width: 32px; height: 32px; border-radius: var(--radius-sm); }
     .header-cta { margin-left: auto; }
 
-    /* Bouton hamburger → croix */
     .menu-toggle {
       display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px;
       width: 44px; height: 44px; margin-right: calc(var(--space-2) * -1);
@@ -209,7 +198,6 @@
     .menu-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
     .menu-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-    /* Voile derrière le tiroir (mobile) */
     .nav-overlay {
       position: fixed; inset: 0; z-index: 48;
       background: rgba(17, 12, 33, 0.5);
@@ -219,7 +207,6 @@
     }
     .nav-overlay.is-open { opacity: 1; visibility: visible; transition-delay: 0s; }
 
-    /* Tiroir du menu (mobile) : glisse depuis la gauche */
     .nav {
       position: fixed; left: 0; top: 0; bottom: 0; z-index: 49;
       width: min(85vw, 340px);
@@ -240,6 +227,14 @@
       border-bottom: 1px solid var(--color-border);
     }
     .nav-brand-row img { width: 30px; height: 30px; border-radius: var(--radius-sm); }
+    .nav-close {
+      margin-left: auto;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 50%; border: 0;
+      background: var(--color-surface-alt); color: var(--color-text);
+      font-size: 1.1rem; line-height: 1;
+    }
+    .nav-close:hover { background: var(--color-primary-light); color: var(--color-primary); }
 
     .nav-links a {
       display: block; padding: var(--space-4) 0;
@@ -449,6 +444,7 @@
         <div class="nav-brand-row">
           <img src="/logo.webp" alt="" width="30" height="30" />
           <span>Kontra-Africa</span>
+          <button class="nav-close" id="navClose" type="button" aria-label="Fermer le menu">✕</button>
         </div>
         <ul class="nav-links">
           <li><a href="#comment-ca-marche">Comment ça marche</a></li>
@@ -477,8 +473,6 @@
 
         <div class="hero-ctas" id="heroCtas">
           <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="hero-primary">Créer mon compte gratuit</a>
-          <a href="https://wa.me/243977092549?text=Bonjour%2C%20je%20voudrais%20voir%20un%20exemple%20de%20contrat%20Kontra-Africa"
-             class="btn btn-wa btn-lg" data-cta="hero-whatsapp">💬 Voir un exemple sur WhatsApp</a>
         </div>
 
         <p class="hero-note">3 jours offerts · sans carte bancaire · annulation à tout moment</p>
@@ -767,6 +761,7 @@
       var nav = document.getElementById("nav");
       var toggle = document.getElementById("menuToggle");
       var overlay = document.getElementById("navOverlay");
+      var navClose = document.getElementById("navClose");
 
       function setMenu(open) {
         nav.classList.toggle("is-open", open);
@@ -779,6 +774,10 @@
         setMenu(!nav.classList.contains("is-open"));
       });
       overlay.addEventListener("click", function () { setMenu(false); });
+      navClose.addEventListener("click", function () {
+        setMenu(false);
+        toggle.focus();
+      });
       nav.addEventListener("click", function (e) {
         if (e.target.closest("a")) setMenu(false);
       });
