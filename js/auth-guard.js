@@ -65,7 +65,268 @@ function isSubscriptionBlocked(userData) {
     }
   }
 
+  // Abonnement payant "actif" mais dont la période de 30 jours est
+  // révolue : ça arrive si aucun webhook de renouvellement/échec n'est
+  // jamais venu mettre à jour le statut (retard réseau, webhook manqué,
+  // client qui ne renouvelle simplement pas). Sans cette vérification,
+  // l'utilisateur garde un accès illimité après expiration tant qu'aucun
+  // nouvel événement SasPay ne recalcule son statut côté serveur.
+  if (status === 'active') {
+
+    const subscriptionEnd = toDate(
+      userData.subscriptionExpiresAt
+    );
+
+    if (
+      subscriptionEnd &&
+      new Date() > subscriptionEnd
+    ) {
+      return true;
+    }
+  }
+
   return false;
+}
+
+
+// ============================================================
+// NUDGE PAYWALL — INCITATION AU PAIEMENT PENDANT L'ESSAI
+// ============================================================
+//
+// Contrairement au paywall bloquant (isSubscriptionBlocked / renderPaywall)
+// qui coupe l'accès UNE FOIS l'essai terminé, ce système affiche des
+// rappels DE PLUS EN PLUS insistants PENDANT l'essai encore actif, pour
+// inciter l'utilisateur à payer avant l'échéance :
+//   - une bannière discrète en haut de chaque page tant que le compte
+//     est en essai (dès que la fonction est appelée) ;
+//   - une fenêtre modale, une fois par jour maximum, déclenchée dans
+//     les 48 dernières heures de l'essai (mode "urgent" dans les
+//     24 dernières heures).
+// Appelé automatiquement depuis requireAppAccess() : aucune page de
+// l'app n'a besoin d'intégrer quoi que ce soit pour en bénéficier.
+
+const TRIAL_NUDGE_STORAGE_KEY = 'kontra_trial_nudge_shown';
+
+function getTrialCountdown(userData) {
+
+  if (userData.subscriptionStatus !== 'trial') {
+    return null;
+  }
+
+  const trialEnd = toDate(userData.trialEndDate);
+
+  if (!trialEnd) {
+    return null;
+  }
+
+  const msLeft = trialEnd.getTime() - Date.now();
+
+  if (msLeft <= 0) {
+    // Déjà géré par isSubscriptionBlocked → renderPaywall.
+    return null;
+  }
+
+  const hoursLeft = msLeft / (1000 * 60 * 60);
+  const daysLeft = Math.max(
+    1,
+    Math.ceil(hoursLeft / 24)
+  );
+
+  return { hoursLeft, daysLeft };
+}
+
+function ensureAppCss() {
+
+  if (
+    !document.querySelector(
+      'link[href="/css/app.css"]'
+    )
+  ) {
+
+    const link =
+      document.createElement('link');
+
+    link.rel = 'stylesheet';
+    link.href = '/css/app.css';
+
+    document.head.appendChild(link);
+  }
+}
+
+function scheduleTrialNudge(user, userData) {
+
+  const countdown =
+    getTrialCountdown(userData);
+
+  if (!countdown) {
+    return;
+  }
+
+  const { hoursLeft, daysLeft } = countdown;
+
+  // "Urgent" = dernière journée d'essai : ton plus pressant, bannière orange.
+  const isUrgent = hoursLeft <= 24;
+
+  renderTrialBanner(user, daysLeft, isUrgent);
+
+  // La fenêtre modale, plus insistante, n'apparaît que dans les 48
+  // dernières heures de l'essai, et au maximum une fois par jour civil
+  // pour ne pas harceler l'utilisateur à chaque changement de page.
+  if (hoursLeft <= 48) {
+
+    const todayKey =
+      new Date().toDateString();
+
+    let alreadyShownToday = false;
+
+    try {
+      alreadyShownToday =
+        localStorage.getItem(
+          TRIAL_NUDGE_STORAGE_KEY
+        ) === todayKey;
+    } catch (e) {
+      // localStorage indisponible (mode privé, etc.) : on affiche quand
+      // même, tant pis pour la limite "une fois par jour".
+    }
+
+    if (!alreadyShownToday) {
+
+      try {
+        localStorage.setItem(
+          TRIAL_NUDGE_STORAGE_KEY,
+          todayKey
+        );
+      } catch (e) {}
+
+      renderTrialModal(user, daysLeft, isUrgent);
+    }
+  }
+}
+
+function renderTrialBanner(user, daysLeft, isUrgent) {
+
+  // Une seule bannière à la fois, même si le script tourne deux fois.
+  if (document.getElementById('trialBanner')) {
+    return;
+  }
+
+  ensureAppCss();
+
+  const label =
+    daysLeft <= 1
+      ? 'Votre essai gratuit se termine aujourd’hui'
+      : `Il vous reste ${daysLeft} jours d’essai gratuit`;
+
+  const banner =
+    document.createElement('div');
+
+  banner.id = 'trialBanner';
+
+  banner.className =
+    'trial-banner' +
+    (isUrgent ? ' trial-banner--urgent' : '');
+
+  banner.innerHTML = `
+    <span class="trial-banner__text">⏳ ${label}</span>
+    <button
+      type="button"
+      class="trial-banner__cta"
+      id="trialBannerCta"
+    >
+      S’abonner maintenant
+    </button>
+    <button
+      type="button"
+      class="trial-banner__close"
+      id="trialBannerClose"
+      aria-label="Fermer"
+    >
+      ✕
+    </button>
+  `;
+
+  document.body.prepend(banner);
+
+  document
+    .getElementById('trialBannerCta')
+    .addEventListener(
+      'click',
+      () => renderPaywall(user, 'early')
+    );
+
+  document
+    .getElementById('trialBannerClose')
+    .addEventListener(
+      'click',
+      () => banner.remove()
+    );
+}
+
+function renderTrialModal(user, daysLeft, isUrgent) {
+
+  ensureAppCss();
+
+  const title =
+    isUrgent
+      ? 'Votre essai gratuit se termine aujourd’hui'
+      : `Encore ${daysLeft} jours d’essai gratuit`;
+
+  const text =
+    isUrgent
+      ? 'Passé ce délai, vous perdrez l’accès à votre tableau de bord, vos contrats et votre suivi financier. Abonnez-vous maintenant pour continuer sans interruption.'
+      : 'Abonnez-vous dès maintenant pour ne rien perdre de vos contrats et de votre suivi financier lorsque l’essai se terminera.';
+
+  const overlay =
+    document.createElement('div');
+
+  overlay.className = 'trial-nudge-overlay';
+  overlay.id = 'trialNudgeOverlay';
+
+  overlay.innerHTML = `
+    <div class="trial-nudge-card">
+      <div class="trial-nudge-card__icon">
+        ${isUrgent ? '⚠️' : '⏳'}
+      </div>
+      <h2 class="trial-nudge-card__title">
+        ${title}
+      </h2>
+      <p class="trial-nudge-card__text">
+        ${text}
+      </p>
+      <div class="trial-nudge-card__actions">
+        <button
+          type="button"
+          class="btn btn-primary btn-lg"
+          id="trialNudgeCta"
+        >
+          S’abonner maintenant — dès 5$/mois
+        </button>
+        <button
+          type="button"
+          class="trial-nudge-card__later"
+          id="trialNudgeLater"
+        >
+          Plus tard
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  document
+    .getElementById('trialNudgeCta')
+    .addEventListener(
+      'click',
+      () => renderPaywall(user, 'early')
+    );
+
+  document
+    .getElementById('trialNudgeLater')
+    .addEventListener(
+      'click',
+      () => overlay.remove()
+    );
 }
 
 
@@ -381,7 +642,12 @@ export function requireAppAccess() {
             '⚠️ Abonnement expiré ou bloqué.'
           );
 
-          renderPaywall(user);
+          renderPaywall(
+            user,
+            userData.subscriptionStatus === 'trial'
+              ? 'trial_expired'
+              : 'subscription_expired'
+          );
 
           resolve(null);
 
@@ -396,6 +662,10 @@ export function requireAppAccess() {
         console.log(
           '✅ Accès à l’application autorisé.'
         );
+
+        // Rappels de paiement pendant l'essai (sans jamais bloquer
+        // l'accès) — voir la section "NUDGE PAYWALL" plus haut.
+        scheduleTrialNudge(user, userData);
 
         resolve({
           user,
@@ -493,7 +763,30 @@ function renderMissingUserError() {
 // PAYWALL
 // ============================================================
 
-function renderPaywall(user) {
+function renderPaywall(user, reason = 'trial_expired') {
+
+  // Le même écran de paiement sert dans 3 situations différentes : on
+  // adapte juste le titre/texte pour ne pas dire "essai terminé" à
+  // quelqu'un dont l'abonnement PAYANT a expiré, ni à quelqu'un qui
+  // clique "payer maintenant" depuis la bannière alors qu'il est
+  // encore en plein essai.
+  const COPY = {
+    trial_expired: {
+      title: 'Essai terminé',
+      text: 'Abonnez-vous pour continuer à utiliser Kontra-Africa.'
+    },
+    subscription_expired: {
+      title: 'Abonnement expiré',
+      text: 'Votre période payée est terminée. Renouvelez votre abonnement pour continuer à utiliser Kontra-Africa.'
+    },
+    early: {
+      title: 'S’abonner à Kontra-Africa',
+      text: 'Passez à l’abonnement payant dès maintenant pour ne jamais perdre l’accès à vos contrats et votre suivi financier.'
+    }
+  };
+
+  const copy =
+    COPY[reason] || COPY.trial_expired;
 
   document.body.innerHTML = `
 
@@ -508,12 +801,11 @@ function renderPaywall(user) {
         >
 
         <h1 class="paywall__title">
-          Essai terminé
+          ${copy.title}
         </h1>
 
         <p class="paywall__text">
-          Abonnez-vous pour continuer à utiliser
-          Kontra-Africa.
+          ${copy.text}
         </p>
 
         <!-- ===================================================
