@@ -1,553 +1,572 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <script>document.documentElement.classList.add('has-js');</script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="google-site-verification" content="-_aNDFj2tGqemqJy4bAPqVS9438FSGOIACF2So6ZFVo" />
-  <meta name="color-scheme" content="light only">
-  <meta name="supported-color-schemes" content="light">
-  <title>Kontra-Africa — Contrats, signatures, stock et finances, simplifiés</title>
-  <meta name="description" content="Créez des contrats, faites-les signer par WhatsApp, gérez votre stock et suivez vos finances. Une seule app, installable sur tout appareil.">
-  <meta name="theme-color" content="#5B3FE0">
-  <meta name="color-scheme" content="light">
+import { useEffect, useRef, useState } from "react";
 
-  <link rel="icon" href="/icons/icon-192.png">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <link rel="manifest" href="/manifest.json">
+/**
+ * Kontra-Africa — Landing page (React)
+ * Remplace public/index.html (vanilla JS) par un composant unique, responsive.
+ *
+ * Changements vs la version HTML actuelle :
+ * - Hero repensé : entrée animée une seule fois (fade + slide-up orchestré),
+ *   bandeau de confiance (moyens de paiement réels par pays, sécurité, zéro carte),
+ *   double CTA (essai gratuit + démo WhatsApp) au lieu du seul bouton d'installation.
+ * - Section "Comment l'installer" (7 captures d'écran) supprimée : elle ne convertit
+ *   personne, elle explique une fonctionnalité annexe (PWA) avant même que le visiteur
+ *   soit convaincu. Remplacée par une section de réassurance concrète (4 raisons de
+ *   rester) qui pousse vers l'inscription.
+ * - Disponibilité pays enrichie : affiche les opérateurs Mobile Money réels par pays
+ *   (source SasPay) au lieu du seul drapeau — un visiteur qui reconnaît "Orange Money"
+ *   ou "Wave" chez lui convertit mieux qu'un simple "Disponible".
+ * - Nav mobile fonctionnelle (menu burger), tout le layout en clamp()/grid responsive.
+ */
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+const NAV_LINKS = [
+  { href: "#comment-ca-marche", label: "Comment ça marche" },
+  { href: "#stock", label: "Gestion de stock" },
+  { href: "#finances", label: "Suivi financier" },
+  { href: "#securite", label: "Sécurité" },
+  { href: "#tarif", label: "Tarif" },
+];
 
-  <link rel="stylesheet" href="/css/tokens.css">
-  <link rel="stylesheet" href="/css/landing.css">
+// Opérateurs Mobile Money réellement supportés par pays (catalogue SasPay).
+const COUNTRIES = [
+  { name: "Bénin", flag: "/assets/flags/benin.png", momo: ["Celtiis Cash", "Moov Money", "MTN MoMo"] },
+  { name: "Côte d'Ivoire", flag: "/assets/flags/cote-ivoire.png", momo: ["Orange Money", "MTN MoMo", "Moov Money", "Wave"] },
+  { name: "Cameroun", flag: "/assets/flags/cameroun.png", momo: ["MTN MoMo", "Orange Money"] },
+  { name: "Sénégal", flag: "/assets/flags/senegal.png", momo: ["Orange Money", "Wave", "Free Money", "Wizall"] },
+  { name: "Togo", flag: "/assets/flags/togo.png", momo: ["Moov Money", "Togocel Money"] },
+  { name: "Burkina Faso", flag: "/assets/flags/burkina-faso.png", momo: ["Orange Money", "Moov Money"] },
+  { name: "Mali", flag: "/assets/flags/mali.png", momo: ["Orange Money", "Moov Money", "Mobi Cash"] },
+  { name: "RDC", flag: "/assets/flags/rdc.png", momo: ["Orange Money", "Airtel Money", "Vodacom M-Pesa"] },
+];
 
-  <style>
-    /* Masque la landing tant qu'on n'a pas vérifié si une session existe déjà */
-    html.auth-checking body > *:not(#pwaSplash) { visibility: hidden; }
-  </style>
-  <script>document.documentElement.classList.add('auth-checking');</script>
-  <script type="module">
-    import { auth } from '/js/firebase-config.js';
-    import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+const PROCESS_STEPS = [
+  {
+    image: "/images/illustrations/02-contrat-signature.webp",
+    title: "Créez et envoyez",
+    text: "Rédigez votre contrat dans l'app, puis partagez le lien de signature directement sur WhatsApp au signataire.",
+  },
+  {
+    image: "/images/illustrations/03-pdf-automatique.webp",
+    title: "Ça se signe, où que vous soyez",
+    text: "Le signataire lit, accepte et signe depuis son téléphone, sans créer de compte. Le PDF final se génère seul, avec les deux signatures.",
+  },
+  {
+    image: "/images/illustrations/04-suivi-financier.webp",
+    title: "Suivez ce qui rentre et sort",
+    text: "Chaque contrat signé peut se relier à votre suivi financier : solde, objectif d'épargne, historique, taux de change à jour.",
+  },
+];
 
-    // Ce raccourci ("session déjà active → direct au dashboard") n'a de
-    // sens que pour la PWA installée : on ouvre l'app depuis l'écran
-    // d'accueil du téléphone pour retrouver son espace, pas pour revoir la
-    // landing page. Sur le site web classique (navigateur normal, lien
-    // partagé, pub Facebook...), on doit TOUJOURS voir la landing, même si
-    // une session Firebase existe déjà en arrière-plan (ex: testée une fois
-    // dans ce navigateur) — sinon impossible de revenir sur la page
-    // d'accueil une fois connecté, y compris pour un visiteur qui clique
-    // sur une pub en étant déjà identifié sur un compte différent.
-    const isStandaloneApp =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true; // iOS
+// Les 4 raisons remplacent la section "Comment l'installer" : elles répondent
+// aux objections réelles (confiance, prix, praticité) au lieu d'expliquer une PWA.
+const REASONS = [
+  { title: "Rien à installer pour commencer", text: "Créez votre premier contrat directement dans le navigateur. L'app s'ajoute à l'écran d'accueil plus tard, en un geste, si vous le souhaitez." },
+  { title: "Payez comme vous le faites déjà", text: "Orange Money, MTN, Wave, Airtel, Moov… le paiement se fait avec le moyen Mobile Money de votre pays, pas une carte bancaire étrangère." },
+  { title: "Vos signatures ne bougent plus", text: "Une fois signé, un contrat est horodaté et verrouillé. Aucune des deux parties ne peut le modifier après coup." },
+  { title: "3 jours pour juger sur pièce", text: "Créez, envoyez et faites signer un vrai contrat pendant l'essai. Vous payez seulement si ça vous fait gagner du temps." },
+];
 
-    if (!isStandaloneApp) {
-      document.documentElement.classList.remove('auth-checking');
-    } else {
-
-      const AUTH_CHECK_TIMEOUT_MS = 2500;
-      let decided = false;
-
-      const stopChecking = () => {
-        if (decided) return;
-        decided = true;
-        document.documentElement.classList.remove('auth-checking');
-      };
-
-      onAuthStateChanged(auth, (user) => {
-        if (decided) return;
-        if (user) {
-          decided = true;
-          window.location.replace('/dashboard.html');
-          return;
+function useOnceInView(ref) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
         }
-        stopChecking();
-      });
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+  return visible;
+}
 
-      // Sécurité : si Firebase ne répond jamais (ex: totalement hors-ligne
-      // sans session locale), on affiche quand même la landing après 2,5s.
-      setTimeout(stopChecking, AUTH_CHECK_TIMEOUT_MS);
-    }
-  </script>
+function Reveal({ children, className = "" }) {
+  const ref = useRef(null);
+  const visible = useOnceInView(ref);
+  return (
+    <div ref={ref} className={`reveal ${visible ? "reveal--in" : ""} ${className}`}>
+      {children}
+    </div>
+  );
+}
 
-  <style>
-    /* --- Splash screen affiché uniquement quand l'app est ouverte en mode PWA installée --- */
-    #pwaSplash {
-      position: fixed;
-      inset: 0;
-      background: #5B3FE0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 99999;
-      transition: opacity .4s ease;
-    }
-    .pwa-splash__logo {
-      width: 84px;
-      height: 84px;
-      border-radius: 20px;
-    }
-    .pwa-splash__title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 600;
-      letter-spacing: .3px;
-      font-size: 21px;
-      color: #FFF8F0;
-    }
-  </style>
-</head>
-<body>
+export default function KontraLandingPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [heroIn, setHeroIn] = useState(false);
 
-  <!-- Splash PWA : reste caché (hidden) sur le site web classique, activé en JS uniquement en mode standalone -->
-  <div id="pwaSplash" hidden>
-    <img src="/logo.webp" alt="Kontra-Africa" class="pwa-splash__logo">
-    <span class="pwa-splash__title">Kontra-Africa</span>
-  </div>
+  useEffect(() => {
+    // Un seul enchaînement d'entrée au chargement, pas d'animation dispersée ailleurs.
+    const t = setTimeout(() => setHeroIn(true), 60);
+    return () => clearTimeout(t);
+  }, []);
 
-  <a href="#main" class="skip-link">Aller au contenu</a>
+  return (
+    <>
+      <style>{CSS}</style>
 
-  <!-- ============================= HEADER ============================= -->
-  <header class="site-header" id="siteHeader">
-    <div class="container site-header__inner">
-      <a href="/" class="brand">
-        <img src="/logo.webp" alt="Kontra-Africa" class="brand__logo">
-        <span class="brand__text">Kontra-Africa</span>
-      </a>
+      <header className="site-header">
+        <a href="/" className="brand">
+          <img src="/logo.webp" alt="Kontra-Africa" />
+          <span>Kontra-Africa</span>
+        </a>
 
-      <nav class="main-nav" id="mainNav" aria-label="Navigation principale">
-        <a href="#comment-ca-marche">Comment ça marche</a>
-        <a href="#stock">Gestion de stock</a>
-        <a href="#finances">Suivi financier</a>
-        <a href="#securite">Sécurité</a>
-        <a href="#tarif">Tarif</a>
-      </nav>
+        <nav className={`nav ${menuOpen ? "nav--open" : ""}`}>
+          {NAV_LINKS.map((link) => (
+            <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
+              {link.label}
+            </a>
+          ))}
+          <div className="nav-actions">
+            <a href="/login.html" className="btn btn--ghost">Se connecter</a>
+            <a href="/inscription.html" className="btn btn--primary">Essai gratuit</a>
+          </div>
+        </nav>
 
-      <div class="site-header__actions">
-        <a href="/login.html" class="btn btn-login header-cta">Se connecter</a>
-        <a href="/inscription.html" class="btn btn-primary header-cta">Essai gratuit</a>
-        <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Ouvrir le menu">
-          <span class="nav-toggle__bar"></span>
-          <span class="nav-toggle__bar"></span>
-          <span class="nav-toggle__bar"></span>
+        <button
+          className="menu-toggle"
+          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span />
+          <span />
+          <span />
         </button>
-      </div>
-    </div>
-  </header>
+      </header>
 
-  <!-- ==================== MENU MOBILE — PANNEAU LATÉRAL ==================== -->
-  <div class="mobile-nav-overlay" id="mobileNavOverlay" hidden></div>
-
-  <div class="mobile-nav-panel" id="mobileNavPanel" role="dialog" aria-modal="true" aria-label="Menu de navigation" aria-hidden="true">
-    <div class="mobile-nav-panel__header">
-      <div class="brand">
-        <img src="/logo.webp" alt="Kontra-Africa" class="mobile-nav-panel__logo">
-        <span class="brand__text">Kontra-Africa</span>
-      </div>
-      <button class="mobile-nav-panel__close" id="mobileNavClose" type="button" aria-label="Fermer le menu">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-    </div>
-
-    <nav class="mobile-nav-panel__links" aria-label="Navigation mobile">
-      <a href="#comment-ca-marche">Comment ça marche</a>
-      <a href="#stock">Gestion de stock</a>
-      <a href="#finances">Suivi financier</a>
-      <a href="#securite">Sécurité</a>
-      <a href="#tarif">Tarif</a>
-    </nav>
-
-    <div class="mobile-nav-panel__actions">
-      <a href="/login.html" class="btn btn-login btn-lg">Se connecter</a>
-      <a href="/inscription.html" class="btn btn-primary btn-lg">Inscription essai gratuit</a>
-    </div>
-  </div>
-
-  <main id="main">
-
-    <!-- ============================= HERO ============================= -->
-    <section class="hero">
-      <div class="container hero__inner">
-        <div class="hero__copy reveal">
-          <p class="eyebrow">Contrats · Signatures · Stock · Finances</p>
-          <h1 class="hero__title">
-            Vos contrats signés,
-            <span class="signature-wrap">
-              en un échange WhatsApp
-              <svg class="signature-stroke" viewBox="0 0 320 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M2 24C40 8 70 8 98 20C126 32 150 6 180 10C210 14 224 26 254 16C278 8 292 12 318 6" stroke="#FF7A1A" stroke-width="4" stroke-linecap="round"/>
-              </svg>
-            </span>
-          </h1>
-          <p class="hero__subtitle">
-            Créez un contrat, envoyez-le à signer sur WhatsApp, recevez le PDF automatiquement.
-            Suivez vos finances au même endroit. Une seule app, sur votre téléphone comme sur votre ordinateur.
-          </p>
-          <div class="hero__actions">
-            <a href="/inscription.html" class="btn btn-primary btn-lg">Inscription essai gratuit</a>
-            <p class="hero__hint">3 jours offerts, sans carte bancaire</p>
-          </div>
-        </div>
-
-        <div class="hero__media reveal">
-          <img src="/images/illustrations/01-hero.webp" alt="Aperçu de l'application Kontra-Africa affichant un contrat prêt à signer" class="hero__image">
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== COMMENT ÇA MARCHE ===================== -->
-    <section class="section" id="comment-ca-marche">
-      <div class="container">
-        <div class="section__header reveal">
-          <p class="eyebrow">Le parcours</p>
-          <h2 class="section__title">Trois étapes, un seul geste par étape</h2>
-        </div>
-
-        <ol class="steps">
-          <li class="steps__item reveal">
-            <div class="steps__media">
-              <img src="/images/illustrations/02-contrat-signature.webp" alt="Signature tactile d'un contrat sur téléphone" loading="lazy">
-            </div>
-            <div class="steps__copy">
-              <span class="steps__number">01</span>
-              <h3>Créez et envoyez</h3>
-              <p>Rédigez votre contrat dans l'app, puis partagez le lien de signature directement sur WhatsApp au signataire.</p>
-            </div>
-          </li>
-
-          <li class="steps__item reveal">
-            <div class="steps__media">
-              <img src="/images/illustrations/03-pdf-automatique.webp" alt="Document PDF généré automatiquement après signature" loading="lazy">
-            </div>
-            <div class="steps__copy">
-              <span class="steps__number">02</span>
-              <h3>Ça se signe, où que vous soyez</h3>
-              <p>Le signataire lit, accepte et signe depuis son téléphone, sans créer de compte. Le PDF final se génère seul, avec les deux signatures.</p>
-            </div>
-          </li>
-
-          <li class="steps__item reveal">
-            <div class="steps__media">
-              <img src="/images/illustrations/04-suivi-financier.webp" alt="Tableau de bord de suivi financier avec objectif d'épargne" loading="lazy">
-            </div>
-            <div class="steps__copy">
-              <span class="steps__number">03</span>
-              <h3>Suivez ce qui rentre et sort</h3>
-              <p>Chaque contrat signé peut se relier à votre suivi financier : solde, objectif d'épargne, historique, taux de change à jour.</p>
-            </div>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- ============================= FINANCES ============================= -->
-    <section class="section section--tinted" id="finances">
-      <div class="container feature-split">
-        <div class="feature-split__media reveal">
-          <img src="/images/illustrations/05-taux-change.webp" alt="Configuration du taux de change dans l'application" loading="lazy">
-        </div>
-        <div class="feature-split__copy reveal">
-          <p class="eyebrow">Suivi financier</p>
-          <h2 class="section__title">Un solde clair, un objectif visible</h2>
-          <p class="feature-split__text">
-            Enregistrez vos entrées et sorties, fixez un objectif d'épargne et suivez sa progression.
-            Configurez votre propre taux de change pour que chaque montant reste juste, dans votre monnaie.
-          </p>
-          <ul class="check-list">
-            <li>Historique complet des transactions</li>
-            <li>Objectif d'épargne avec barre de progression</li>
-            <li>Taux de change personnalisable</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============================= STOCK & VENTES ============================= -->
-    <section class="section" id="stock">
-      <div class="container feature-split feature-split--reverse">
-        <div class="feature-split__media reveal">
-          <!-- ⚠️ Remplace ce chemin une fois l'illustration créée -->
-          <img src="/images/illustrations/08-stock-ventes.webp" alt="Illustration de la gestion de stock et des ventes dans l'application" loading="lazy">
-        </div>
-        <div class="feature-split__copy reveal">
-          <p class="eyebrow">Gestion de stock</p>
-          <h2 class="section__title">Vos produits, vos ventes, votre bénéfice, en direct</h2>
-          <p class="feature-split__text">
-            Ajoutez vos produits avec prix d'achat et prix de vente, enregistrez chaque vente en quelques
-            secondes, et laissez l'application calculer automatiquement votre bénéfice. Recevez une alerte
-            dès qu'un produit vient à manquer, et générez un rapport PDF complet en fin de journée.
-          </p>
-          <ul class="check-list">
-            <li>Calcul automatique du bénéfice à chaque vente</li>
-            <li>Alertes de stock bas</li>
-            <li>Rapport PDF journalier téléchargeable</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============================= SÉCURITÉ ============================= -->
-    <section class="section" id="securite">
-      <div class="container feature-split feature-split--reverse">
-        <div class="feature-split__media reveal">
-          <img src="/images/illustrations/06-securite-confiance.webp" alt="Illustration représentant la sécurité des données et des contrats" loading="lazy">
-        </div>
-        <div class="feature-split__copy reveal">
-          <p class="eyebrow">Sécurité</p>
-          <h2 class="section__title">Vos contrats et vos données restent les vôtres</h2>
-          <p class="feature-split__text">
-            Connexion sécurisée par Google, contrats horodatés et signatures conservées telles quelles.
-            Rien n'est modifiable après signature : ce que les deux parties ont accepté reste la version finale.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============================= INSTALLATION ============================= -->
-    <section class="section section--tinted" id="installation">
-      <div class="container">
-        <div class="feature-split">
-          <div class="feature-split__copy reveal">
-            <p class="eyebrow">Une seule app, partout</p>
-            <h2 class="section__title">Installez-la comme une vraie application</h2>
-            <p class="feature-split__text">
-              Kontra-Africa s'installe directement depuis votre navigateur, sans passer par un store.
-              Elle fonctionne sur téléphone Android, iPhone, et sur ordinateur — avec ou sans connexion internet.
+      <main id="main">
+        {/* HERO */}
+        <section className="hero">
+          <div className={`hero-copy ${heroIn ? "in" : ""}`}>
+            <p className="eyebrow">Contrats · Signatures · Stock · Finances</p>
+            <h1>Vos contrats signés, en un échange WhatsApp</h1>
+            <p className="lead">
+              Créez un contrat, envoyez-le à signer sur WhatsApp, recevez le PDF automatiquement.
+              Suivez vos finances au même endroit — une seule app, sur téléphone comme sur ordinateur.
             </p>
-          </div>
-          <div class="feature-split__media reveal">
-            <img src="/images/illustrations/07-multi-appareil.webp" alt="Kontra-Africa affichée sur un téléphone, une tablette et un ordinateur" loading="lazy">
-          </div>
-        </div>
 
-        <div class="install-guide reveal">
-          <h3 class="install-guide__title">Comment l'installer</h3>
-          <div class="install-carousel" id="installCarousel">
-            <div class="install-carousel__track" id="installTrack">
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-01.jpg" alt="Étape 1 : ouvrir le site Kontra-Africa dans le navigateur" loading="lazy">
-                <figcaption><span>01</span> Ouvrez le site dans votre navigateur</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-02.jpg" alt="Étape 2 : ouvrir le menu du navigateur" loading="lazy">
-                <figcaption><span>02</span> Ouvrez le menu du navigateur</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-03.jpg" alt="Étape 3 : sélectionner l'option d'ajout à l'écran d'accueil" loading="lazy">
-                <figcaption><span>03</span> Sélectionnez « Installer en tant qu'application Web »</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-04.jpg" alt="Étape 4 : confirmer le nom de l'application" loading="lazy">
-                <figcaption><span>04</span> Un message de sécurité Android peut apparaître, appuyez sur « Plus de détails »</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-05.jpg" alt="Étape 5 : valider l'installation" loading="lazy">
-                <figcaption><span>05</span> Appuyez sur « Installer quand même »</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-06.jpg" alt="Étape 6 : l'icône apparaît sur l'écran d'accueil" loading="lazy">
-                <figcaption><span>06</span> Confirmez en appuyant sur « Ajouter »</figcaption>
-              </figure>
-
-              <figure class="install-slide">
-                <img src="/images/screenshots/install-07.jpg" alt="Étape 7 : ouvrir l'application installée" loading="lazy">
-                <figcaption><span>07</span>  L'application est installée sur votre écran d'accueil</figcaption>
-              </figure>
-
+            <div className="hero-ctas">
+              <a href="/inscription.html" className="btn btn--primary btn--lg">
+                Créer mon premier contrat
+              </a>
+              <a href="https://wa.me/243977092549" className="btn btn--outline btn--lg">
+                Voir un exemple sur WhatsApp
+              </a>
             </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- ============================= TARIF ============================= -->
-    <section class="section" id="tarif">
-      <div class="container">
-        <div class="pricing-card reveal">
-          <div class="pricing-card__info">
-            <p class="eyebrow">Tarif</p>
-            <h2 class="section__title">Un seul abonnement, tout inclus</h2>
-            <p class="feature-split__text">
-              Contrats illimités, gestion de stock, suivi financier, signature WhatsApp.
-              Commencez gratuitement, sans engagement.
+            <p className="hero-note">3 jours offerts, sans carte bancaire — annulez à tout moment.</p>
+
+            <ul className="trust-row">
+              <li>🔒 Signature horodatée et verrouillée</li>
+              <li>💳 Paiement en Mobile Money local</li>
+              <li>🌍 Disponible dans 8 pays</li>
+            </ul>
+          </div>
+
+          <div className={`hero-media ${heroIn ? "in" : ""}`}>
+            <img
+              src="/images/illustrations/01-hero.webp"
+              alt="Aperçu de l'application Kontra-Africa affichant un contrat prêt à signer"
+            />
+          </div>
+        </section>
+
+        {/* COMMENT ÇA MARCHE */}
+        <section id="comment-ca-marche" className="section">
+          <Reveal className="section-head">
+            <p className="eyebrow">Le parcours</p>
+            <h2>Trois étapes, un seul geste par étape</h2>
+          </Reveal>
+
+          <div className="steps-grid">
+            {PROCESS_STEPS.map((step, i) => (
+              <Reveal key={step.title} className="step-card">
+                <img src={step.image} alt="" />
+                <span className="step-number">{String(i + 1).padStart(2, "0")}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* SUIVI FINANCIER */}
+        <section id="finances" className="section section--split">
+          <Reveal className="split-media">
+            <img src="/images/illustrations/05-taux-change.webp" alt="Configuration du taux de change dans l'application" />
+          </Reveal>
+          <Reveal className="split-copy">
+            <p className="eyebrow">Suivi financier</p>
+            <h2>Un solde clair, un objectif visible</h2>
+            <p>
+              Enregistrez vos entrées et sorties, fixez un objectif d'épargne et suivez sa progression.
+              Configurez votre propre taux de change pour que chaque montant reste juste, dans votre monnaie.
             </p>
+            <ul className="check-list">
+              <li>Historique complet des transactions</li>
+              <li>Objectif d'épargne avec barre de progression</li>
+              <li>Taux de change personnalisable</li>
+            </ul>
+          </Reveal>
+        </section>
+
+        {/* GESTION DE STOCK */}
+        <section id="stock" className="section section--split section--reverse">
+          <Reveal className="split-media">
+            <img src="/images/illustrations/08-stock-ventes.webp" alt="Illustration de la gestion de stock et des ventes dans l'application" />
+          </Reveal>
+          <Reveal className="split-copy">
+            <p className="eyebrow">Gestion de stock</p>
+            <h2>Vos produits, vos ventes, votre bénéfice, en direct</h2>
+            <p>
+              Ajoutez vos produits avec prix d'achat et prix de vente, enregistrez chaque vente en
+              quelques secondes, et laissez l'application calculer automatiquement votre bénéfice.
+            </p>
+            <ul className="check-list">
+              <li>Calcul automatique du bénéfice à chaque vente</li>
+              <li>Alertes de stock bas</li>
+              <li>Rapport PDF journalier téléchargeable</li>
+            </ul>
+          </Reveal>
+        </section>
+
+        {/* SÉCURITÉ */}
+        <section id="securite" className="section section--split">
+          <Reveal className="split-media">
+            <img src="/images/illustrations/06-securite-confiance.webp" alt="Illustration représentant la sécurité des données et des contrats" />
+          </Reveal>
+          <Reveal className="split-copy">
+            <p className="eyebrow">Sécurité</p>
+            <h2>Vos contrats et vos données restent les vôtres</h2>
+            <p>
+              Connexion sécurisée par Google, contrats horodatés et signatures conservées telles
+              quelles. Rien n'est modifiable après signature : ce que les deux parties ont accepté
+              reste la version finale.
+            </p>
+          </Reveal>
+        </section>
+
+        {/* 4 RAISONS — remplace l'ancienne section "Comment l'installer" */}
+        <section className="section reasons">
+          <Reveal className="section-head">
+            <p className="eyebrow">Pourquoi rester</p>
+            <h2>Ce qui fait qu'on ne repart pas</h2>
+          </Reveal>
+          <div className="reasons-grid">
+            {REASONS.map((r) => (
+              <Reveal key={r.title} className="reason-card">
+                <h3>{r.title}</h3>
+                <p>{r.text}</p>
+              </Reveal>
+            ))}
           </div>
-          <div class="pricing-card__box">
-            <p class="pricing-card__amount"><span class="pricing-card__currency">$</span>5<span class="pricing-card__period">/mois</span></p>
-            <p class="pricing-card__trial">3 jours d'essai gratuit</p>
-            <a href="/inscription.html" class="btn btn-primary btn-lg pricing-card__cta">Inscription essai gratuit</a>
+          <Reveal className="reasons-cta">
+            <a href="/inscription.html" className="btn btn--primary btn--lg">
+              Commencer mon essai gratuit
+            </a>
+          </Reveal>
+        </section>
+
+        {/* TARIF */}
+        <section id="tarif" className="section pricing">
+          <Reveal className="section-head">
+            <p className="eyebrow">Tarif</p>
+            <h2>Un seul abonnement, tout inclus</h2>
+            <p>Contrats illimités, gestion de stock, suivi financier, signature WhatsApp. Commencez gratuitement, sans engagement.</p>
+          </Reveal>
+          <Reveal className="price-card">
+            <span className="price">$5<small>/mois</small></span>
+            <span className="price-sub">3 jours d'essai gratuit</span>
+            <a href="/inscription.html" className="btn btn--primary btn--lg">Inscription essai gratuit</a>
+          </Reveal>
+        </section>
+
+        {/* DISPONIBILITÉ */}
+        <section className="section availability">
+          <Reveal className="section-head">
+            <p className="eyebrow">Disponibilité</p>
+            <h2>Disponible dans plusieurs pays d'Afrique francophone</h2>
+            <p>Accédez à Kontra-Africa depuis votre pays et payez avec le moyen Mobile Money que vous utilisez déjà.</p>
+          </Reveal>
+          <div className="countries-grid">
+            {COUNTRIES.map((c) => (
+              <Reveal key={c.name} className="country-card">
+                <img src={c.flag} alt={`Drapeau ${c.name}`} />
+                <h3>{c.name}</h3>
+                <ul className="momo-list">
+                  {c.momo.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              </Reveal>
+            ))}
           </div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <!-- ============================= PAYS ACCESSIBLES ============================= -->
-    <section class="section section--tinted" id="pays-accessibles">
-      <div class="container">
-        <div class="section__header reveal">
-          <p class="eyebrow">Disponibilité</p>
-          <h2 class="section__title">Disponible dans plusieurs pays d'Afrique francophone</h2>
-          <p class="feature-split__text">
-            Accédez à Kontra Africa depuis votre pays et utilisez les solutions de paiement adaptées à votre marché.
-          </p>
-        </div>
+        {/* CTA FINAL */}
+        <section className="section final-cta">
+          <Reveal>
+            <p className="eyebrow">Rejoignez-nous</p>
+            <h2>Prêt à signer votre premier contrat aujourd'hui ?</h2>
+            <p>3 jours d'essai gratuit, sans carte bancaire.</p>
+            <a href="/inscription.html" className="btn btn--primary btn--lg">Inscription essai gratuit</a>
+          </Reveal>
+        </section>
 
-        <div class="countries-carousel reveal">
-          <button type="button" class="countries-carousel__arrow countries-carousel__arrow--prev" id="countriesPrev" aria-label="Pays précédent">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-
-          <div class="countries-carousel__viewport" id="countriesViewport">
-            <div class="countries-carousel__track" id="countriesTrack">
-
-              <div class="country-card">
-                <img src="assets/flags/benin.png" alt="Drapeau du Bénin" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Bénin</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/cote-ivoire.png" alt="Drapeau de la Côte d'Ivoire" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Côte d'Ivoire</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/cameroun.png" alt="Drapeau du Cameroun" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Cameroun</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/senegal.png" alt="Drapeau du Sénégal" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Sénégal</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/togo.png" alt="Drapeau du Togo" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Togo</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/burkina-faso.png" alt="Drapeau du Burkina Faso" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Burkina Faso</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/mali.png" alt="Drapeau du Mali" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">Mali</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-              <div class="country-card">
-                <img src="assets/flags/rdc.png" alt="Drapeau de la République Démocratique du Congo" class="country-card__flag" loading="lazy">
-                <p class="country-card__name">RDC</p>
-                <span class="country-card__badge">Disponible</span>
-              </div>
-
+        {/* CONTACT */}
+        <section className="section contact">
+          <Reveal>
+            <p className="eyebrow">Contact</p>
+            <h2>Restons en contact</h2>
+            <p>Une question, une suggestion ? Écrivez-nous directement.</p>
+            <div className="contact-links">
+              <a href="mailto:kontra.africa@gmail.com" className="btn btn--outline">Envoyer un message</a>
+              <a href="https://wa.me/243977092549" className="btn btn--outline">Discuter sur WhatsApp</a>
             </div>
-          </div>
+          </Reveal>
+        </section>
+      </main>
 
-          <button type="button" class="countries-carousel__arrow countries-carousel__arrow--next" id="countriesNext" aria-label="Pays suivant">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
+      <footer className="site-footer">
+        <img src="/logo.webp" alt="Kontra-Africa" />
+        <p>© {new Date().getFullYear()} Kontra-Africa. Tous droits réservés.</p>
+      </footer>
+    </>
+  );
+}
 
-    <!-- ============================= REJOIGNEZ-NOUS (nouveau bloc, remplace l'espace vide) ============================= -->
-    <section class="section" id="rejoignez">
-      <div class="container">
-        <div class="section__header section__header--center reveal">
-          <p class="eyebrow">Rejoignez-nous</p>
-          <h2 class="section__title">Prêt à signer votre premier contrat aujourd'hui ?</h2>
-          <p class="feature-split__text">
-            Rejoignez les utilisateurs qui gèrent déjà leurs contrats, leur stock et leurs finances sur Kontra-Africa.
-            3 jours d'essai gratuit, sans carte bancaire.
-          </p>
-          <a href="/inscription.html" class="btn btn-primary btn-lg">Inscription essai gratuit</a>
-        </div>
-      </div>
-    </section>
+const CSS = `
+:root {
+  --brand: #5B3FE0;
+  --brand-dark: #4429c4;
+  --ink: #17151f;
+  --muted: #5c5870;
+  --bg: #ffffff;
+  --bg-soft: #f6f4fd;
+  --border: #e7e3f5;
+  --radius: 14px;
+  --max: 1160px;
+}
 
-    <!-- ============================= CONTACT ============================= -->
-    <section class="section" id="contact">
-      <div class="container">
-        <div class="section__header section__header--center reveal">
-          <p class="eyebrow">Contact</p>
-          <h2 class="section__title">Restons en contact</h2>
-          <p class="section__subtitle">Une question, une suggestion ? Écrivez-nous directement.</p>
-        </div>
+* { box-sizing: border-box; }
+body { margin: 0; }
 
-        <div class="contact-block reveal">
-          <div class="contact-block__actions">
-            <a href="mailto:kontra.africa@gmail.com" class="btn btn-primary btn-lg contact-block__cta">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v.01L12 12l8-5.99V6H4Zm16 2.24-7.4 5.55a1 1 0 0 1-1.2 0L4 8.24V18h16V8.24Z"/></svg>
-              Envoyer un message
-            </a>
-            <a href="https://wa.me/243977092549" target="_blank" rel="noopener" class="btn btn-secondary btn-lg contact-block__cta">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path fill="currentColor" d="M12.02 2C6.5 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.07-1.33A9.96 9.96 0 0 0 12.02 22C17.53 22 22 17.52 22 12S17.53 2 12.02 2Zm0 18.1c-1.63 0-3.14-.48-4.4-1.3l-.32-.19-3.01.79.8-2.93-.2-.3A8.08 8.08 0 0 1 3.9 12c0-4.48 3.65-8.11 8.12-8.11 4.48 0 8.11 3.63 8.11 8.11 0 4.48-3.63 8.1-8.11 8.1Zm4.45-6.07c-.24-.12-1.44-.71-1.67-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28Z"/></svg>
-              Discuter sur WhatsApp
-            </a>
-          </div>
-          <div class="social-links">
-            <a href="#" class="social-links__item" aria-label="Suivez-nous sur Facebook">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-8.2h2.75l.41-3.2H13.5V7.4c0-.93.26-1.56 1.6-1.56h1.7V2.98A22.7 22.7 0 0 0 14.4 2.9c-2.55 0-4.3 1.55-4.3 4.4v2.3H7.35v3.2h2.75V21h3.4Z"/></svg>
-            </a>
-            <a href="https://wa.me/243977092549" target="_blank" rel="noopener" class="social-links__item" aria-label="Contactez-nous sur WhatsApp">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.02 2C6.5 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.07-1.33A9.96 9.96 0 0 0 12.02 22C17.53 22 22 17.52 22 12S17.53 2 12.02 2Zm0 18.1c-1.63 0-3.14-.48-4.4-1.3l-.32-.19-3.01.79.8-2.93-.2-.3A8.08 8.08 0 0 1 3.9 12c0-4.48 3.65-8.11 8.12-8.11 4.48 0 8.11 3.63 8.11 8.11 0 4.48-3.63 8.1-8.11 8.1Zm4.45-6.07c-.24-.12-1.44-.71-1.67-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28Z"/></svg>
-            </a>
-            <a href="#" class="social-links__item" aria-label="Suivez-nous sur TikTok">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 2h-3.1v13.3a2.7 2.7 0 1 1-2.1-2.63v-3.15A5.85 5.85 0 1 0 16.6 15V8.9a7.1 7.1 0 0 0 4.1 1.3V7.1a4.05 4.05 0 0 1-4.1-5.1Z"/></svg>
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
+.site-header, main, .site-footer {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+}
 
-  </main>
+a { text-decoration: none; color: inherit; }
+img { max-width: 100%; display: block; }
+ul { margin: 0; padding: 0; list-style: none; }
 
-  <!-- ============================= FOOTER ============================= -->
-  <footer class="site-footer">
-    <div class="container site-footer__inner">
-      <img src="/logo.webp" alt="Kontra-Africa" class="site-footer__logo">
-      <p class="site-footer__copy">© <span id="year"></span> Kontra-Africa. Tous droits réservés.</p>
-    </div>
-  </footer>
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1.5px solid transparent;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn--primary { background: var(--brand); color: #fff; }
+.btn--primary:hover { background: var(--brand-dark); }
+.btn--ghost { color: var(--ink); }
+.btn--outline { border-color: var(--border); color: var(--ink); }
+.btn--outline:hover { border-color: var(--brand); }
+.btn--lg { padding: 0.9rem 1.8rem; font-size: 1.02rem; }
 
-  <script>
-    /* Splash PWA : affiché seulement quand l'app tourne en mode installé (standalone) */
-    (function () {
-      var isStandalone = window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true; // iOS
-      if (!isStandalone) return; // reste invisible sur le site web classique
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem clamp(1rem, 4vw, 3rem);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
 
-      var splash = document.getElementById('pwaSplash');
-      splash.hidden = false;
+.nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 2vw, 2rem);
+}
+.nav a:not(.btn) { font-size: 0.92rem; color: var(--muted); }
+.nav a:not(.btn):hover { color: var(--ink); }
+.nav-actions { display: flex; gap: 0.6rem; }
 
-      window.addEventListener('load', function () {
-        setTimeout(function () {
-          splash.style.opacity = '0';
-          setTimeout(function () { splash.remove(); }, 400);
-        }, 500);
-      });
-    })();
-  </script>
+.menu-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0.4rem;
+  cursor: pointer;
+}
+.menu-toggle span { width: 22px; height: 2px; background: var(--ink); border-radius: 2px; }
 
-  <script src="/js/landing.js"></script>
-  <script src="/js/sw-register.js"></script>
-</body>
-</html>
+@media (max-width: 860px) {
+  .menu-toggle { display: flex; }
+  .nav {
+    position: fixed;
+    inset: 64px 0 auto 0;
+    flex-direction: column;
+    align-items: flex-start;
+    background: #fff;
+    padding: 1.2rem clamp(1rem, 4vw, 3rem) 1.6rem;
+    border-bottom: 1px solid var(--border);
+    transform: translateY(-8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .nav--open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  .nav-actions { margin-top: 0.8rem; width: 100%; }
+  .nav-actions .btn { flex: 1; }
+}
+
+.eyebrow { color: var(--brand); font-weight: 600; font-size: 0.9rem; margin: 0 0 0.6rem; }
+h1, h2, h3 { line-height: 1.15; margin: 0 0 0.7rem; }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); }
+h2 { font-size: clamp(1.5rem, 3.2vw, 2.2rem); }
+h3 { font-size: 1.1rem; }
+p { color: var(--muted); line-height: 1.6; margin: 0 0 1rem; }
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 4.5rem) clamp(1rem, 4vw, 3rem);
+}
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-media { order: -1; }
+}
+
+.hero-copy, .hero-media {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.hero-copy.in { opacity: 1; transform: translateY(0); }
+.hero-media.in { opacity: 1; transform: translateY(0); transition-delay: 0.12s; }
+
+.hero-ctas { display: flex; flex-wrap: wrap; gap: 0.8rem; margin: 1.2rem 0 0.8rem; }
+.hero-note { font-size: 0.88rem; margin: 0 0 1.1rem; }
+
+.trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.4rem;
+}
+.trust-row li {
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+}
+
+.hero-media img { border-radius: 20px; box-shadow: 0 20px 50px -20px rgba(91,63,224,0.35); }
+
+.section {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1rem, 4vw, 3rem);
+}
+.section-head { max-width: 640px; margin-bottom: clamp(1.5rem, 3vw, 2.5rem); }
+
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal--in { opacity: 1; transform: translateY(0); }
+
+.steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
+@media (max-width: 860px) { .steps-grid { grid-template-columns: 1fr; } }
+.step-card { position: relative; background: var(--bg-soft); border-radius: var(--radius); padding: 1.4rem; border: 1px solid var(--border); }
+.step-card img { border-radius: 10px; margin-bottom: 1rem; }
+.step-number { display: block; color: var(--brand); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; }
+
+.section--split { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: clamp(1.5rem, 4vw, 3rem); align-items: center; }
+.section--reverse .split-media { order: 2; }
+@media (max-width: 860px) {
+  .section--split { grid-template-columns: 1fr; }
+  .section--reverse .split-media { order: -1; }
+}
+.split-media img { border-radius: 18px; }
+.check-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.5rem; color: var(--ink); }
+.check-list li::before { content: "✓"; position: absolute; left: 0; color: var(--brand); font-weight: 700; }
+
+.reasons { background: var(--bg-soft); border-radius: 28px; }
+.reasons-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
+@media (max-width: 960px) { .reasons-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .reasons-grid { grid-template-columns: 1fr; } }
+.reason-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.3rem; }
+.reasons-cta { text-align: center; margin-top: 2rem; }
+
+.pricing { text-align: center; }
+.price-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 2rem clamp(1.5rem, 6vw, 4rem);
+}
+.price { font-size: clamp(2.4rem, 6vw, 3.2rem); font-weight: 800; color: var(--ink); }
+.price small { font-size: 1rem; font-weight: 500; color: var(--muted); }
+.price-sub { color: var(--muted); margin-bottom: 0.6rem; }
+
+.countries-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
+@media (max-width: 900px) { .countries-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .countries-grid { grid-template-columns: 1fr; } }
+.country-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem; text-align: center; }
+.country-card img { width: 34px; height: 34px; margin: 0 auto 0.6rem; border-radius: 6px; object-fit: cover; }
+.momo-list { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
+.momo-list li { font-size: 0.74rem; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem 0.55rem; color: var(--ink); }
+
+.final-cta { text-align: center; background: var(--brand); color: #fff; border-radius: 28px; }
+.final-cta .eyebrow, .final-cta p { color: rgba(255,255,255,0.85); }
+.final-cta h2 { color: #fff; }
+.final-cta .btn--primary { background: #fff; color: var(--brand); }
+.final-cta .btn--primary:hover { background: #f2f0fd; }
+
+.contact { text-align: center; }
+.contact-links { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; }
+
+.site-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem 3rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.site-footer img { width: 28px; height: 28px; border-radius: 6px; }
+.site-footer p { margin: 0; font-size: 0.85rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-copy, .hero-media, .reveal { transition: none !important; transform: none !important; opacity: 1 !important; }
+}
+`;
