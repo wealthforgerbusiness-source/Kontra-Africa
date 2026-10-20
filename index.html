@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Kontra-Africa — Faites signer vos contrats sur WhatsApp | Essai gratuit 3 jours</title>
-  <meta name="description" content="Créez un contrat, envoyez le lien de signature sur WhatsApp, recevez le PDF signé. Stock et finances inclus. 3 jours gratuits, sans carte bancaire, paiement en Mobile Money." />
+  <title>Kontra-Africa — Gérez votre stock, vos ventes et vos factures | Essai gratuit 3 jours</title>
+  <meta name="description" content="L'application de gestion de stock pour les commerçants africains : produits, ventes, bénéfices, factures PDF et finances depuis votre téléphone. 3 jours gratuits, sans carte bancaire, paiement en Mobile Money." />
   <meta name="theme-color" content="#5B3FE0" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/logo.webp" type="image/webp" />
   <link rel="apple-touch-icon" href="/logo.webp" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Kontra-Africa — Vos contrats signés sur WhatsApp" />
-  <meta property="og:description" content="Contrats, signatures, stock et finances. 3 jours gratuits, sans carte bancaire." />
+  <meta property="og:title" content="Kontra-Africa — Stock, ventes et factures depuis votre téléphone" />
+  <meta property="og:description" content="Suivez votre stock, vos ventes et vos bénéfices. Factures PDF en un clic. 3 jours gratuits, sans carte bancaire." />
   <meta property="og:image" content="/images/illustrations/01-hero.webp" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,7 +21,7 @@
 
   <script>document.documentElement.classList.add("js");</script>
 
-  <style id="tokens">
+  <style>
     :root {
       color-scheme: light only;
 
@@ -30,26 +30,21 @@
       --color-primary-light: #EFEBFC;
       --color-accent: #FF8A3D;
       --color-accent-dark: #E3712A;
+      --color-whatsapp: #25D366;
+      --color-whatsapp-dark: #1EBE5B;
 
       --color-bg: #FAFAFB;
       --color-surface: #FFFFFF;
       --color-surface-alt: #F4F2FA;
       --color-text: #1A1330;
       --color-text-muted: #6B6478;
-      --color-text-faint: #9B96A8;
       --color-border: #E9E7F2;
       --color-border-strong: #D6D2E4;
-
       --color-success: #1E9E6B;
       --color-success-bg: #E8F7F0;
-      --color-warning: #C77B12;
-      --color-warning-bg: #FDF3E4;
-      --color-error: #D8402F;
-      --color-error-bg: #FBEAE8;
 
       --font-display: 'Space Grotesk', 'Inter', sans-serif;
       --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
       --fs-xs: 0.75rem;
       --fs-sm: 0.875rem;
@@ -61,10 +56,6 @@
       --fs-3xl: 3rem;
       --fs-4xl: 3.75rem;
 
-      --lh-tight: 1.15;
-      --lh-snug: 1.35;
-      --lh-normal: 1.6;
-
       --space-1: 0.25rem;
       --space-2: 0.5rem;
       --space-3: 0.75rem;
@@ -74,8 +65,6 @@
       --space-7: 2.5rem;
       --space-8: 3rem;
       --space-9: 4rem;
-      --space-10: 6rem;
-      --space-11: 8rem;
 
       --radius-sm: 8px;
       --radius-md: 14px;
@@ -87,14 +76,15 @@
       --shadow-lg: 0 16px 48px rgba(26, 19, 48, 0.12);
       --shadow-focus: 0 0 0 3px rgba(91, 63, 224, 0.25);
 
-      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
-      --duration-fast: 150ms;
-      --duration-base: 240ms;
-      --duration-slow: 420ms;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+      --t-fast: 150ms;
+      --t-base: 240ms;
+      --t-slow: 480ms;
 
       --container-max: 1200px;
-      --header-height: 72px;
-      --bottom-nav-height: 64px;
+      --header-height: 68px;
+      --bottom-bar-height: 64px;
+      --header-total: calc(var(--header-height) + env(safe-area-inset-top, 0px));
     }
 
     *, *::before, *::after { box-sizing: border-box; }
@@ -104,78 +94,61 @@
       margin: 0;
       font-family: var(--font-body);
       font-size: var(--fs-base);
-      line-height: var(--lh-normal);
+      line-height: 1.6;
       color: var(--color-text);
       background: var(--color-bg);
       -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom, 0px));
+      overflow-x: hidden;
     }
-    img, svg { max-width: 100%; display: block; }
+    html.menu-open, html.menu-open body { overflow: hidden; }
+    img, svg { max-width: 100%; display: block; height: auto; }
     a { color: inherit; text-decoration: none; }
     button { font-family: inherit; cursor: pointer; }
-    h1, h2, h3, h4 { font-family: var(--font-display); line-height: var(--lh-tight); margin: 0; letter-spacing: -0.01em; }
-    p { margin: 0; }
-    ul, ol { margin: 0; padding: 0; list-style: none; }
+    h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+    p { margin: 0; color: var(--color-text-muted); }
+    ul { margin: 0; padding: 0; list-style: none; }
     :focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: var(--radius-sm); }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important; scroll-behavior: auto !important;
-      }
-    }
-    input, select, textarea { color-scheme: light only; }
-    .container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--space-5); }
-    .visually-hidden {
-      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-    }
+    section[id], article[id] { scroll-margin-top: calc(var(--header-total) + 8px); }
 
+    .container { width: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--space-5); }
+    .center { text-align: center; }
+
+    /* ============ BOUTONS ============ */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
       min-height: 48px; padding: 0 var(--space-6);
       border-radius: var(--radius-full); border: none;
-      font-family: var(--font-body); font-weight: 600; font-size: var(--fs-base);
-      transition: transform var(--duration-fast) var(--ease-standard),
-                  box-shadow var(--duration-fast) var(--ease-standard),
-                  background var(--duration-fast) var(--ease-standard);
+      font-weight: 600; font-size: var(--fs-base); text-align: center;
+      transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
     }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary { background: var(--color-accent); color: #FFFFFF; box-shadow: 0 6px 20px rgba(255, 138, 61, 0.35); }
-    .btn-primary:hover { background: var(--color-accent-dark); box-shadow: 0 8px 24px rgba(255, 138, 61, 0.45); }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--color-accent); color: #fff; box-shadow: 0 6px 20px rgba(255, 138, 61, 0.35); }
+    .btn-primary:hover { background: var(--color-accent-dark); box-shadow: 0 10px 26px rgba(255, 138, 61, 0.45); }
     .btn-secondary { background: var(--color-surface); color: var(--color-primary); border: 1.5px solid var(--color-border-strong); }
     .btn-secondary:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
-    .btn-ghost { background: transparent; color: var(--color-text); }
-    .btn-ghost:hover { background: var(--color-surface-alt); }
-    .btn:disabled { opacity: 0.5; pointer-events: none; box-shadow: none; }
-    .btn-lg { min-height: 56px; padding: 0 var(--space-8); font-size: var(--fs-md); }
-  </style>
-
-  <style>
-    :root { --color-whatsapp: #25D366; --color-whatsapp-dark: #1EBE5B; --header-total: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
-
-    body { padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px)); }
-    html.menu-open, html.menu-open body { overflow: hidden; }
-    section[id], article[id] { scroll-margin-top: calc(var(--header-total) + 8px); }
-    p { color: var(--color-text-muted); }
-
-    .btn { text-align: center; }
-    .btn-sm { min-height: 40px; padding: 0 var(--space-4); font-size: var(--fs-sm); }
-    .btn-block { width: 100%; }
     .btn-wa { background: var(--color-whatsapp); color: #06301A; box-shadow: 0 6px 18px rgba(37, 211, 102, 0.35); }
     .btn-wa:hover { background: var(--color-whatsapp-dark); }
+    .btn-lg { min-height: 56px; padding: 0 var(--space-7); font-size: var(--fs-md); }
+    .btn-sm { min-height: 40px; padding: 0 var(--space-4); font-size: var(--fs-sm); }
+    .btn-block { width: 100%; }
 
+    /* ============ TITRES / SECTIONS ============ */
     .eyebrow { color: var(--color-primary); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; margin-bottom: var(--space-2); }
     h2 { font-size: clamp(var(--fs-xl), 5.5vw, var(--fs-2xl)); margin-bottom: var(--space-3); }
     h3 { font-size: var(--fs-md); margin-bottom: var(--space-2); }
     .section { padding-block: var(--space-8); }
     .section-head { max-width: 640px; margin-bottom: var(--space-6); }
-    .center { text-align: center; }
     .center .section-head { margin-inline: auto; }
     @media (min-width: 900px) { .section { padding-block: var(--space-9); } }
 
     /* ============ HEADER ============ */
     .site-header {
       position: sticky; top: 0; z-index: 50;
-      background: var(--color-surface);
+      background: rgba(255, 255, 255, 0.94);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--color-border);
       padding-top: env(safe-area-inset-top, 0px);
     }
@@ -192,7 +165,7 @@
     }
     .menu-toggle span {
       display: block; width: 22px; height: 2px; border-radius: 2px; background: var(--color-text);
-      transition: transform var(--duration-base) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+      transition: transform var(--t-base) var(--ease), opacity var(--t-fast) var(--ease);
     }
     .menu-toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
     .menu-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
@@ -203,7 +176,7 @@
       background: rgba(17, 12, 33, 0.5);
       -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
       opacity: 0; visibility: hidden;
-      transition: opacity var(--duration-base) var(--ease-standard), visibility 0s linear var(--duration-base);
+      transition: opacity var(--t-base) var(--ease), visibility 0s linear var(--t-base);
     }
     .nav-overlay.is-open { opacity: 1; visibility: visible; transition-delay: 0s; }
 
@@ -215,24 +188,22 @@
       background: var(--color-surface); overflow-y: auto;
       box-shadow: 24px 0 64px rgba(17, 12, 33, 0.18);
       visibility: hidden; transform: translateX(-100%);
-      transition: transform var(--duration-slow) var(--ease-standard),
-                  visibility 0s linear var(--duration-slow);
+      transition: transform var(--t-slow) var(--ease), visibility 0s linear var(--t-slow);
     }
     .nav.is-open { visibility: visible; transform: none; transition-delay: 0s; }
 
     .nav-brand-row {
       display: flex; align-items: center; gap: var(--space-2);
       font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md);
-      padding-bottom: var(--space-4); margin-bottom: var(--space-5);
+      padding-bottom: var(--space-4); margin-bottom: var(--space-3);
       border-bottom: 1px solid var(--color-border);
     }
     .nav-brand-row img { width: 30px; height: 30px; border-radius: var(--radius-sm); }
     .nav-close {
-      margin-left: auto;
-      display: inline-flex; align-items: center; justify-content: center;
+      margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
       width: 36px; height: 36px; border-radius: 50%; border: 0;
-      background: var(--color-surface-alt); color: var(--color-text);
-      font-size: 1.1rem; line-height: 1;
+      background: var(--color-surface-alt); color: var(--color-text); font-size: 1.1rem; line-height: 1;
+      transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
     }
     .nav-close:hover { background: var(--color-primary-light); color: var(--color-primary); }
 
@@ -240,10 +211,19 @@
       display: block; padding: var(--space-4) 0;
       font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 500;
       border-bottom: 1px solid var(--color-border);
-      transition: color var(--duration-fast) var(--ease-standard), padding-left var(--duration-fast) var(--ease-standard);
+      transition: color var(--t-fast) var(--ease), padding-left var(--t-fast) var(--ease);
     }
     .nav-links a:active { color: var(--color-primary); padding-left: var(--space-2); }
     .nav-actions { display: grid; gap: var(--space-3); margin-top: auto; padding-top: var(--space-6); }
+
+    .nav.is-open .nav-links li, .nav.is-open .nav-actions > * { animation: nav-in .4s var(--ease) both; }
+    .nav.is-open .nav-links li:nth-child(1) { animation-delay: .08s; }
+    .nav.is-open .nav-links li:nth-child(2) { animation-delay: .14s; }
+    .nav.is-open .nav-links li:nth-child(3) { animation-delay: .20s; }
+    .nav.is-open .nav-links li:nth-child(4) { animation-delay: .26s; }
+    .nav.is-open .nav-links li:nth-child(5) { animation-delay: .32s; }
+    .nav.is-open .nav-actions > * { animation-delay: .38s; }
+    @keyframes nav-in { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
 
     @media (min-width: 900px) {
       .menu-toggle, .header-cta, .nav-overlay, .nav-brand-row { display: none; }
@@ -252,9 +232,10 @@
         padding: 0; background: none; overflow: visible; gap: var(--space-6); box-shadow: none;
         visibility: visible; transform: none; transition: none;
       }
+      .nav.is-open .nav-links li, .nav.is-open .nav-actions > * { animation: none; }
       .nav-links { display: flex; gap: var(--space-5); }
       .nav-links a { padding: 0; border: 0; font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 500; color: var(--color-text-muted); }
-      .nav-links a:hover { color: var(--color-text); }
+      .nav-links a:hover { color: var(--color-primary); }
       .nav-links a:active { padding-left: 0; }
       .nav-actions { display: flex; margin: 0; padding: 0; gap: var(--space-2); }
       .nav-actions .btn { min-height: 40px; padding: 0 var(--space-5); font-size: var(--fs-sm); }
@@ -263,10 +244,10 @@
     /* ============ HERO ============ */
     .hero { display: grid; gap: var(--space-6); padding-block: var(--space-6) var(--space-7); }
     .hero h1 { font-size: clamp(var(--fs-2xl), 7.5vw, var(--fs-4xl)); margin-bottom: var(--space-4); }
+    .hero h1 em { font-style: normal; color: var(--color-primary); }
     .hero .lead { font-size: var(--fs-md); margin-bottom: var(--space-3); }
     .hero-audience { font-size: var(--fs-sm); margin-bottom: var(--space-5); }
     .hero-ctas { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
-    .hero-ctas .btn { padding-inline: var(--space-5); }
     .hero-note { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text); margin-bottom: var(--space-4); }
     .trust-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .trust-row li {
@@ -275,16 +256,19 @@
       padding: var(--space-1) var(--space-3); border-radius: var(--radius-full);
     }
     .hero-media img { border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); margin-inline: auto; }
-    .js .hero-copy, .js .hero-media { opacity: 0; transform: translateY(18px); transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
-    .js .hero-copy.in, .js .hero-media.in { opacity: 1; transform: none; }
-    .js .hero-media.in { transition-delay: .12s; }
+
+    /* apparition progressive du texte du hero */
+    .js .hero-copy > * { opacity: 0; transform: translateY(18px); transition: opacity var(--t-slow) var(--ease), transform var(--t-slow) var(--ease); transition-delay: calc(var(--i, 0) * 90ms); }
+    .js .hero-copy.in > * { opacity: 1; transform: none; }
+    .js .hero-media { opacity: 0; transform: translateY(22px) scale(.98); transition: opacity .7s var(--ease), transform .7s var(--ease); transition-delay: .25s; }
+    .js .hero-media.in { opacity: 1; transform: none; }
+
     @media (min-width: 560px) { .hero-ctas { display: flex; flex-wrap: wrap; } }
     @media (min-width: 900px) {
       .hero { grid-template-columns: 1.05fr .95fr; align-items: center; gap: var(--space-9); padding-block: var(--space-9); }
-      .hero-ctas .btn { padding-inline: var(--space-6); }
     }
 
-    /* ============ CARROUSEL PAYS INFINI ============ */
+    /* ============ PAYS (CARROUSEL) ============ */
     .countries { background: var(--color-surface-alt); border-block: 1px solid var(--color-border); padding-block: var(--space-7); }
     .countries .section-head { margin-bottom: var(--space-5); }
     .marquee { overflow-x: auto; scroll-snap-type: x proximity; padding: var(--space-1) 0; scrollbar-width: none; }
@@ -295,7 +279,7 @@
               mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
     }
     .marquee-track { display: flex; width: max-content; }
-    .marquee.is-running .marquee-track { animation: kx-scroll 45s linear infinite !important; animation-iteration-count: infinite !important; animation-duration: 45s !important; }
+    .marquee.is-running .marquee-track { animation: kx-scroll 45s linear infinite; }
     @keyframes kx-scroll { to { transform: translateX(-50%); } }
     .marquee.is-running:active .marquee-track { animation-play-state: paused; }
     @media (hover: hover) { .marquee.is-running:hover .marquee-track { animation-play-state: paused; } }
@@ -320,12 +304,16 @@
 
     /* ============ ÉTAPES ============ */
     .steps { display: grid; gap: var(--space-4); }
-    .step { background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); }
-    .step img { border-radius: var(--radius-sm); margin-bottom: var(--space-4); }
+    .step {
+      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+      padding: var(--space-5); box-shadow: var(--shadow-sm);
+      transition: transform var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease);
+    }
+    .step:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
     .step-n {
-      display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+      display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
       background: var(--color-primary); color: #fff; font-family: var(--font-display); font-weight: 700;
-      font-size: var(--fs-sm); margin-bottom: var(--space-3);
+      font-size: var(--fs-base); margin-bottom: var(--space-3);
     }
     .cta-row { display: grid; justify-items: center; margin-top: var(--space-6); }
     .cta-row .btn { width: 100%; max-width: 380px; }
@@ -333,8 +321,14 @@
 
     /* ============ FONCTIONNALITÉS ============ */
     .features { display: grid; gap: var(--space-4); }
-    .feature { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+    .feature {
+      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+      overflow: hidden; box-shadow: var(--shadow-sm);
+      transition: transform var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease);
+    }
+    .feature:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
     .feature-body { padding: var(--space-5); }
+    .feature-body > p { margin-bottom: var(--space-3); }
     .check-list li { position: relative; padding-left: var(--space-5); margin-bottom: var(--space-2); font-size: var(--fs-sm); color: var(--color-text); }
     .check-list li::before { content: "✓"; position: absolute; left: 0; color: var(--color-success); font-weight: 700; }
     @media (min-width: 860px) { .features { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); } }
@@ -343,7 +337,7 @@
     .reasons-wrap { background: var(--color-surface-alt); }
     .reasons { display: grid; gap: var(--space-3); }
     .reason { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); }
-    .reason p { font-size: var(--fs-sm); margin: 0; }
+    .reason p { font-size: var(--fs-sm); }
     @media (min-width: 600px) { .reasons { grid-template-columns: repeat(2, 1fr); } }
     @media (min-width: 960px) { .reasons { grid-template-columns: repeat(4, 1fr); } }
 
@@ -364,7 +358,8 @@
 
     /* ============ FAQ ============ */
     .faq { max-width: 760px; margin-inline: auto; display: grid; gap: var(--space-3); }
-    .faq details { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding-inline: var(--space-4); }
+    .faq details { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding-inline: var(--space-4); transition: border-color var(--t-fast) var(--ease); }
+    .faq details[open] { border-color: var(--color-primary); }
     .faq summary {
       cursor: pointer; font-weight: 600; padding: var(--space-4) 0; list-style: none;
       display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);
@@ -383,7 +378,7 @@
     }
     .final h2 { color: #fff; }
     .final p { color: rgba(255,255,255,.88); margin-bottom: var(--space-5); }
-    .final .eyebrow { color: rgba(255,255,255,.85); }
+    .final .eyebrow { color: rgba(255,255,255,.85); margin-bottom: var(--space-2); }
     .final .btn { width: 100%; max-width: 380px; }
     @media (min-width: 900px) { .final { padding: var(--space-9) var(--space-6); } }
 
@@ -396,15 +391,16 @@
     .site-footer img { width: 28px; height: 28px; border-radius: var(--radius-sm); }
     .site-footer p, .site-footer a { font-size: var(--fs-sm); }
     .site-footer a { color: var(--color-text-muted); }
+    .site-footer a:hover { color: var(--color-primary); }
 
     /* ============ BARRE CTA COLLANTE (mobile) ============ */
     .sticky-cta {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
       display: flex; align-items: center; gap: var(--space-3);
-      min-height: var(--bottom-nav-height);
+      min-height: var(--bottom-bar-height);
       padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
       background: var(--color-surface); border-top: 1px solid var(--color-border); box-shadow: var(--shadow-lg);
-      transform: translateY(110%); transition: transform var(--duration-base) var(--ease-standard);
+      transform: translateY(110%); transition: transform var(--t-base) var(--ease);
     }
     .sticky-cta.show { transform: none; }
     html.menu-open .sticky-cta { transform: translateY(110%); }
@@ -412,10 +408,12 @@
     @media (min-width: 900px) { .sticky-cta { display: none; } body { padding-bottom: 0; } }
 
     /* ============ RÉVÉLATION AU SCROLL ============ */
-    .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard); }
+    .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity var(--t-slow) var(--ease), transform var(--t-slow) var(--ease); }
     .js .reveal.reveal--in { opacity: 1; transform: none; }
+
     @media (prefers-reduced-motion: reduce) {
-      .hero-copy, .hero-media, .reveal { opacity: 1 !important; transform: none !important; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+      .hero-copy > *, .hero-media, .reveal { opacity: 1 !important; transform: none !important; }
       .marquee-track { animation: none !important; }
     }
   </style>
@@ -449,8 +447,8 @@
         <ul class="nav-links">
           <li><a href="#comment-ca-marche">Comment ça marche</a></li>
           <li><a href="#stock">Stock</a></li>
+          <li><a href="#factures">Factures</a></li>
           <li><a href="#finances">Finances</a></li>
-          <li><a href="#securite">Sécurité</a></li>
           <li><a href="#tarif">Tarif</a></li>
         </ul>
         <div class="nav-actions">
@@ -466,10 +464,10 @@
     <!-- HERO -->
     <section class="container hero">
       <div class="hero-copy" id="heroCopy">
-        <p class="eyebrow">Contrats · Signatures · Stock · Finances</p>
-        <h1>Faites signer vos contrats sur WhatsApp, sans papier ni déplacement</h1>
-        <p class="lead">Créez le contrat, envoyez le lien de signature, recevez le PDF signé. Suivez aussi votre stock et vos finances dans la même app.</p>
-        <p class="hero-audience">Pour commerçants, freelances, bailleurs et artisans.</p>
+        <p class="eyebrow">Stock · Ventes · Factures · Finances</p>
+        <h1>Gérez votre <em>stock</em> et vos ventes depuis votre téléphone</h1>
+        <p class="lead">Ajoutez vos produits, notez vos ventes, voyez votre bénéfice et envoyez une facture PDF en un clic. Fini le cahier et les pertes.</p>
+        <p class="hero-audience">Pour boutiques, pharmacies, quincailleries, grossistes et vendeurs de marché.</p>
 
         <div class="hero-ctas" id="heroCtas">
           <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="hero-primary">Créer mon compte gratuit</a>
@@ -478,15 +476,15 @@
         <p class="hero-note">3 jours offerts · sans carte bancaire · annulation à tout moment</p>
 
         <ul class="trust-row">
-          <li>🔒 Signature horodatée et verrouillée</li>
+          <li>📦 Stock toujours à jour</li>
           <li>💳 Paiement Mobile Money</li>
           <li>🌍 8 pays</li>
         </ul>
       </div>
 
       <div class="hero-media" id="heroMedia">
-        <img src="/images/illustrations/01-hero.webp" fetchpriority="high"
-             alt="Aperçu de l'application Kontra-Africa affichant un contrat prêt à signer" />
+        <img src="/images/illustrations/01-hero.webp" fetchpriority="high" width="600" height="600"
+             alt="Aperçu de l'application Kontra-Africa : stock, ventes et bénéfices" />
       </div>
     </section>
 
@@ -550,26 +548,23 @@
       <div class="container">
         <div class="section-head reveal">
           <p class="eyebrow">Le parcours</p>
-          <h2>Trois étapes, un seul geste par étape</h2>
+          <h2>Trois étapes pour reprendre le contrôle</h2>
         </div>
         <div class="steps">
           <div class="step reveal">
-            <img src="/images/illustrations/02-contrat-signature.webp" alt="" loading="lazy" />
             <span class="step-n">1</span>
-            <h3>Créez et envoyez</h3>
-            <p>Rédigez votre contrat dans l'app, puis partagez le lien de signature sur WhatsApp.</p>
+            <h3>Ajoutez vos produits</h3>
+            <p>Entrez le nom, le prix d'achat, le prix de vente et la quantité. Votre stock est prêt en quelques minutes.</p>
           </div>
           <div class="step reveal">
-            <img src="/images/illustrations/03-pdf-automatique.webp" alt="" loading="lazy" />
             <span class="step-n">2</span>
-            <h3>Il signe depuis son téléphone</h3>
-            <p>Le signataire lit et signe sans créer de compte. Le PDF final se génère seul, avec les deux signatures.</p>
+            <h3>Notez chaque vente</h3>
+            <p>Un geste par vente. Le stock baisse tout seul et vous pouvez envoyer une facture PDF à votre client.</p>
           </div>
           <div class="step reveal">
-            <img src="/images/illustrations/04-suivi-financier.webp" alt="" loading="lazy" />
             <span class="step-n">3</span>
-            <h3>Suivez ce qui rentre et sort</h3>
-            <p>Reliez chaque contrat signé à votre suivi financier : solde, épargne, historique.</p>
+            <h3>Voyez ce que vous gagnez</h3>
+            <p>Ventes du jour, bénéfice, produits qui partent le plus vite, produits bientôt en rupture.</p>
           </div>
         </div>
         <div class="cta-row reveal">
@@ -583,42 +578,42 @@
       <div class="container">
         <div class="section-head reveal">
           <p class="eyebrow">Tout en un</p>
-          <h2>Une seule app pour gérer votre activité</h2>
+          <h2>Une seule app pour gérer votre commerce</h2>
         </div>
         <div class="features">
           <article class="feature reveal" id="stock">
             <img src="/images/illustrations/08-stock-ventes.webp" alt="Gestion de stock et des ventes dans l'application" loading="lazy" />
             <div class="feature-body">
               <h3>Stock et ventes</h3>
-              <p style="margin-bottom:var(--space-3)">Ajoutez vos produits, enregistrez chaque vente en quelques secondes : le bénéfice se calcule tout seul.</p>
+              <p>Ajoutez vos produits et enregistrez chaque vente en quelques secondes. Le bénéfice se calcule tout seul.</p>
               <ul class="check-list">
-                <li>Bénéfice calculé à chaque vente</li>
+                <li>Quantités mises à jour à chaque vente</li>
                 <li>Alertes de stock bas</li>
+                <li>Bénéfice calculé automatiquement</li>
+              </ul>
+            </div>
+          </article>
+          <article class="feature reveal" id="factures">
+            <img src="/images/illustrations/03-pdf-automatique.webp" alt="Facture PDF générée automatiquement" loading="lazy" />
+            <div class="feature-body">
+              <h3>Factures et rapports PDF</h3>
+              <p>Après une vente, générez une facture propre et envoyez-la à votre client sur WhatsApp.</p>
+              <ul class="check-list">
+                <li>Facture PDF en un clic</li>
+                <li>Partage direct sur WhatsApp</li>
                 <li>Rapport PDF journalier</li>
               </ul>
             </div>
           </article>
           <article class="feature reveal" id="finances">
-            <img src="/images/illustrations/05-taux-change.webp" alt="Configuration du taux de change dans l'application" loading="lazy" />
+            <img src="/images/illustrations/05-taux-change.webp" alt="Suivi financier et taux de change dans l'application" loading="lazy" />
             <div class="feature-body">
               <h3>Suivi financier</h3>
-              <p style="margin-bottom:var(--space-3)">Un solde clair, un objectif d'épargne visible et votre propre taux de change pour rester juste dans votre monnaie.</p>
+              <p>Un solde clair, un objectif d'épargne visible et votre propre taux de change pour rester juste dans votre monnaie.</p>
               <ul class="check-list">
                 <li>Historique des transactions</li>
                 <li>Objectif d'épargne avec progression</li>
                 <li>Taux de change personnalisable</li>
-              </ul>
-            </div>
-          </article>
-          <article class="feature reveal" id="securite">
-            <img src="/images/illustrations/06-securite-confiance.webp" alt="Sécurité des données et des contrats" loading="lazy" />
-            <div class="feature-body">
-              <h3>Contrats verrouillés</h3>
-              <p style="margin-bottom:var(--space-3)">Connexion sécurisée par Google. Une fois signé, un contrat est horodaté : personne ne peut le modifier après coup.</p>
-              <ul class="check-list">
-                <li>Horodatage de chaque signature</li>
-                <li>Aucune modification après signature</li>
-                <li>Vos données restent les vôtres</li>
               </ul>
             </div>
           </article>
@@ -636,19 +631,19 @@
         <div class="reasons">
           <div class="reason reveal">
             <h3>Rien à installer</h3>
-            <p>Créez votre premier contrat dans le navigateur. Ajoutez l'app à l'écran d'accueil plus tard, si vous voulez.</p>
+            <p>Utilisez l'app dans le navigateur. Ajoutez-la à l'écran d'accueil plus tard, si vous voulez.</p>
           </div>
           <div class="reason reveal">
             <h3>Payez comme d'habitude</h3>
             <p>Orange Money, MTN, Wave, Airtel, Moov… pas besoin de carte bancaire étrangère.</p>
           </div>
           <div class="reason reveal">
-            <h3>Signatures verrouillées</h3>
-            <p>Un contrat signé est horodaté et ne peut plus être modifié par aucune des deux parties.</p>
+            <h3>Simple à prendre en main</h3>
+            <p>Pensée pour les petits commerces : pas de jargon, pas de formation. Vous êtes prêt en quelques minutes.</p>
           </div>
           <div class="reason reveal">
             <h3>3 jours pour juger</h3>
-            <p>Faites signer un vrai contrat pendant l'essai. Vous payez seulement si l'app vous fait gagner du temps.</p>
+            <p>Entrez vos vrais produits pendant l'essai. Vous payez seulement si l'app vous aide à mieux vendre.</p>
           </div>
         </div>
         <div class="cta-row reveal">
@@ -668,11 +663,11 @@
           <div class="price">$5<small>/mois</small></div>
           <span class="price-badge">3 jours d'essai gratuit · sans carte</span>
           <ul class="check-list">
-            <li>Contrats et signatures illimités</li>
-            <li>Signature par lien WhatsApp</li>
-            <li>Gestion de stock et ventes</li>
+            <li>Produits et ventes illimités</li>
+            <li>Alertes de stock bas</li>
+            <li>Factures et rapports PDF</li>
             <li>Suivi financier et taux de change</li>
-            <li>PDF automatique après signature</li>
+            <li>Paiement en Mobile Money</li>
           </ul>
           <a href="/inscription.html" class="btn btn-primary btn-lg btn-block" data-signup data-cta="pricing">Créer mon compte gratuit</a>
         </div>
@@ -692,20 +687,24 @@
             <p>Non. L'essai de 3 jours ne demande aucune carte. Ensuite, vous payez avec le Mobile Money de votre pays.</p>
           </details>
           <details>
-            <summary>La personne qui signe doit-elle créer un compte ?</summary>
-            <p>Non. Elle ouvre le lien reçu sur WhatsApp, lit le contrat et signe depuis son téléphone.</p>
+            <summary>Pour quel type de commerce l'app est-elle faite ?</summary>
+            <p>Pour tout commerce qui vend des produits : boutique, pharmacie, quincaillerie, vente en gros, vendeur de marché, e-commerce sur WhatsApp ou Facebook.</p>
           </details>
           <details>
             <summary>Que se passe-t-il à la fin des 3 jours ?</summary>
             <p>Vous choisissez de continuer avec l'abonnement à 5 $/mois, payé en Mobile Money. Sinon, vous pouvez arrêter à tout moment.</p>
           </details>
           <details>
-            <summary>Un contrat signé ici a-t-il une valeur légale ?</summary>
-            <p>Beaucoup de pays reconnaissent la signature électronique, mais la valeur juridique dépend du type de contrat et de la loi locale. Kontra-Africa horodate et verrouille chaque contrat pour garder une preuve de l'accord des deux parties.</p>
+            <summary>Puis-je envoyer une facture à mes clients ?</summary>
+            <p>Oui. Après une vente, vous générez une facture PDF que vous pouvez partager directement sur WhatsApp.</p>
           </details>
           <details>
             <summary>Ça marche sur mon téléphone ?</summary>
             <p>Oui, directement dans le navigateur, sur Android comme sur iPhone. Vous pouvez aussi l'ajouter à l'écran d'accueil.</p>
+          </details>
+          <details>
+            <summary>Mes données sont-elles en sécurité ?</summary>
+            <p>Oui. La connexion est sécurisée et vos données restent les vôtres : personne d'autre n'y a accès.</p>
           </details>
         </div>
       </div>
@@ -716,7 +715,7 @@
       <section class="final" id="finalCta">
         <div class="reveal">
           <p class="eyebrow">Rejoignez-nous</p>
-          <h2>Prêt à faire signer votre premier contrat aujourd'hui ?</h2>
+          <h2>Prêt à savoir exactement ce que vous vendez et gagnez ?</h2>
           <p>3 jours gratuits, sans carte bancaire. Ça prend moins de 2 minutes pour commencer.</p>
           <a href="/inscription.html" class="btn btn-primary btn-lg" data-signup data-cta="final">Créer mon compte gratuit</a>
         </div>
@@ -757,7 +756,7 @@
 
       document.getElementById("year").textContent = new Date().getFullYear();
 
-      /* ---------- MENU HAMBURGER (tiroir depuis la gauche) ---------- */
+      /* ---------- MENU (tiroir depuis la gauche) ---------- */
       var nav = document.getElementById("nav");
       var toggle = document.getElementById("menuToggle");
       var overlay = document.getElementById("navOverlay");
@@ -770,30 +769,22 @@
         toggle.setAttribute("aria-expanded", String(open));
         toggle.setAttribute("aria-label", open ? "Fermer le menu" : "Ouvrir le menu");
       }
-      toggle.addEventListener("click", function () {
-        setMenu(!nav.classList.contains("is-open"));
-      });
+      toggle.addEventListener("click", function () { setMenu(!nav.classList.contains("is-open")); });
       overlay.addEventListener("click", function () { setMenu(false); });
-      navClose.addEventListener("click", function () {
-        setMenu(false);
-        toggle.focus();
-      });
-      nav.addEventListener("click", function (e) {
-        if (e.target.closest("a")) setMenu(false);
-      });
+      navClose.addEventListener("click", function () { setMenu(false); toggle.focus(); });
+      nav.addEventListener("click", function (e) { if (e.target.closest("a")) setMenu(false); });
       document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape" && nav.classList.contains("is-open")) {
-          setMenu(false);
-          toggle.focus();
-        }
+        if (e.key === "Escape" && nav.classList.contains("is-open")) { setMenu(false); toggle.focus(); }
       });
       function onResize(e) { if (e.matches) setMenu(false); }
       if (desktopMQ.addEventListener) desktopMQ.addEventListener("change", onResize);
       else desktopMQ.addListener(onResize);
 
-      /* ---------- ENTRÉE DU HERO ---------- */
+      /* ---------- ENTRÉE DU HERO (texte en cascade) ---------- */
+      var heroCopy = document.getElementById("heroCopy");
+      Array.prototype.forEach.call(heroCopy.children, function (el, i) { el.style.setProperty("--i", i); });
       setTimeout(function () {
-        document.getElementById("heroCopy").classList.add("in");
+        heroCopy.classList.add("in");
         document.getElementById("heroMedia").classList.add("in");
       }, 60);
 
@@ -805,7 +796,10 @@
             if (en.isIntersecting) { en.target.classList.add("reveal--in"); io.unobserve(en.target); }
           });
         }, { threshold: 0.12, rootMargin: "0px 0px -4% 0px" });
-        items.forEach(function (el) { io.observe(el); });
+        items.forEach(function (el, i) {
+          el.style.transitionDelay = ((i % 4) * 60) + "ms";
+          io.observe(el);
+        });
       } else {
         items.forEach(function (el) { el.classList.add("reveal--in"); });
       }
