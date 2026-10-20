@@ -1,74 +1,220 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // -----------------------------------------------------------------------
-    // ADMIN
-    // -----------------------------------------------------------------------
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'optisitedigital@gmail.com'
-        && request.auth.token.email_verified == true;
+
+    /* ==================================================================
+       Fonctions utilitaires
+       ================================================================== */
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Rôle admin : custom claim posé uniquement par le serveur
+    function isAdmin() { return signedIn() && request.auth.token.get('admin', false) == true; }
+
+    // Abonnement actif : custom claim "subUntil" (date d'expiration en ms).
+    // Gratuit : aucune lecture de document.
+    function subActive() {
+      return signedIn() && request.auth.token.get('subUntil', 0) > request.time.toMillis();
     }
-    // -----------------------------------------------------------------------
-    // UTILISATEUR CONNECTÉ
-    // -----------------------------------------------------------------------
-    function isOwner(userId) {
-      return request.auth != null
-        && request.auth.uid == userId;
+
+    function isStr(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function isNum(v, lo, hi) { return (v is int || v is float) && v >= lo && v <= hi; }
+    function isDay(v)   { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function isMonth(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}$'); }
+
+    /* ==================================================================
+       Profil : users/{uid}
+       Le client ne peut écrire QUE ces champs. Tout autre champ présent
+       sur le document (abonnement, rôle, plan, e-mail...) est intouchable.
+       ================================================================== */
+    function profileOk(d, aff) {
+      return (!aff.hasAny(['businessName']) || isStr(d.businessName, 80))
+        && (!aff.hasAny(['country'])        || isStr(d.country, 40))
+        && (!aff.hasAny(['currency'])       || isStr(d.currency, 8))
+        && (!aff.hasAny(['rate'])           || isNum(d.rate, 0, 1000000000000))
+        && (!aff.hasAny(['savingsGoal'])    || isNum(d.savingsGoal, 0, 1000000000000))
+        && (!aff.hasAny(['phone'])          || isStr(d.phone, 24))
+        && (!aff.hasAny(['address'])        || isStr(d.address, 160));
     }
-    // Liste blanche : SEULS ces champs peuvent être modifiés par l'utilisateur
-    // directement depuis le client.
-    function isOnlyChangingAllowedFields() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly([
-          'displayName',
-          'photoURL',
-          'currencySymbol',
-          'exchangeRate',
-          'exchangeRateUpdatedAt',
-          'displayCurrency',
-          'savingsGoalAmount',
-          'savingsCurrentAmount',
-          'balance'
-        ]);
-    }
-    // -----------------------------------------------------------------------
-    // USERS
-    // -----------------------------------------------------------------------
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if false;
-      allow update: if isOwner(userId)
-        && isOnlyChangingAllowedFields();
+
+    match /users/{uid} {
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin() && request.query.limit <= 50;
+
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['businessName','country','currency','rate','savingsGoal','phone','address'])
+        && profileOk(request.resource.data, request.resource.data.keys().toSet());
+
+      allow update: if isOwner(uid) && subActive()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['businessName','country','currency','rate','savingsGoal','phone','address'])
+        && profileOk(request.resource.data, request.resource.data.diff(resource.data).affectedKeys());
+
       allow delete: if false;
-      match /transactions/{transactionId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow write: if false;
+
+      /* ----------------------------------------------------------------
+         Produits (archivés, jamais supprimés : l'historique reste cohérent)
+         ---------------------------------------------------------------- */
+      function validProduct(d) {
+        return d.keys().hasOnly(['name','sku','buyPrice','sellPrice','qty','alertAt','isLow','soldQty','archived','createdAt','updatedAt'])
+          && d.keys().hasAll(['name','buyPrice','sellPrice','qty','alertAt','isLow','soldQty','archived','createdAt','updatedAt'])
+          && isStr(d.name, 80)
+          && (!('sku' in d) || isStr(d.sku, 40))
+          && isNum(d.buyPrice, 0, 1000000000000)
+          && isNum(d.sellPrice, 0, 1000000000000)
+          && isNum(d.qty, -1000000, 100000000)      // négatif toléré : vente hors ligne sur 2 appareils
+          && isNum(d.alertAt, 0, 100000000)
+          && isNum(d.soldQty, -100000000, 100000000)
+          && d.isLow is bool
+          && d.archived is bool
+          && d.updatedAt == request.time;
+      }
+
+      match /products/{pid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 500;
+        allow create: if isOwner(uid) && subActive()
+          && validProduct(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwner(uid) && subActive()
+          && validProduct(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if false;
+      }
+
+      /* ----------------------------------------------------------------
+         Ventes : jamais supprimées. Après création, seuls l'encaissement
+         d'une dette et l'annulation sont possibles.
+         ---------------------------------------------------------------- */
+      function validSale(d) {
+        return d.keys().hasOnly(['items','total','profit','paid','status','customerId','customerName','customerPhone','note','invoiceNo','day','month','createdAt'])
+          && d.keys().hasAll(['items','total','profit','paid','status','invoiceNo','day','month','createdAt'])
+          && d.items is list && d.items.size() >= 1 && d.items.size() <= 60
+          && isNum(d.total, 0, 1000000000000)
+          && isNum(d.profit, -1000000000000, 1000000000000)
+          && isNum(d.paid, 0, 1000000000000)
+          && d.paid <= d.total
+          && d.status in ['paid', 'credit']
+          && (d.status != 'paid' || d.paid == d.total)
+          && (d.status != 'credit' || d.paid < d.total)
+          && isStr(d.invoiceNo, 24)
+          && isDay(d.day) && isMonth(d.month)
+          && (!('customerId' in d)    || isStr(d.customerId, 40))
+          && (!('customerName' in d)  || isStr(d.customerName, 80))
+          && (!('customerPhone' in d) || isStr(d.customerPhone, 24))
+          && (!('note' in d)          || (d.note is string && d.note.size() <= 300));
+      }
+
+      match /sales/{sid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 50;
+
+        allow create: if isOwner(uid) && subActive()
+          && validSale(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if isOwner(uid) && subActive()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','paid','updatedAt'])
+          && resource.data.status != 'cancelled'
+          && request.resource.data.status in ['paid', 'credit', 'cancelled']
+          && (resource.data.status != 'paid' || request.resource.data.status in ['paid', 'cancelled'])
+          && isNum(request.resource.data.paid, 0, 1000000000000)
+          && request.resource.data.paid >= resource.data.paid
+          && request.resource.data.paid <= resource.data.total
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if false;
+      }
+
+      /* ----------------------------------------------------------------
+         Clients et dettes
+         ---------------------------------------------------------------- */
+      function validCustomer(d) {
+        return d.keys().hasOnly(['name','phone','debt','updatedAt'])
+          && d.keys().hasAll(['name','debt','updatedAt'])
+          && isStr(d.name, 80)
+          && (!('phone' in d) || isStr(d.phone, 24))
+          && isNum(d.debt, -1, 1000000000000)      // -1 : tolère les arrondis flottants
+          && d.updatedAt == request.time;
+      }
+
+      match /customers/{cid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 200;
+        allow create, update: if isOwner(uid) && subActive() && validCustomer(request.resource.data);
+        allow delete: if isOwner(uid) && subActive();
+      }
+
+      /* ----------------------------------------------------------------
+         Finances : entrées / sorties hors ventes
+         ---------------------------------------------------------------- */
+      match /transactions/{tid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 50;
+        allow create: if isOwner(uid) && subActive()
+          && request.resource.data.keys().hasOnly(['type','amount','label','day','createdAt'])
+          && request.resource.data.keys().hasAll(['type','amount','label','day','createdAt'])
+          && request.resource.data.type in ['in', 'out']
+          && isNum(request.resource.data.amount, 0.01, 1000000000000)
+          && isStr(request.resource.data.label, 100)
+          && isDay(request.resource.data.day)
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if isOwner(uid) && subActive();
+      }
+
+      /* ----------------------------------------------------------------
+         Totaux jour (YYYY-MM-DD) et mois (YYYY-MM) : lus par l'Accueil
+         ---------------------------------------------------------------- */
+      match /stats/{period} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 40;
+        allow create, update: if isOwner(uid) && subActive()
+          && (isDay(period) || isMonth(period))
+          && request.resource.data.keys().hasOnly(['revenue','profit','salesCount','income','expenses'])
+          && isNum(request.resource.data.get('revenue', 0),    -1000000000000, 1000000000000)
+          && isNum(request.resource.data.get('profit', 0),     -1000000000000, 1000000000000)
+          && isNum(request.resource.data.get('income', 0),     -1000000000000, 1000000000000)
+          && isNum(request.resource.data.get('expenses', 0),   -1000000000000, 1000000000000)
+          && isNum(request.resource.data.get('salesCount', 0), -100000000, 100000000);
+        allow delete: if false;
       }
     }
-    // -----------------------------------------------------------------------
-    // CONTRACTS
-    // -----------------------------------------------------------------------
-    match /contracts/{contractId} {
-      allow read: if request.auth != null
-        && resource.data.creatorId == request.auth.uid;
-      allow create: if request.auth != null
-        && request.resource.data.creatorId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.signerSignedAt == null
-        && request.resource.data.pdfAccessStartedAt == null
-        && request.resource.data.pdfExpiresAt == null;
-      allow update, delete: if false;
+
+    /* ==================================================================
+       SERVEUR UNIQUEMENT : le SDK Admin (functions/) ignore ces règles.
+       Aucun navigateur ne peut écrire ici, jamais.
+       ================================================================== */
+    match /subscriptions/{uid} {
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin() && request.query.limit <= 50;
+      allow write: if false;
     }
-    // -----------------------------------------------------------------------
-    // ADMIN SETTINGS
-    // -----------------------------------------------------------------------
-    match /admin_settings/{docId} {
-      allow read, write: if isAdmin();
+
+    match /payments/{id} {
+      allow get: if isAdmin();
+      allow list: if isAdmin() && request.query.limit <= 50;
+      allow write: if false;
     }
-    // -----------------------------------------------------------------------
-    // FILET DE SÉCURITÉ
-    // -----------------------------------------------------------------------
+
+    // Totaux mensuels pour ton dashboard admin (1 document par mois)
+    match /adminStats/{month} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Ton pourcentage de part (modifiable depuis l'admin)
+    match /config/finance {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['sharePercent','feePercent','updatedAt'])
+        && isNum(request.resource.data.get('sharePercent', 0), 0, 100)
+        && isNum(request.resource.data.get('feePercent', 0), 0, 100);
+    }
+
+    /* ==================================================================
+       Tout le reste est interdit
+       ================================================================== */
     match /{document=**} {
       allow read, write: if false;
     }
