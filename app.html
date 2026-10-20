@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kontra-Africa — Gestion de stock</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#5B3FE0" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Kontra" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/logo.webp" type="image/webp" />
+  <link rel="apple-touch-icon" href="/logo.webp" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+
+  <!-- ===== Icônes (sprite SVG, aucune requête réseau) ===== -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></symbol>
+      <symbol id="i-box" viewBox="0 0 24 24"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+      <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H6.2"/><circle cx="9.5" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/></symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 7V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v3"/><path d="M3 6v12a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-3"/><path d="M21 12h-4a2 2 0 0 0 0 4h4v-4Z"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
+      <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.2.7 3.5 2.6 3.5 5.7"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="m16 8 4 4-4 4M20 12H9"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></symbol>
+      <symbol id="i-trend" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- ===== Écran de chargement (retiré par app.js) ===== -->
+  <div class="loader-screen" id="loader" role="status" aria-live="polite">
+    <div class="stack" style="justify-items:center">
+      <img src="/logo.webp" alt="" width="48" height="48" style="border-radius:10px" />
+      <div class="spinner" style="color:var(--color-primary)"></div>
+      <span class="visually-hidden">Chargement de l'application</span>
+    </div>
+  </div>
+
+  <noscript>
+    <p style="padding:24px;font-family:sans-serif">JavaScript est nécessaire pour utiliser Kontra-Africa.</p>
+  </noscript>
+
+  <div class="app" id="app">
+
+    <!-- ===== Barre latérale (PC ≥ 960px) ===== -->
+    <aside class="sidebar" aria-label="Navigation principale">
+      <a href="#/home" class="sidebar-brand">
+        <img src="/logo.webp" alt="" width="30" height="30" />
+        <span>Kontra-Africa</span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <a href="#/home" class="nav-item" data-route="home">
+          <svg aria-hidden="true"><use href="#i-home"/></svg><span>Accueil</span>
+        </a>
+        <a href="#/stock" class="nav-item" data-route="stock">
+          <svg aria-hidden="true"><use href="#i-box"/></svg><span>Stock</span>
+          <span class="nav-badge" data-badge="stock" hidden></span>
+        </a>
+        <a href="#/ventes" class="nav-item" data-route="ventes">
+          <svg aria-hidden="true"><use href="#i-cart"/></svg><span>Ventes</span>
+        </a>
+        <a href="#/finances" class="nav-item" data-route="finances">
+          <svg aria-hidden="true"><use href="#i-wallet"/></svg><span>Finances</span>
+        </a>
+        <a href="#/plus" class="nav-item" data-route="plus">
+          <svg aria-hidden="true"><use href="#i-grid"/></svg><span>Plus</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="fw-6" id="sbBusiness">Mon commerce</div>
+        <div id="sbSub" class="text-xs text-muted">Abonnement…</div>
+      </div>
+    </aside>
+
+    <!-- ===== Barre du haut (mobile) ===== -->
+    <header class="topbar">
+      <img class="brand-mark" src="/logo.webp" alt="" width="28" height="28" />
+      <h1 class="topbar-title" id="pageTitle">Accueil</h1>
+      <button class="btn btn-secondary btn-sm" id="btnInstall" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-download"/></svg>
+        Installer
+      </button>
+    </header>
+
+    <!-- ===== Contenu : rendu par js/app.js ===== -->
+    <main class="main" id="main" tabindex="-1">
+      <div id="banner"></div>
+      <div id="view" aria-live="polite"></div>
+    </main>
+
+    <!-- ===== Menu du bas (mobile) : mêmes 5 noms que la barre latérale ===== -->
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <a href="#/home" class="nav-item" data-route="home">
+        <svg aria-hidden="true"><use href="#i-home"/></svg><span>Accueil</span>
+      </a>
+      <a href="#/stock" class="nav-item" data-route="stock">
+        <svg aria-hidden="true"><use href="#i-box"/></svg><span>Stock</span>
+        <span class="nav-badge" data-badge="stock" hidden></span>
+      </a>
+      <a href="#/ventes" class="nav-item" data-route="ventes">
+        <svg aria-hidden="true"><use href="#i-cart"/></svg><span>Ventes</span>
+      </a>
+      <a href="#/finances" class="nav-item" data-route="finances">
+        <svg aria-hidden="true"><use href="#i-wallet"/></svg><span>Finances</span>
+      </a>
+      <a href="#/plus" class="nav-item" data-route="plus">
+        <svg aria-hidden="true"><use href="#i-grid"/></svg><span>Plus</span>
+      </a>
+    </nav>
+
+    <!-- ===== Bouton d'action flottant (mobile) ===== -->
+    <button class="fab" id="fabSale" type="button" data-action="new-sale" hidden>
+      <svg aria-hidden="true"><use href="#i-plus"/></svg>
+      Nouvelle vente
+    </button>
+  </div>
+
+  <!-- ===== Fenêtres et notifications ===== -->
+  <div id="modalRoot"></div>
+  <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
+
+  <!-- Graphiques (bibliothèque locale existante) -->
+  <script src="/js/vendor/chart.umd.min.js" defer></script>
+  <!-- Application -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
