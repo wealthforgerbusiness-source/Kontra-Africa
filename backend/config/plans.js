@@ -122,13 +122,13 @@ const COUNTRIES = Object.freeze({
     feePercent: 1.8,
     methods: ['Orange Money', 'MTN MoMo', 'Wave', 'Moov Money']
   }),
-  ML: Object.freeze({
+    ML: Object.freeze({
     code: 'ML',
     name: 'Mali',
     flag: 'assets/flags/mali.png',
     currency: 'XOF',
     dialCode: '223',
-    feePercent: 3,
+    feePercent: 1.75,
     methods: ['Orange Money', 'Moov Money']
   }),
   CD: Object.freeze({
