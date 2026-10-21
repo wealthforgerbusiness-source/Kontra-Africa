@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kontra Africa — Gestion de stock, ventes et dettes clients</title>
+  <meta name="description" content="Gérez stock, ventes et dettes clients depuis votre téléphone. Essai gratuit 14 jours, paiement Mobile Money dans 8 pays d’Afrique francophone.">
+  <meta name="theme-color" content="#0B6B4F">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://kontra-africa-app.onrender.com/">
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/logo/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/logo/favicon-16.png">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/logo/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Kontra Africa">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:url" content="https://kontra-africa-app.onrender.com/">
+  <meta property="og:title" content="Kontra Africa — Votre boutique sous contrôle">
+  <meta property="og:description" content="Stock, ventes et dettes clients dans une seule application. Essai gratuit 14 jours, paiement Mobile Money.">
+  <meta property="og:image" content="https://kontra-africa-app.onrender.com/assets/logo/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Logo Kontra Africa">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Kontra Africa — Votre boutique sous contrôle">
+  <meta name="twitter:description" content="Stock, ventes et dettes clients dans une seule application. Essai gratuit 14 jours.">
+  <meta name="twitter:image" content="https://kontra-africa-app.onrender.com/assets/logo/og-image.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+  <a class="skip-link" href="#accueil">Aller au contenu</a>
+
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#accueil" aria-label="Kontra Africa, accueil">
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+
+      <nav class="nav-links hide-mobile" aria-label="Navigation principale">
+        <a href="#accueil">Accueil</a>
+        <a href="#pays">Pays</a>
+        <a href="#fonctions">Fonctions</a>
+        <a href="#tarifs">Tarifs</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm hide-mobile" href="app.html?mode=login">Se connecter</a>
+        <a class="btn btn-gold btn-sm hide-mobile" href="app.html?mode=signup">Essai gratuit</a>
+        <button class="burger hide-desktop" id="burger" type="button" aria-label="Ouvrir le menu" aria-controls="drawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Menu">
+    <div class="drawer-head">
+      <a class="brand" href="#accueil" data-drawer-link>
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <button class="drawer-close" id="drawer-close" type="button" aria-label="Fermer le menu">×</button>
+    </div>
+    <nav class="drawer-links" aria-label="Menu mobile">
+      <a href="#accueil" data-drawer-link><span>01</span>Accueil</a>
+      <a href="#pays" data-drawer-link><span>02</span>Pays disponibles</a>
+      <a href="#fonctions" data-drawer-link><span>03</span>Fonctions</a>
+      <a href="#tarifs" data-drawer-link><span>04</span>Tarifs</a>
+      <a href="#faq" data-drawer-link><span>05</span>Questions</a>
+    </nav>
+    <div class="drawer-foot">
+      <a class="btn btn-gold btn-block" href="app.html?mode=signup">Essai gratuit 14 jours</a>
+      <a class="btn btn-ghost btn-block" href="app.html?mode=login">Se connecter</a>
+    </div>
+  </aside>
+
+  <main>
+    <section class="hero" id="accueil">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow reveal">Pour les boutiques d’Afrique francophone</p>
+          <h1 class="words">Votre stock, vos ventes et vos dettes clients. Enfin <span class="accent">sous contrôle.</span></h1>
+          <p class="lead reveal" style="--d:.5s">Fini le cahier qui se perd, le stock qui disparaît et les clients qui oublient de payer. Kontra Africa range tout dans votre téléphone.</p>
+          <div class="row hero-cta reveal" style="--d:.65s">
+            <a class="btn btn-gold btn-lg" href="app.html?mode=signup">Essai gratuit 14 jours <span class="arrow" aria-hidden="true">→</span></a>
+            <a class="btn btn-ghost btn-lg" href="#tarifs">Voir les tarifs</a>
+          </div>
+          <ul class="trust reveal" style="--d:.8s">
+            <li>Sans carte bancaire</li>
+            <li>Paiement Mobile Money</li>
+            <li>Téléphone et ordinateur</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual reveal reveal-right" style="--d:.3s" aria-hidden="true">
+          <div class="mock">
+            <div class="mock-bar"><i></i><i></i><i></i><span>Aperçu de l’application</span></div>
+            <div class="mock-body">
+              <div class="mock-hero">
+                <small>Ventes aujourd’hui</small>
+                <strong>187 500 FCFA</strong>
+                <em>Bénéfice : 52 300 FCFA</em>
+              </div>
+              <div class="mock-grid">
+                <div class="mock-tile warn"><small>Stock bas</small><strong>3</strong></div>
+                <div class="mock-tile danger"><small>Dettes à relancer</small><strong>8</strong></div>
+              </div>
+              <ul class="mock-list">
+                <li><span>Sac de riz 25 kg</span><b>14 en stock</b></li>
+                <li><span>Huile 5 L</span><b class="low">2 en stock</b></li>
+                <li><span>Awa K. · crédit</span><b>12 000 FCFA</b></li>
+              </ul>
+              <div class="mock-cta">+ Nouvelle vente</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-soft ticker-section" id="pays" aria-labelledby="pays-title">
+      <div class="container text-center">
+        <p class="eyebrow reveal">Disponible maintenant</p>
+        <h2 id="pays-title" class="reveal">8 pays, payez dans votre monnaie</h2>
+        <p class="lead reveal">Orange Money, MTN MoMo, Wave, Moov Money, Airtel Money, Vodacom : vous payez comme d’habitude.</p>
+      </div>
+      <div class="ticker reveal" aria-label="Pays disponibles">
+        <ul class="ticker-track">
+          <li class="ticker-item"><img class="flag" src="assets/flags/benin.png" width="320" height="180" alt="Drapeau du Bénin" loading="lazy" decoding="async"><span>Bénin</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/burkina-faso.png" width="320" height="180" alt="Drapeau du Burkina Faso" loading="lazy" decoding="async"><span>Burkina Faso</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/cameroun.png" width="320" height="180" alt="Drapeau du Cameroun" loading="lazy" decoding="async"><span>Cameroun</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/cote-ivoire.png" width="320" height="180" alt="Drapeau de la Côte d’Ivoire" loading="lazy" decoding="async"><span>Côte d’Ivoire</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/mali.png" width="320" height="180" alt="Drapeau du Mali" loading="lazy" decoding="async"><span>Mali</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/rdc.png" width="320" height="180" alt="Drapeau de la RD Congo" loading="lazy" decoding="async"><span>RD Congo</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/senegal.png" width="320" height="180" alt="Drapeau du Sénégal" loading="lazy" decoding="async"><span>Sénégal</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/togo.png" width="320" height="180" alt="Drapeau du Togo" loading="lazy" decoding="async"><span>Togo</span></li>
+        </ul>
+        <ul class="ticker-track" aria-hidden="true">
+          <li class="ticker-item"><img class="flag" src="assets/flags/benin.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Bénin</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/burkina-faso.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Burkina Faso</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/cameroun.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Cameroun</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/cote-ivoire.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Côte d’Ivoire</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/mali.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Mali</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/rdc.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>RD Congo</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/senegal.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Sénégal</span></li>
+          <li class="ticker-item"><img class="flag" src="assets/flags/togo.png" width="320" height="180" alt="" loading="lazy" decoding="async"><span>Togo</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="probleme" aria-labelledby="probleme-title">
+      <div class="container">
+        <div class="text-center stack" style="--gap:.5rem">
+          <p class="eyebrow reveal">Vous reconnaissez ça ?</p>
+          <h2 id="probleme-title" class="reveal">Une boutique qui marche perd de l’argent sans le savoir</h2>
+        </div>
+        <div class="grid grid-3 problems" data-stagger>
+          <article class="card">
+            <div class="icon-box gold">01</div>
+            <h3>Le stock disparaît</h3>
+            <p class="muted">Vous ne savez plus ce qu’il reste, ni ce qui manque avant que le client arrive.</p>
+          </article>
+          <article class="card">
+            <div class="icon-box gold">02</div>
+            <h3>Les dettes s’oublient</h3>
+            <p class="muted">« Je paie demain » devient un mois. Le cahier est perdu, l’argent aussi.</p>
+          </article>
+          <article class="card">
+            <div class="icon-box gold">03</div>
+            <h3>Le bénéfice reste flou</h3>
+            <p class="muted">Vous vendez beaucoup, mais combien gagnez-vous vraiment à la fin du mois ?</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-dark" id="fonctions" aria-labelledby="fonctions-title">
+      <div class="container">
+        <div class="text-center stack" style="--gap:.5rem">
+          <p class="eyebrow reveal" style="color:var(--gold)">Tout-en-un</p>
+          <h2 id="fonctions-title" class="reveal">Ce que Kontra Africa fait pour vous</h2>
+          <p class="lead reveal">Simple à utiliser, même si vous n’avez jamais utilisé d’application de gestion.</p>
+        </div>
+        <div class="grid grid-3 features" data-stagger>
+          <article class="card card-dark">
+            <div class="icon-box">S</div>
+            <h3>Gestion de stock</h3>
+            <p>Ajoutez vos produits, suivez les entrées et les sorties, et recevez une alerte quand un article est presque épuisé.</p>
+          </article>
+          <article class="card card-dark">
+            <div class="icon-box">V</div>
+            <h3>Caisse rapide</h3>
+            <p>Enregistrez une vente en quelques touches. Le stock se met à jour tout seul.</p>
+          </article>
+          <article class="card card-dark">
+            <div class="icon-box">D</div>
+            <h3>Carnet de dettes</h3>
+            <p>Chaque client à crédit a sa fiche. Vous voyez qui vous doit combien, depuis quand.</p>
+          </article>
+          <article class="card card-dark">
+            <div class="icon-box">R</div>
+            <h3>Relances prêtes à envoyer</h3>
+            <p>Un message de relance poli, déjà rédigé, à envoyer en un clic par WhatsApp ou SMS.</p>
+          </article>
+          <article class="card card-dark">
+            <div class="icon-box">B</div>
+            <h3>Bénéfices en clair</h3>
+            <p>Ventes du jour, bénéfice du mois, dépenses : votre vraie situation sur un seul écran.</p>
+          </article>
+          <article class="card card-dark">
+            <div class="icon-box">P</div>
+            <h3>Installable, même en réseau faible</h3>
+            <p>Ajoutez l’application sur l’écran d’accueil de votre téléphone. Elle reste utilisable quand le réseau est lent.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="etapes" aria-labelledby="etapes-title">
+      <div class="container">
+        <div class="text-center stack" style="--gap:.5rem">
+          <p class="eyebrow reveal">Démarrage rapide</p>
+          <h2 id="etapes-title" class="reveal">Prêt en 3 étapes</h2>
+        </div>
+        <ol class="grid grid-3 steps" data-stagger>
+          <li class="step">
+            <span class="step-num">1</span>
+            <h3>Créez votre compte</h3>
+            <p class="muted">Avec Google ou avec votre email. Votre essai de 14 jours démarre aussitôt.</p>
+          </li>
+          <li class="step">
+            <span class="step-num">2</span>
+            <h3>Ajoutez vos produits</h3>
+            <p class="muted">Nom, prix d’achat, prix de vente, quantité. Vous pouvez commencer avec 5 produits.</p>
+          </li>
+          <li class="step">
+            <span class="step-num">3</span>
+            <h3>Vendez et suivez</h3>
+            <p class="muted">Chaque vente met à jour votre stock, vos bénéfices et vos dettes.</p>
+          </li>
+        </ol>
+        <div class="text-center reveal" style="margin-top:2.5rem">
+          <a class="btn btn-lg" href="app.html?mode=signup">Créer mon compte gratuitement <span class="arrow" aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-soft" id="tarifs" aria-labelledby="tarifs-title">
+      <div class="container">
+        <div class="text-center stack" style="--gap:.5rem">
+          <p class="eyebrow reveal">Tarifs simples</p>
+          <h2 id="tarifs-title" class="reveal">Choisissez l’offre de votre boutique</h2>
+          <p class="lead reveal">Prix de référence en dollars, payés dans votre monnaie locale par Mobile Money.</p>
+        </div>
+
+        <div class="country-pick reveal">
+          <img class="flag flag-md" id="country-flag" src="assets/flags/cote-ivoire.png" width="320" height="180" alt="Drapeau du pays choisi">
+          <label class="field">
+            <span>Votre pays</span>
+            <select id="country" name="country">
+              <option value="BJ">Bénin</option>
+              <option value="BF">Burkina Faso</option>
+              <option value="CM">Cameroun</option>
+              <option value="CI" selected>Côte d’Ivoire</option>
+              <option value="ML">Mali</option>
+              <option value="CD">RD Congo</option>
+              <option value="SN">Sénégal</option>
+              <option value="TG">Togo</option>
+            </select>
+          </label>
+        </div>
+        <p class="text-center muted methods-line reveal">Paiement possible avec : <b id="methods">Orange Money, MTN MoMo, Wave, Moov Money</b></p>
+
+        <div class="plans" data-stagger>
+          <article class="plan">
+            <h3>Starter</h3>
+            <p class="muted">Pour démarrer et ranger votre boutique.</p>
+            <p class="price"><strong data-plan="starter">2 900 FCFA</strong><small>par mois · environ 5 $</small></p>
+            <ul class="checks">
+              <li>200 produits</li>
+              <li>500 ventes par mois</li>
+              <li>50 clients à crédit</li>
+              <li>30 relances par mois</li>
+            </ul>
+            <a class="btn btn-ghost btn-block" href="app.html?mode=signup&amp;plan=starter">Choisir Starter</a>
+          </article>
+
+          <article class="plan plan-featured">
+            <span class="badge badge-gold plan-flag">Le plus choisi</span>
+            <h3>Business</h3>
+            <p class="muted">Pour les boutiques qui vendent tous les jours.</p>
+            <p class="price"><strong data-plan="business">6 960 FCFA</strong><small>par mois · environ 12 $</small></p>
+            <ul class="checks">
+              <li>1 000 produits</li>
+              <li>5 000 ventes par mois</li>
+              <li>500 clients à crédit</li>
+              <li>300 relances par mois</li>
+              <li>Export PDF et Excel</li>
+            </ul>
+            <a class="btn btn-gold btn-block" href="app.html?mode=signup&amp;plan=business">Choisir Business</a>
+          </article>
+
+          <article class="plan">
+            <h3>Pro</h3>
+            <p class="muted">Pour les grosses boutiques et les grossistes.</p>
+            <p class="price"><strong data-plan="pro">14 500 FCFA</strong><small>par mois · environ 25 $</small></p>
+            <ul class="checks">
+              <li>5 000 produits</li>
+              <li>20 000 ventes par mois</li>
+              <li>2 000 clients à crédit</li>
+              <li>1 000 relances par mois</li>
+              <li>Export PDF et Excel</li>
+            </ul>
+            <a class="btn btn-ghost btn-block" href="app.html?mode=signup&amp;plan=pro">Choisir Pro</a>
+          </article>
+        </div>
+
+        <ul class="notes reveal">
+          <li><b>Essai gratuit de 14 jours</b> : 20 produits, 30 ventes, 5 clients à crédit, 3 relances.</li>
+          <li><b>Changer d’offre</b> : si vous passez à une offre supérieure, vous ne payez que la différence.</li>
+          <li><b>Sans engagement</b> : vous payez chaque mois, quand vous voulez.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-wrap">
+        <div class="text-center stack" style="--gap:.5rem">
+          <p class="eyebrow reveal">Questions fréquentes</p>
+          <h2 id="faq-title" class="reveal">Vous avez des questions ?</h2>
+        </div>
+        <div class="faq reveal">
+          <details class="faq-item">
+            <summary>L’essai est-il vraiment gratuit ?</summary>
+            <p>Oui. Pendant 14 jours vous utilisez l’application sans payer et sans carte bancaire. À la fin, vous choisissez une offre si vous voulez continuer.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Comment est-ce que je paie ?</summary>
+            <p>Par Mobile Money, dans la monnaie de votre pays (FCFA ou franc congolais). La carte bancaire n’est pas proposée pour le moment.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Que se passe-t-il si je ne renouvelle pas ?</summary>
+            <p>Votre accès est suspendu et un message vous prévient. Après la fin de l’essai vous avez 14 jours, et après la fin d’un abonnement 30 jours, pour revenir. Passé ce délai, le compte et ses données sont supprimés pour libérer l’espace.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Mes données sont-elles protégées ?</summary>
+            <p>Chaque boutique ne voit que ses propres données. La connexion est sécurisée par Google Firebase et les paiements passent par SasPay : nous ne voyons jamais votre code Mobile Money.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Puis-je changer d’offre en cours de mois ?</summary>
+            <p>Oui. Pour passer à une offre supérieure, le temps déjà payé est déduit du nouveau prix. Pour passer à une offre inférieure, le changement s’applique au prochain renouvellement.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Faut-il installer quelque chose ?</summary>
+            <p>Non. Ouvrez le site dans votre navigateur puis choisissez « Ajouter à l’écran d’accueil ». L’application s’ouvre ensuite comme une application normale.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-green final-cta" aria-labelledby="final-title">
+      <div class="container text-center stack" style="--gap:1.25rem">
+        <h2 id="final-title" class="reveal">Reprenez le contrôle de votre boutique dès aujourd’hui</h2>
+        <p class="lead reveal" style="color:#CFE8DD;margin-inline:auto">14 jours gratuits. Aucune carte bancaire. Vous êtes opérationnel en 5 minutes.</p>
+        <div class="reveal">
+          <a class="btn btn-gold btn-lg" href="app.html?mode=signup">Commencer gratuitement <span class="arrow" aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div class="stack" style="--gap:.75rem">
+        <a class="brand" href="#accueil">
+          <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+          <span class="brand-name">Kontra <b>Africa</b></span>
+        </a>
+        <p class="muted">La gestion de stock, de ventes et de dettes clients pour les boutiques d’Afrique francophone.</p>
+      </div>
+      <nav class="footer-links" aria-label="Pied de page">
+        <a href="#fonctions">Fonctions</a>
+        <a href="#tarifs">Tarifs</a>
+        <a href="#faq">FAQ</a>
+        <a href="app.html?mode=login">Se connecter</a>
+        <a href="confidentialite.html">Confidentialité</a>
+        <a href="conditions.html">Conditions d’utilisation</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <small>© 2026 Kontra Africa. Tous droits réservés.</small>
+    </div>
+  </footer>
+
+  <script type="module" src="js/landing.js"></script>
+</body>
+</html>
