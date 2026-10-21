@@ -1,0 +1,261 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
+    }
+    function subActive() {
+      return signedIn()
+        && request.auth.token.subUntil is number
+        && request.auth.token.subUntil > request.time.toMillis();
+    }
+    function isStr(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function isId(v) { return v is string && v.matches('[A-Za-z0-9_-]{1,40}'); }
+    function isNum(v, lo, hi) { return (v is int || v is float) && v >= lo && v <= hi; }
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function userDoc(uid, coll, id) {
+      return /databases/$(database)/documents/users/$(uid)/$(coll)/$(id);
+    }
+
+    function limitOf(key) {
+      let table = {
+        'trial': { 'products': 20, 'salesPerMonth': 30, 'customers': 5, 'remindersPerMonth': 3 },
+        'starter': { 'products': 200, 'salesPerMonth': 500, 'customers': 50, 'remindersPerMonth': 30 },
+        'business': { 'products': 1000, 'salesPerMonth': 5000, 'customers': 500, 'remindersPerMonth': 300 },
+        'pro': { 'products': 5000, 'salesPerMonth': 20000, 'customers': 2000, 'remindersPerMonth': 1000 }
+      };
+      return table.get(request.auth.token.get('plan', 'trial'), table['trial'])[key];
+    }
+
+    function nowMonth() {
+      let m = request.time.month();
+      return string(request.time.year()) + '-' + (m < 10 ? '0' : '') + string(m);
+    }
+
+    function usageAfterOk(uid, countKey, lastKey, id, delta, max) {
+      let path = userDoc(uid, 'usage', 'counters');
+      let before = exists(path) ? get(path).data.get(countKey, 0) : 0;
+      let after = getAfter(path).data;
+      return after.get(countKey, 0) == before + delta
+        && after.get(countKey, 0) >= 0
+        && after.get(countKey, 0) <= max
+        && after.get(lastKey, '') == id;
+    }
+
+    function monthCounterOk(uid, month, countKey, lastKey, id, max) {
+      let path = userDoc(uid, 'stats', month);
+      let before = exists(path) ? get(path).data.get(countKey, 0) : 0;
+      let after = getAfter(path).data;
+      return after.get(countKey, 0) == before + 1
+        && after.get(countKey, 0) <= max
+        && after.get(lastKey, '') == id;
+    }
+
+    function usageStep(uid, coll, o, n, countKey, lastKey) {
+      let d = n.get(countKey, 0) - o.get(countKey, 0);
+      let id = n.get(lastKey, '');
+      return n.get(countKey, 0) is int
+        && n.get(countKey, 0) >= 0
+        && (
+          (d == 0 && id == o.get(lastKey, ''))
+          || (d == 1 && isId(id)
+              && !exists(userDoc(uid, coll, id))
+              && existsAfter(userDoc(uid, coll, id)))
+          || (d == -1 && isId(id)
+              && exists(userDoc(uid, coll, id))
+              && !existsAfter(userDoc(uid, coll, id)))
+        );
+    }
+
+    function monthStep(uid, coll, o, n, countKey, lastKey, max) {
+      let d = n.get(countKey, 0) - o.get(countKey, 0);
+      let id = n.get(lastKey, '');
+      return n.get(countKey, 0) is int
+        && n.get(countKey, 0) <= max
+        && (
+          (d == 0 && id == o.get(lastKey, ''))
+          || (d == 1 && isId(id)
+              && !exists(userDoc(uid, coll, id))
+              && existsAfter(userDoc(uid, coll, id)))
+        );
+    }
+
+    function validProfile(d) {
+      return d.keys().hasOnly(['businessName','country','currency','rate','savingsGoal','phone','address'])
+        && (!('businessName' in d) || isStr(d.businessName, 80))
+        && (!('country' in d)      || isStr(d.country, 40))
+        && (!('currency' in d)     || isStr(d.currency, 8))
+        && (!('rate' in d)         || isNum(d.rate, 0, 1000000))
+        && (!('savingsGoal' in d)  || isNum(d.savingsGoal, 0, 1000000000000))
+        && (!('phone' in d)        || isStr(d.phone, 24))
+        && (!('address' in d)      || isStr(d.address, 160));
+    }
+
+    function validProduct(d) {
+      return d.keys().hasOnly(['name','sku','buyPrice','sellPrice','qty','alertAt','isLow','soldQty','archived','createdAt','updatedAt'])
+        && d.keys().hasAll(['name','buyPrice','sellPrice','qty','alertAt','isLow','createdAt','updatedAt'])
+        && isStr(d.name, 80)
+        && (!('sku' in d) || isStr(d.sku, 40))
+        && isNum(d.buyPrice, 0, 1000000000)
+        && isNum(d.sellPrice, 0, 1000000000)
+        && isNum(d.qty, 0, 100000000)
+        && isNum(d.alertAt, 0, 1000000)
+        && d.isLow is bool
+        && d.updatedAt == request.time;
+    }
+
+    function validSale(d) {
+      return d.keys().hasOnly(['items','total','profit','paid','status','customerId','customerName','customerPhone','note','invoiceNo','day','month','createdAt','updatedAt'])
+        && d.keys().hasAll(['items','total','profit','status','day','month','createdAt'])
+        && d.items is list && d.items.size() >= 1 && d.items.size() <= 60
+        && isNum(d.total, 0, 1000000000000)
+        && isNum(d.profit, -1000000000000, 1000000000000)
+        && (!('paid' in d) || isNum(d.paid, 0, 1000000000000))
+        && d.status in ['paid','credit']
+        && isStr(d.day, 10) && isStr(d.month, 7)
+        && (!('customerName' in d) || isStr(d.customerName, 80))
+        && (!('customerPhone' in d) || isStr(d.customerPhone, 24))
+        && (!('note' in d) || (d.note is string && d.note.size() <= 300));
+    }
+
+    function validCustomer(d) {
+      return d.keys().hasOnly(['name','phone','debt','updatedAt'])
+        && isStr(d.name, 80)
+        && (!('phone' in d) || isStr(d.phone, 24))
+        && isNum(d.debt, 0, 1000000000000);
+    }
+
+    function validStats(uid, period, o, n) {
+      return n.keys().hasOnly(['revenue','profit','salesCount','expenses','income','remindersCount','lastSale','lastReminder'])
+        && isNum(n.get('revenue', 0), -1000000000000, 1000000000000)
+        && isNum(n.get('profit', 0), -1000000000000, 1000000000000)
+        && isNum(n.get('expenses', 0), 0, 1000000000000)
+        && isNum(n.get('income', 0), 0, 1000000000000)
+        && isNum(n.get('salesCount', 0), 0, 100000000)
+        && isNum(n.get('remindersCount', 0), 0, 100000000)
+        && (period.size() != 7 || (
+          monthStep(uid, 'sales', o, n, 'salesCount', 'lastSale', limitOf('salesPerMonth'))
+          && monthStep(uid, 'reminders', o, n, 'remindersCount', 'lastReminder', limitOf('remindersPerMonth'))
+        ));
+    }
+
+    function validUsage(uid, o, n) {
+      return n.keys().hasOnly(['products','customers','lastProduct','lastCustomer'])
+        && usageStep(uid, 'products', o, n, 'products', 'lastProduct')
+        && usageStep(uid, 'customers', o, n, 'customers', 'lastCustomer');
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(request.resource.data);
+      allow update: if isOwner(uid) && validProfile(request.resource.data);
+      allow delete: if false;
+
+      match /products/{pid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 500;
+        allow create: if isOwner(uid) && subActive()
+          && validProduct(request.resource.data)
+          && request.resource.data.createdAt == request.time
+          && usageAfterOk(uid, 'products', 'lastProduct', pid, 1, limitOf('products'));
+        allow update: if isOwner(uid) && subActive()
+          && validProduct(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid) && subActive()
+          && usageAfterOk(uid, 'products', 'lastProduct', pid, -1, 1000000000);
+      }
+
+      match /sales/{sid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 50;
+        allow create: if isOwner(uid) && subActive()
+          && validSale(request.resource.data)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.month == nowMonth()
+          && monthCounterOk(uid, nowMonth(), 'salesCount', 'lastSale', sid, limitOf('salesPerMonth'));
+        allow update: if isOwner(uid) && subActive()
+          && changedOnly(['status','paid','updatedAt'])
+          && request.resource.data.status in ['paid','credit','cancelled'];
+        allow delete: if false;
+      }
+
+      match /customers/{cid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 200;
+        allow create: if isOwner(uid) && subActive()
+          && validCustomer(request.resource.data)
+          && usageAfterOk(uid, 'customers', 'lastCustomer', cid, 1, limitOf('customers'));
+        allow update: if isOwner(uid) && subActive()
+          && validCustomer(request.resource.data);
+        allow delete: if isOwner(uid) && subActive()
+          && usageAfterOk(uid, 'customers', 'lastCustomer', cid, -1, 1000000000);
+      }
+
+      match /reminders/{rid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 50;
+        allow create: if isOwner(uid) && subActive()
+          && request.resource.data.keys().hasOnly(['customerId','month','createdAt'])
+          && request.resource.data.keys().hasAll(['month','createdAt'])
+          && (!('customerId' in request.resource.data) || isStr(request.resource.data.customerId, 40))
+          && request.resource.data.month == nowMonth()
+          && request.resource.data.createdAt == request.time
+          && monthCounterOk(uid, nowMonth(), 'remindersCount', 'lastReminder', rid, limitOf('remindersPerMonth'));
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /transactions/{tid} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 50;
+        allow create: if isOwner(uid) && subActive()
+          && request.resource.data.keys().hasOnly(['type','amount','label','day','createdAt'])
+          && request.resource.data.type in ['in','out']
+          && isNum(request.resource.data.amount, 0, 1000000000000)
+          && isStr(request.resource.data.label, 100)
+          && isStr(request.resource.data.day, 10)
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isOwner(uid) && subActive();
+        allow update: if false;
+      }
+
+      match /stats/{period} {
+        allow get: if isOwner(uid);
+        allow list: if isOwner(uid) && request.query.limit <= 40;
+        allow create: if isOwner(uid) && subActive()
+          && validStats(uid, period, {}, request.resource.data);
+        allow update: if isOwner(uid) && subActive()
+          && validStats(uid, period, resource.data, request.resource.data);
+        allow delete: if false;
+      }
+
+      match /usage/{docId} {
+        allow get: if isOwner(uid);
+        allow create: if isOwner(uid) && subActive() && docId == 'counters'
+          && validUsage(uid, {}, request.resource.data);
+        allow update: if isOwner(uid) && subActive() && docId == 'counters'
+          && validUsage(uid, resource.data, request.resource.data);
+        allow delete: if false;
+      }
+    }
+
+    match /subscriptions/{uid} {
+      allow get: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /adminStats/{docId} {
+      allow get: if isAdmin();
+      allow write: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
