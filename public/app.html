@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kontra Africa — Application</title>
+  <meta name="description" content="Application Kontra Africa : stock, ventes et dettes clients.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0B6B4F">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://kontra-africa.onrender.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kontra Africa">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/logo/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/logo/favicon-16.png">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/logo/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="app-body is-auth">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10H3z M9 21v-7h6v7"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16 M4 12h16"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M8 3h8v8H8z M3 21v-5h18v5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16 M4 12h16 M4 18h16"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h3l2 12h11l2-8H7 M9 20h2 M17 20h2"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4 M4 20h16 M8 16v-5 M12 16V8 M16 16v-8"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 18V10l7-6 7 6v8z M10 21h4"/></symbol>
+    <symbol id="i-cash" viewBox="0 0 24 24"><path d="M3 6h18v12H3z M8 12h8"/></symbol>
+  </svg>
+
+  <div class="splash" id="splash" role="status" aria-label="Chargement">
+    <img src="assets/logo/logo-192.png" width="88" height="88" alt="Kontra Africa">
+    <div class="square-loader"></div>
+  </div>
+  <noscript><div class="banner banner-danger" style="margin:1rem">JavaScript est nécessaire pour utiliser Kontra Africa.</div></noscript>
+
+  <div class="auth hide" id="auth">
+    <aside class="auth-side">
+      <a class="brand" href="index.html" aria-label="Retour au site">
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <h2 style="margin-top:2rem;font-size:2.2rem">Votre boutique sous contrôle.</h2>
+      <ul>
+        <li>Stock à jour à chaque vente</li>
+        <li>Carnet de dettes et relances prêtes à envoyer</li>
+        <li>Bénéfices du jour et du mois en un coup d’œil</li>
+        <li>14 jours gratuits, sans carte bancaire</li>
+      </ul>
+    </aside>
+
+    <main class="auth-main">
+      <div class="auth-card">
+
+        <section class="pane" id="pane-auth">
+          <a class="brand hide-desktop" href="index.html" aria-label="Retour au site">
+            <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+            <span class="brand-name">Kontra <b>Africa</b></span>
+          </a>
+          <h1 id="auth-title">Bon retour</h1>
+          <p class="muted" id="auth-sub">Connectez-vous pour retrouver votre boutique.</p>
+
+          <div class="auth-tabs" role="tablist" aria-label="Connexion ou inscription">
+            <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="auth-form">Connexion</button>
+            <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="auth-form">Inscription</button>
+          </div>
+
+          <button class="btn btn-google btn-block" id="btn-google" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1.1.7-2.5 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 0 1 0-4.8V6.5H1.4a12 12 0 0 0 0 11z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.5l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/></svg>
+            <span id="btn-google-label">Continuer avec Google</span>
+          </button>
+
+          <div class="or"><span>ou avec votre email</span></div>
+
+          <form id="auth-form" novalidate autocomplete="on">
+            <label class="field hide" id="field-name">
+              <span>Nom ou nom de la boutique</span>
+              <input type="text" id="auth-name" name="name" autocomplete="name" maxlength="60">
+            </label>
+            <label class="field">
+              <span>Email</span>
+              <input type="email" id="auth-email" name="email" autocomplete="email" inputmode="email" required>
+            </label>
+            <label class="field">
+              <span>Mot de passe</span>
+              <input type="password" id="auth-password" name="password" autocomplete="current-password" minlength="8" required>
+              <small class="hint hide" id="pw-hint">8 caractères minimum.</small>
+            </label>
+
+            <label class="check hide" id="terms-wrap">
+              <input type="checkbox" id="accept-terms">
+              <span>J’accepte les <a href="conditions.html" target="_blank" rel="noopener">Conditions d’utilisation</a> et la <a href="confidentialite.html" target="_blank" rel="noopener">Politique de confidentialité</a>.</span>
+            </label>
+
+            <p class="error hide" id="auth-error" role="alert" style="margin-top:.75rem"></p>
+
+            <button class="btn btn-block btn-lg" id="btn-submit" type="submit" style="margin-top:1.25rem">Se connecter</button>
+          </form>
+
+          <p class="text-center" style="margin-top:1rem">
+            <button class="link-btn" id="btn-forgot" type="button">Mot de passe oublié ?</button>
+          </p>
+          <p class="text-center muted" style="margin-top:1rem;font-size:.85rem"><a href="index.html" class="link-btn">← Retour au site</a></p>
+        </section>
+
+        <section class="pane hide" id="pane-reset">
+          <h1>Mot de passe oublié</h1>
+          <p class="muted">Entrez votre email. Nous vous envoyons un lien pour choisir un nouveau mot de passe.</p>
+          <form id="reset-form" novalidate style="margin-top:1.5rem">
+            <label class="field">
+              <span>Email</span>
+              <input type="email" id="reset-email" autocomplete="email" inputmode="email" required>
+            </label>
+            <p class="error hide" id="reset-error" role="alert" style="margin-top:.75rem"></p>
+            <button class="btn btn-block btn-lg" id="btn-reset" type="submit" style="margin-top:1.25rem">Envoyer le lien</button>
+          </form>
+          <p class="text-center" style="margin-top:1rem"><button class="link-btn" id="btn-reset-back" type="button">← Retour à la connexion</button></p>
+        </section>
+
+        <section class="pane verify-box hide" id="pane-verify">
+          <div class="icon-box gold">@</div>
+          <h1>Confirmez votre email</h1>
+          <p class="muted" style="margin-inline:auto">Nous avons envoyé un lien à <b id="verify-email"></b>. Ouvrez-le, puis revenez ici. Pensez à regarder dans les courriers indésirables.</p>
+          <p class="error hide" id="verify-error" role="alert" style="margin-top:.75rem"></p>
+          <div class="stack" style="--gap:.75rem;margin-top:1.5rem">
+            <button class="btn btn-block btn-lg" id="btn-verified" type="button">J’ai confirmé mon email</button>
+            <button class="btn btn-ghost btn-block" id="btn-resend" type="button">Renvoyer l’email</button>
+            <button class="link-btn" id="btn-verify-out" type="button">Utiliser un autre compte</button>
+          </div>
+        </section>
+
+        <section class="pane hide" id="pane-terms">
+          <h1>Une dernière étape</h1>
+          <p class="muted">Pour utiliser Kontra Africa, acceptez nos conditions.</p>
+          <label class="check" id="terms2-wrap">
+            <input type="checkbox" id="accept-terms2">
+            <span>J’accepte les <a href="conditions.html" target="_blank" rel="noopener">Conditions d’utilisation</a> et la <a href="confidentialite.html" target="_blank" rel="noopener">Politique de confidentialité</a>.</span>
+          </label>
+          <p class="error hide" id="terms-error" role="alert" style="margin-top:.75rem"></p>
+          <div class="stack" style="--gap:.75rem;margin-top:1.25rem">
+            <button class="btn btn-block btn-lg" id="btn-terms" type="button">Continuer</button>
+            <button class="link-btn" id="btn-terms-out" type="button">Utiliser un autre compte</button>
+          </div>
+        </section>
+
+        <section class="pane verify-box hide" id="pane-error">
+          <div class="icon-box">!</div>
+          <h1>Connexion impossible</h1>
+          <p class="muted" id="error-text" style="margin-inline:auto">Le serveur ne répond pas.</p>
+          <div class="stack" style="--gap:.75rem;margin-top:1.5rem">
+            <button class="btn btn-block btn-lg" id="btn-retry" type="button">Réessayer</button>
+            <button class="link-btn" id="btn-error-out" type="button">Se déconnecter</button>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="shell hide" id="app">
+    <aside class="sidebar" aria-label="Navigation">
+      <a class="brand" href="index.html">
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <button class="btn btn-gold side-plus" type="button" data-nav="sale">+ Nouvelle vente</button>
+      <nav class="side-nav">
+        <button type="button" data-nav="home"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg>Accueil</button>
+        <button type="button" data-nav="stock"><svg viewBox="0 0 24 24"><use href="#i-box"/></svg>Stock</button>
+        <button type="button" data-nav="debts"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg>Dettes clients</button>
+        <button type="button" data-nav="history"><svg viewBox="0 0 24 24"><use href="#i-cart"/></svg>Ventes</button>
+        <button type="button" data-nav="finance"><svg viewBox="0 0 24 24"><use href="#i-cash"/></svg>Finances</button>
+        <button type="button" data-nav="account"><svg viewBox="0 0 24 24"><use href="#i-menu"/></svg>Compte et offre</button>
+      </nav>
+      <div class="side-foot">
+        <span id="side-email"></span>
+        <button class="btn btn-ghost btn-sm btn-block" id="btn-logout-side" type="button" style="color:#fff;border-color:#475569">Se déconnecter</button>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <a class="brand hide-desktop" href="index.html" aria-label="Kontra Africa">
+        <img src="assets/logo/logo-192.png" width="34" height="34" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <span class="topbar-title hide-mobile" id="topbar-title">Accueil</span>
+      <button class="plan-pill" id="plan-pill" type="button" aria-label="Voir mon offre">Essai</button>
+    </header>
+
+    <main class="content" id="content">
+      <div class="notice-stack" id="notices" aria-live="polite"></div>
+
+      <div class="install-banner hide" id="install-banner">
+        <span>Installez Kontra Africa sur votre écran d’accueil.</span>
+        <button class="btn btn-gold btn-sm" id="btn-install" type="button">Installer</button>
+      </div>
+
+      <section class="view" id="view-home" data-view="home" aria-label="Accueil">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow" id="home-eyebrow" style="margin-bottom:.4rem">Aujourd’hui</p>
+            <h1 id="home-greet">Bonjour</h1>
+          </div>
+        </div>
+        <div class="stats" id="home-stats"></div>
+        <div class="quick">
+          <button type="button" data-nav="sale"><svg viewBox="0 0 24 24"><use href="#i-cart"/></svg>Vendre</button>
+          <button type="button" data-action="add-product"><svg viewBox="0 0 24 24"><use href="#i-box"/></svg>Produit</button>
+          <button type="button" data-action="add-customer"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg>Client</button>
+          <button type="button" data-action="add-tx"><svg viewBox="0 0 24 24"><use href="#i-cash"/></svg>Dépense</button>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Stock bas</h2><button class="link-btn" type="button" data-nav="stock">Voir le stock</button></div>
+          <div class="list" id="home-low"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Dernières ventes</h2><button class="link-btn" type="button" data-nav="history">Tout voir</button></div>
+          <div class="list" id="home-recent"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Votre offre</h2><button class="link-btn" type="button" data-action="open-paywall">Changer</button></div>
+          <div id="home-usage"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-stock" data-view="stock" aria-label="Stock">
+        <div class="view-head">
+          <div><h1>Stock</h1><p class="muted" id="stock-count"></p></div>
+          <button class="btn btn-sm" type="button" data-action="add-product">+ Produit</button>
+        </div>
+        <div class="toolbar">
+          <label class="search"><span class="sr-only">Rechercher un produit</span><input type="search" id="stock-search" placeholder="Rechercher un produit" autocomplete="off" maxlength="80"></label>
+        </div>
+        <div class="chips" id="stock-chips" role="group" aria-label="Filtres">
+          <button class="chip" type="button" data-filter="all" aria-pressed="true">Tous</button>
+          <button class="chip" type="button" data-filter="low" aria-pressed="false">Stock bas</button>
+          <button class="chip" type="button" data-filter="out" aria-pressed="false">Épuisés</button>
+        </div>
+        <div class="panel" style="margin-top:0"><div class="list" id="stock-list"></div></div>
+      </section>
+
+      <section class="view" id="view-sale" data-view="sale" aria-label="Nouvelle vente">
+        <div class="view-head">
+          <div><h1>Nouvelle vente</h1><p class="muted">Touchez un produit pour l’ajouter.</p></div>
+        </div>
+        <div class="pos">
+          <div>
+            <div class="toolbar">
+              <label class="search"><span class="sr-only">Rechercher un produit</span><input type="search" id="pos-search" placeholder="Rechercher un produit" autocomplete="off" maxlength="80"></label>
+            </div>
+            <div class="pos-products" id="pos-products"></div>
+          </div>
+          <aside class="cart" aria-label="Panier">
+            <div class="cart-head">Panier</div>
+            <div id="cart-lines"></div>
+            <div class="cart-total"><span>Total</span><span id="cart-total">0</span></div>
+            <div class="cart-actions">
+              <div class="seg" id="pay-mode" role="group" aria-label="Mode de paiement">
+                <button type="button" data-mode="paid" aria-pressed="true">Payé</button>
+                <button type="button" data-mode="credit" aria-pressed="false">À crédit</button>
+              </div>
+              <div id="credit-fields" class="hide">
+                <label class="field"><span>Client</span><select id="credit-customer"></select></label>
+              </div>
+              <button class="btn btn-lg btn-block" id="btn-checkout" type="button" disabled>Valider la vente</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-debts" data-view="debts" aria-label="Dettes clients">
+        <div class="view-head">
+          <div><h1>Dettes clients</h1><p class="muted" id="debts-count"></p></div>
+          <button class="btn btn-sm" type="button" data-action="add-customer">+ Client</button>
+        </div>
+        <div class="stats" id="debts-stats" style="margin-bottom:.75rem"></div>
+        <div class="toolbar">
+          <label class="search"><span class="sr-only">Rechercher un client</span><input type="search" id="debts-search" placeholder="Rechercher un client" autocomplete="off" maxlength="80"></label>
+        </div>
+        <div class="panel" style="margin-top:0"><div class="list" id="debts-list"></div></div>
+      </section>
+
+      <section class="view" id="view-more" data-view="more" aria-label="Plus">
+        <div class="view-head"><div><h1>Plus</h1></div></div>
+        <div class="panel" style="margin-top:0">
+          <div class="settings-list">
+            <button class="setting tap" type="button" data-nav="history"><span><b>Historique des ventes</b><small>Toutes vos ventes récentes</small></span><span aria-hidden="true">›</span></button>
+            <button class="setting tap" type="button" data-nav="finance"><span><b>Finances</b><small>Entrées et dépenses</small></span><span aria-hidden="true">›</span></button>
+            <button class="setting tap" type="button" data-nav="account"><span><b>Compte et offre</b><small>Abonnement, profil de la boutique</small></span><span aria-hidden="true">›</span></button>
+            <button class="setting tap" type="button" data-action="open-paywall"><span><b>Changer d’offre</b><small>Starter, Business ou Pro</small></span><span aria-hidden="true">›</span></button>
+            <a class="setting tap hide" id="link-admin" href="admin.html"><span><b>Administration</b><small>Tableau de bord administrateur</small></span><span aria-hidden="true">›</span></a>
+            <a class="setting tap" href="conditions.html" target="_blank" rel="noopener"><span><b>Conditions d’utilisation</b></span><span aria-hidden="true">›</span></a>
+            <a class="setting tap" href="confidentialite.html" target="_blank" rel="noopener"><span><b>Politique de confidentialité</b></span><span aria-hidden="true">›</span></a>
+            <button class="setting tap" id="btn-logout" type="button"><span><b>Se déconnecter</b></span><span aria-hidden="true">›</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-history" data-view="history" aria-label="Historique des ventes">
+        <div class="view-head">
+          <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Ventes</h1></div>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="list" id="history-list"></div>
+          <button class="btn btn-ghost btn-block load-more hide" id="history-more" type="button" style="width:calc(100% - 2rem)">Voir plus</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-finance" data-view="finance" aria-label="Finances">
+        <div class="view-head">
+          <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Finances</h1></div>
+          <button class="btn btn-sm" type="button" data-action="add-tx">+ Opération</button>
+        </div>
+        <div class="stats" id="finance-stats"></div>
+        <div class="panel">
+          <div class="panel-head"><h2>Opérations récentes</h2></div>
+          <div class="list" id="finance-list"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-account" data-view="account" aria-label="Compte et offre">
+        <div class="view-head">
+          <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Compte et offre</h1></div>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="panel-head"><h2>Abonnement</h2><button class="btn btn-sm btn-gold" type="button" data-action="open-paywall">Changer d’offre</button></div>
+          <div id="account-info"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Ma boutique</h2></div>
+          <form id="profile-form" novalidate style="padding:1rem">
+            <div class="form-grid two">
+              <label class="field"><span>Nom de la boutique</span><input type="text" id="pf-name" maxlength="80" autocomplete="organization"></label>
+              <label class="field"><span>Téléphone</span><input type="tel" id="pf-phone" maxlength="24" autocomplete="tel" inputmode="tel"></label>
+            </div>
+            <label class="field"><span>Adresse</span><input type="text" id="pf-address" maxlength="160" autocomplete="street-address"></label>
+            <label class="field"><span>Objectif d’épargne</span><input type="number" id="pf-goal" min="0" step="1" inputmode="numeric"></label>
+            <div class="form-actions"><button class="btn" id="btn-profile" type="submit">Enregistrer</button></div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Navigation principale">
+      <button class="tab" type="button" data-nav="home"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg><span>Accueil</span></button>
+      <button class="tab" type="button" data-nav="stock"><svg viewBox="0 0 24 24"><use href="#i-box"/></svg><span>Stock</span></button>
+      <div class="tab-plus"><button type="button" data-nav="sale" aria-label="Nouvelle vente"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></button></div>
+      <button class="tab" type="button" data-nav="debts"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg><span>Dettes</span></button>
+      <button class="tab" type="button" data-nav="more"><svg viewBox="0 0 24 24"><use href="#i-menu"/></svg><span>Plus</span></button>
+    </nav>
+  </div>
+
+  <div class="overlay" id="sheet" aria-hidden="true">
+    <div class="dialog" id="sheet-body"></div>
+  </div>
+
+  <div class="paywall-overlay hide" id="paywall" role="dialog" aria-modal="true" aria-labelledby="paywall-title">
+    <div class="container">
+      <div class="paywall-bar">
+        <a class="brand" href="index.html">
+          <img src="assets/logo/logo-192.png" width="36" height="36" alt="">
+          <span class="brand-name">Kontra <b>Africa</b></span>
+        </a>
+        <button class="btn btn-ghost btn-sm" id="paywall-close" type="button">Fermer</button>
+      </div>
+
+      <div class="paywall">
+        <div class="paywall-head">
+          <p class="eyebrow" id="paywall-eyebrow">Votre offre</p>
+          <h2 id="paywall-title">Choisissez votre offre</h2>
+          <p id="paywall-sub">Payez par Mobile Money dans votre monnaie. Aucun renouvellement automatique.</p>
+        </div>
+
+        <div class="country-pick">
+          <img class="flag flag-md" id="pw-flag" src="assets/flags/cote-ivoire.png" width="320" height="180" alt="Drapeau du pays choisi">
+          <label class="field">
+            <span>Votre pays</span>
+            <select id="pw-country">
+              <option value="BJ">Bénin</option>
+              <option value="BF">Burkina Faso</option>
+              <option value="CM">Cameroun</option>
+              <option value="CI" selected>Côte d’Ivoire</option>
+              <option value="ML">Mali</option>
+              <option value="CD">RD Congo</option>
+              <option value="SN">Sénégal</option>
+              <option value="TG">Togo</option>
+            </select>
+          </label>
+        </div>
+        <p class="text-center muted methods-line">Paiement possible avec : <b id="pw-methods"></b></p>
+
+        <div class="plans">
+          <article class="plan" data-plan-card="starter">
+            <h3>Starter</h3>
+            <p class="muted">Pour démarrer et ranger votre boutique.</p>
+            <p class="price"><strong data-pw-price="starter">—</strong><small>par mois · environ 5 $</small></p>
+            <ul class="checks">
+              <li>200 produits</li>
+              <li>500 ventes par mois</li>
+              <li>50 clients à crédit</li>
+              <li>30 relances par mois</li>
+            </ul>
+            <button class="btn btn-ghost btn-block" type="button" data-choose="starter">Choisir Starter</button>
+          </article>
+
+          <article class="plan plan-featured" data-plan-card="business">
+            <span class="badge badge-gold plan-flag">Le plus choisi</span>
+            <h3>Business</h3>
+            <p class="muted">Pour les boutiques qui vendent tous les jours.</p>
+            <p class="price"><strong data-pw-price="business">—</strong><small>par mois · environ 12 $</small></p>
+            <ul class="checks">
+              <li>1 000 produits</li>
+              <li>5 000 ventes par mois</li>
+              <li>500 clients à crédit</li>
+              <li>300 relances par mois</li>
+              <li>Export PDF et Excel</li>
+            </ul>
+            <button class="btn btn-gold btn-block" type="button" data-choose="business">Choisir Business</button>
+          </article>
+
+          <article class="plan" data-plan-card="pro">
+            <h3>Pro</h3>
+            <p class="muted">Pour les grosses boutiques et les grossistes.</p>
+            <p class="price"><strong data-pw-price="pro">—</strong><small>par mois · environ 25 $</small></p>
+            <ul class="checks">
+              <li>5 000 produits</li>
+              <li>20 000 ventes par mois</li>
+              <li>2 000 clients à crédit</li>
+              <li>1 000 relances par mois</li>
+              <li>Export PDF et Excel</li>
+            </ul>
+            <button class="btn btn-ghost btn-block" type="button" data-choose="pro">Choisir Pro</button>
+          </article>
+        </div>
+
+        <div class="pay-summary hide" id="pay-summary" aria-live="polite"></div>
+        <div class="pay-wait hide" id="pay-wait" role="status" aria-live="polite">
+          <div class="square-loader"></div>
+          <p id="pay-wait-text">Confirmation du paiement en cours…</p>
+        </div>
+        <p class="error text-center hide" id="pay-error" role="alert" style="margin-top:1rem"></p>
+        <ul class="notes">
+          <li><b>Sans renouvellement automatique</b> : vous payez chaque mois, quand vous voulez.</li>
+          <li><b>Changement d’offre</b> : vers le haut, le temps déjà payé est déduit. Vers le bas, le changement s’applique au prochain renouvellement.</li>
+          <li><b>Paiement sécurisé</b> par SasPay. Nous ne voyons jamais votre code Mobile Money.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
