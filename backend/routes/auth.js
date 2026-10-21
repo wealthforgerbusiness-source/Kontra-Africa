@@ -10,6 +10,7 @@ const FieldValue = admin.firestore.FieldValue;
 const router = express.Router();
 
 const DAY_MS = 86400000;
+const TERMS_VERSION = '2026-10';
 const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || 'optisitedigital@gmail.com')
   .trim()
   .toLowerCase();
@@ -67,7 +68,12 @@ async function syncClaims(uid, sub, makeAdmin) {
   if (!same) await admin.auth().setCustomUserClaims(uid, next);
 }
 
-function view(sub, now) {
+function needsTerms(sub, makeAdmin) {
+  if (makeAdmin) return false;
+  return sub.termsVersion !== TERMS_VERSION;
+}
+
+function view(sub, now, makeAdmin) {
   const expiresAtMs = Number(sub.expiresAtMs) || 0;
   const lapsed = expiresAtMs <= now;
   const status = sub.status === 'expired' || lapsed ? 'expired' : sub.status;
@@ -84,7 +90,9 @@ function view(sub, now) {
     deleteAtMs,
     daysUntilDelete: deleteAtMs ? Math.max(0, Math.ceil((deleteAtMs - now) / DAY_MS)) : null,
     country: typeof sub.country === 'string' ? sub.country : null,
-    currency: typeof sub.currency === 'string' ? sub.currency : null
+    currency: typeof sub.currency === 'string' ? sub.currency : null,
+    needsTerms: needsTerms(sub, makeAdmin),
+    termsVersion: TERMS_VERSION
   };
 }
 
@@ -100,6 +108,7 @@ router.post(
       return res.status(403).json({ error: 'email_not_verified' });
     }
 
+    const accepted = Boolean(req.body) && req.body.acceptTerms === true;
     const makeAdmin = isAdminUser(req.user);
     const now = Date.now();
     const subRef = db.collection('subscriptions').doc(uid);
@@ -108,30 +117,48 @@ router.post(
 
     const sub = await db.runTransaction(async (t) => {
       const [subSnap, trialSnap] = await Promise.all([t.get(subRef), t.get(trialRef)]);
-      if (subSnap.exists) return subSnap.data();
+
+      if (subSnap.exists) {
+        const current = subSnap.data();
+        if (accepted && current.termsVersion !== TERMS_VERSION) {
+          const patch = { termsVersion: TERMS_VERSION, termsAcceptedAtMs: now, updatedAtMs: now };
+          t.update(subRef, patch);
+          return Object.assign({}, current, patch);
+        }
+        return current;
+      }
+
+      if (!makeAdmin && !accepted) return null;
 
       const trialAvailable = !trialSnap.exists;
+      const terms = accepted ? { termsVersion: TERMS_VERSION, termsAcceptedAtMs: now } : {};
       let doc;
       if (trialAvailable) {
         const end = now + plans.BILLING.trialDays * DAY_MS;
-        doc = {
-          status: 'trial',
-          planId: 'trial',
-          createdAtMs: now,
-          trialEndsAtMs: end,
-          expiresAtMs: end,
-          updatedAtMs: now
-        };
+        doc = Object.assign(
+          {
+            status: 'trial',
+            planId: 'trial',
+            createdAtMs: now,
+            trialEndsAtMs: end,
+            expiresAtMs: end,
+            updatedAtMs: now
+          },
+          terms
+        );
         t.create(trialRef, { createdAtMs: now });
       } else {
-        doc = {
-          status: 'expired',
-          planId: 'trial',
-          createdAtMs: now,
-          expiresAtMs: now,
-          deleteAtMs: now + plans.BILLING.trialGraceDays * DAY_MS,
-          updatedAtMs: now
-        };
+        doc = Object.assign(
+          {
+            status: 'expired',
+            planId: 'trial',
+            createdAtMs: now,
+            expiresAtMs: now,
+            deleteAtMs: now + plans.BILLING.trialGraceDays * DAY_MS,
+            updatedAtMs: now
+          },
+          terms
+        );
       }
 
       t.create(subRef, doc);
@@ -151,14 +178,16 @@ router.post(
       return doc;
     });
 
+    res.set('Cache-Control', 'no-store');
+    if (!sub) return res.status(400).json({ error: 'terms_required' });
+
     await syncClaims(uid, sub, makeAdmin);
 
-    res.set('Cache-Control', 'no-store');
     return res.json({
       ok: true,
       isAdmin: makeAdmin,
       refreshToken: true,
-      subscription: view(sub, now)
+      subscription: view(sub, now, makeAdmin)
     });
   })
 );
@@ -167,21 +196,22 @@ router.get(
   '/me',
   wrap(async (req, res) => {
     const snap = await db.collection('subscriptions').doc(req.user.uid).get();
+    res.set('Cache-Control', 'no-store');
     if (!snap.exists) return res.status(404).json({ error: 'no_subscription' });
 
     const sub = snap.data();
     const now = Date.now();
+    const makeAdmin = isAdminUser(req.user);
     const stale =
       req.user.subUntil !== (Number(sub.expiresAtMs) || 0) ||
       req.user.plan !== sub.planId ||
-      Boolean(req.user.admin) !== isAdminUser(req.user);
+      Boolean(req.user.admin) !== makeAdmin;
 
-    res.set('Cache-Control', 'no-store');
     return res.json({
       ok: true,
-      isAdmin: isAdminUser(req.user),
+      isAdmin: makeAdmin,
       refreshToken: stale,
-      subscription: view(sub, now)
+      subscription: view(sub, now, makeAdmin)
     });
   })
 );
