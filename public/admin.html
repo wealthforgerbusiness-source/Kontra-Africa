@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Administration — Kontra Africa</title>
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0F172A">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://kontra-africa.onrender.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/logo/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/logo/favicon-16.png">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/logo/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="app-body is-auth">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10H3z M9 21v-7h6v7"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M8 3h8v8H8z M3 21v-5h18v5"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4 M4 20h16 M8 16v-5 M12 16V8 M16 16v-8"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 18V10l7-6 7 6v8z M10 21h4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 4v6h-6 M4 20v-6h6 M5.5 9A8 8 0 0 1 19 7 M18.5 15A8 8 0 0 1 5 17"/></symbol>
+  </svg>
+
+  <div class="splash" id="splash" role="status" aria-label="Chargement">
+    <img src="assets/logo/logo-192.png" width="88" height="88" alt="Kontra Africa">
+    <div class="square-loader"></div>
+  </div>
+  <noscript><div class="banner banner-danger" style="margin:1rem">JavaScript est nécessaire.</div></noscript>
+
+  <div class="auth hide" id="auth">
+    <aside class="auth-side">
+      <a class="brand" href="index.html" aria-label="Kontra Africa">
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <h2 style="margin-top:2rem;font-size:2.2rem">Administration</h2>
+      <ul>
+        <li>Utilisateurs, essais gratuits, abonnés et comptes expirés</li>
+        <li>Revenus, frais SasPay et gain net par pays</li>
+        <li>Suppression d’un compte et suivi des paiements à vérifier</li>
+      </ul>
+    </aside>
+
+    <main class="auth-main">
+      <div class="auth-card">
+
+        <section class="pane" id="pane-login">
+          <a class="brand hide-desktop" href="index.html" aria-label="Kontra Africa">
+            <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+            <span class="brand-name">Kontra <b>Africa</b></span>
+          </a>
+          <h1>Espace administrateur</h1>
+          <p class="muted">Connectez-vous avec l’email administrateur.</p>
+
+          <button class="btn btn-google btn-block" id="adm-google" type="button" style="margin-top:1.5rem">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1.1.7-2.5 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 0 1 0-4.8V6.5H1.4a12 12 0 0 0 0 11z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.5l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/></svg>
+            <span>Continuer avec Google</span>
+          </button>
+
+          <div class="or"><span>ou avec votre email</span></div>
+
+          <form id="adm-form" novalidate autocomplete="on">
+            <label class="field">
+              <span>Email</span>
+              <input type="email" id="adm-email" name="email" autocomplete="email" inputmode="email" required>
+            </label>
+            <label class="field">
+              <span>Mot de passe</span>
+              <input type="password" id="adm-password" name="password" autocomplete="current-password" required>
+            </label>
+            <p class="error hide" id="adm-error" role="alert" style="margin-top:.75rem"></p>
+            <button class="btn btn-block btn-lg" id="adm-submit" type="submit" style="margin-top:1.25rem">Se connecter</button>
+          </form>
+          <p class="text-center muted" style="margin-top:1rem;font-size:.85rem"><a href="index.html" class="link-btn">← Retour au site</a></p>
+        </section>
+
+        <section class="pane verify-box hide" id="pane-denied">
+          <div class="icon-box">!</div>
+          <h1>Accès refusé</h1>
+          <p class="muted" id="denied-text" style="margin-inline:auto">Ce compte n’a pas accès à l’administration.</p>
+          <div class="stack" style="--gap:.75rem;margin-top:1.5rem">
+            <button class="btn btn-block btn-lg" id="adm-retry" type="button">Réessayer</button>
+            <button class="link-btn" id="adm-out" type="button">Changer de compte</button>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="shell hide" id="app">
+    <aside class="sidebar" aria-label="Navigation administration">
+      <a class="brand" href="index.html">
+        <img src="assets/logo/logo-192.png" width="40" height="40" alt="">
+        <span class="brand-name">Kontra <b>Africa</b></span>
+      </a>
+      <button class="btn btn-gold side-plus" type="button" data-refresh>↻ Actualiser</button>
+      <nav class="side-nav">
+        <button type="button" data-nav="overview"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg>Vue d’ensemble</button>
+        <button type="button" data-nav="users"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg>Utilisateurs</button>
+        <button type="button" data-nav="revenue"><svg viewBox="0 0 24 24"><use href="#i-chart"/></svg>Revenus</button>
+        <button type="button" data-nav="alerts"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg>Alertes <span class="badge badge-gold hide" id="side-alert-count" style="margin-left:auto"></span></button>
+      </nav>
+      <div class="side-foot">
+        <span id="side-email"></span>
+        <a class="btn btn-ghost btn-sm btn-block" href="app.html" style="color:#fff;border-color:#475569;margin-top:.75rem">Ouvrir l’application</a>
+        <button class="btn btn-ghost btn-sm btn-block" id="adm-logout-side" type="button" style="color:#fff;border-color:#475569">Se déconnecter</button>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <a class="brand hide-desktop" href="index.html" aria-label="Kontra Africa">
+        <img src="assets/logo/logo-192.png" width="34" height="34" alt="">
+        <span class="brand-name">Admin</span>
+      </a>
+      <span class="topbar-title hide-mobile" id="topbar-title">Vue d’ensemble</span>
+      <span class="muted" id="adm-updated" style="font-size:.78rem"></span>
+    </header>
+
+    <main class="content" id="content">
+      <section class="view" id="view-overview" data-view="overview" aria-label="Vue d’ensemble">
+        <div class="view-head">
+          <div>
+            <p class="eyebrow" style="margin-bottom:.4rem">Tableau de bord</p>
+            <h1>Vue d’ensemble</h1>
+          </div>
+        </div>
+        <div class="admin-grid" id="ov-users"></div>
+
+        <p class="eyebrow" style="margin:1.5rem 0 .75rem">Revenus récurrents</p>
+        <div class="admin-grid" id="ov-mrr"></div>
+
+        <div class="admin-split" style="margin-top:1.25rem">
+          <div class="panel" style="margin-top:0">
+            <div class="panel-head"><h2 id="ov-month-title">Ce mois-ci</h2></div>
+            <div id="ov-month"></div>
+          </div>
+          <div class="panel" style="margin-top:0">
+            <div class="panel-head"><h2>Abonnés par offre</h2></div>
+            <div id="ov-plans"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Comptes supprimés</h2></div>
+          <div id="ov-deleted"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-users" data-view="users" aria-label="Utilisateurs">
+        <div class="view-head">
+          <div><h1>Utilisateurs</h1><p class="muted" id="us-count"></p></div>
+        </div>
+        <div class="toolbar">
+          <label class="search"><span class="sr-only">Filtrer par email</span><input type="search" id="us-search" placeholder="Filtrer par email ou nom (liste chargée)" autocomplete="off" maxlength="80"></label>
+        </div>
+        <div class="chips" id="us-chips" role="group" aria-label="Filtres">
+          <button class="chip" type="button" data-status="" aria-pressed="true">Tous</button>
+          <button class="chip" type="button" data-status="trial" aria-pressed="false">En essai</button>
+          <button class="chip" type="button" data-status="active" aria-pressed="false">Payants</button>
+          <button class="chip" type="button" data-status="expired" aria-pressed="false">Expirés</button>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="list" id="us-list"></div>
+          <button class="btn btn-ghost btn-block load-more hide" id="us-more" type="button" style="width:calc(100% - 2rem)">Voir plus</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-revenue" data-view="revenue" aria-label="Revenus">
+        <div class="view-head">
+          <div><h1>Revenus</h1><p class="muted">Brut payé, frais SasPay et votre gain net.</p></div>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="panel-head"><h2>6 derniers mois (net en $)</h2></div>
+          <div class="bars" id="rv-bars"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Détail par mois</h2></div>
+          <div class="table-wrap" style="border:0">
+            <table>
+              <thead><tr><th>Mois</th><th>Paiements</th><th>Brut</th><th>Frais</th><th>Net</th></tr></thead>
+              <tbody id="rv-table"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Par pays</h2>
+            <label class="field" style="min-width:150px"><span class="sr-only">Mois</span><select id="rv-month"></select></label>
+          </div>
+          <div class="table-wrap" style="border:0">
+            <table>
+              <thead><tr><th>Pays</th><th>Paiements</th><th>Brut</th><th>Net</th></tr></thead>
+              <tbody id="rv-country"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Derniers paiements</h2></div>
+          <div class="list" id="pay-list"></div>
+          <button class="btn btn-ghost btn-block load-more hide" id="pay-more" type="button" style="width:calc(100% - 2rem)">Voir plus</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-alerts" data-view="alerts" aria-label="Alertes">
+        <div class="view-head">
+          <div><h1>Alertes</h1><p class="muted">Paiements qui demandent une vérification manuelle.</p></div>
+        </div>
+        <div class="panel" style="margin-top:0">
+          <div class="panel-head"><h2>À vérifier (montant ou devise différents)</h2></div>
+          <div class="list" id="al-review"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Reçus sans compte correspondant</h2></div>
+          <div class="list" id="al-unmatched"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Navigation administration">
+      <button class="tab" type="button" data-nav="overview"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg><span>Aperçu</span></button>
+      <button class="tab" type="button" data-nav="users"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg><span>Utilisateurs</span></button>
+      <div class="tab-plus"><button type="button" data-refresh aria-label="Actualiser les chiffres"><svg viewBox="0 0 24 24"><use href="#i-refresh"/></svg></button></div>
+      <button class="tab" type="button" data-nav="revenue"><svg viewBox="0 0 24 24"><use href="#i-chart"/></svg><span>Revenus</span></button>
+      <button class="tab" type="button" data-nav="alerts"><svg viewBox="0 0 24 24"><use href="#i-bell"/></svg><span>Alertes</span><span class="badge badge-gold hide" id="tab-alert-count" style="position:absolute;top:6px;right:18%;padding:.1rem .4rem"></span></button>
+    </nav>
+  </div>
+
+  <div class="overlay" id="sheet" aria-hidden="true">
+    <div class="dialog" id="sheet-body"></div>
+  </div>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
