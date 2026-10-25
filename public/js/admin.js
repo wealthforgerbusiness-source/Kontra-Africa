@@ -170,6 +170,13 @@ async function loadView(view, force) {
       if (force || !state.alertsLoaded) await loadAlerts();
     }
   } catch (err) {
+    if (view === 'overview' && !state.stats) {
+      const box = $('#ov-earned');
+      if (box) {
+        clear(box);
+        box.append(emptyBox('Impossible de charger les chiffres pour le moment. Appuyez sur ↻ pour réessayer.'));
+      }
+    }
     handleApiError(err);
   }
 }
@@ -191,10 +198,159 @@ async function loadStats() {
   if (upd) upd.textContent = 'Mis à jour ' + new Date(data.generatedAtMs).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
+/* ---------- Taux de change et conversions ---------- */
+
+const RATE_KEY = 'kontra_admin_rates';
+const rates = { cdf: 2250, xof: 580, view: 'CDF' };
+const COUNTRY_NAME = {
+  BJ: 'Bénin',
+  BF: 'Burkina Faso',
+  CM: 'Cameroun',
+  CI: 'Côte d’Ivoire',
+  CD: 'RDC',
+  SN: 'Sénégal',
+  ML: 'Mali',
+  TG: 'Togo'
+};
+
+function loadRates() {
+  try {
+    const d = JSON.parse(localStorage.getItem(RATE_KEY) || 'null');
+    if (d && Number(d.cdf) > 0) rates.cdf = Number(d.cdf);
+    if (d && Number(d.xof) > 0) rates.xof = Number(d.xof);
+    if (d && (d.view === 'USD' || d.view === 'CDF')) rates.view = d.view;
+  } catch (_e) {
+    return;
+  }
+}
+
+function saveRates() {
+  try {
+    localStorage.setItem(RATE_KEY, JSON.stringify(rates));
+  } catch (_e) {
+    return;
+  }
+}
+
+/* Toutes les monnaies passent par le dollar : 1 USD = rates.cdf CDF = rates.xof FCFA. */
+function toUsdAmt(map) {
+  let total = 0;
+  Object.keys(map || {}).forEach((cur) => {
+    const v = num(map[cur]);
+    if (cur === 'USD') total += v;
+    else if (cur === 'CDF') total += v / rates.cdf;
+    else if (cur === 'XOF' || cur === 'XAF') total += v / rates.xof;
+  });
+  return total;
+}
+
+const toCdfAmt = (map) => toUsdAmt(map) * rates.cdf;
+const fmtCdf = (n) => Math.round(num(n)).toLocaleString('fr-FR') + ' FC';
+
+/* Montant principal selon l'affichage choisi, et l'autre monnaie en petit dessous. */
+function primary(map) {
+  return rates.view === 'USD' ? usd(toUsdAmt(map)) : fmtCdf(toCdfAmt(map));
+}
+
+function secondary(map) {
+  return rates.view === 'USD' ? fmtCdf(toCdfAmt(map)) : usd(toUsdAmt(map));
+}
+
+function moneyCell(map) {
+  return h('td', {}, primary(map), h('span', { class: 'sub-line', text: secondary(map) }));
+}
+
+function statMoney(label, map, cls) {
+  const node = stat(label, primary(map), cls);
+  node.append(h('small', { text: secondary(map), style: 'margin-top:.15rem' }));
+  return node;
+}
+
+function buildRateBox() {
+  const cdf = h('input', { type: 'number', inputmode: 'decimal', min: '1', step: 'any', value: String(rates.cdf), 'data-rate': 'cdf', 'aria-label': 'Francs congolais pour 1 dollar' });
+  const xof = h('input', { type: 'number', inputmode: 'decimal', min: '1', step: 'any', value: String(rates.xof), 'data-rate': 'xof', 'aria-label': 'Francs CFA pour 1 dollar' });
+  const chips = ['CDF', 'USD'].map((v) =>
+    h('button', {
+      type: 'button',
+      class: 'chip',
+      text: v === 'CDF' ? 'Francs congolais' : 'Dollars',
+      'data-view': v,
+      'aria-pressed': rates.view === v ? 'true' : 'false'
+    })
+  );
+  return h(
+    'div',
+    { class: 'rate-box' },
+    h('h2', { text: 'Taux de change' }),
+    h(
+      'div',
+      { class: 'rate-grid' },
+      h('label', {}, '1 dollar = … FC (CDF)', cdf),
+      h('label', {}, '1 dollar = … FCFA (XOF/XAF)', xof)
+    ),
+    h('div', { class: 'rate-switch' }, h('span', { class: 'rate-note', text: 'Afficher en :' }), ...chips),
+    h('p', { class: 'rate-note', text: 'Chaque paiement (FCFA, FC…) est converti en dollars, puis en francs congolais avec vos taux. Enregistré sur cet appareil.' })
+  );
+}
+
+function renderRateBoxes() {
+  ['#rate-box-ov', '#rate-box-rv'].forEach((sel) => {
+    const host = $(sel);
+    if (!host) return;
+    clear(host);
+    const box = buildRateBox();
+    host.append(box);
+
+    $$('input[data-rate]', box).forEach((input) =>
+      input.addEventListener('input', () => {
+        const v = Number(String(input.value).replace(',', '.'));
+        if (!(v > 0)) return;
+        rates[input.dataset.rate] = v;
+        saveRates();
+        $$('input[data-rate="' + input.dataset.rate + '"]').forEach((o) => {
+          if (o !== input) o.value = String(v);
+        });
+        renderAmounts();
+      })
+    );
+    $$('[data-view]', box).forEach((btn) =>
+      btn.addEventListener('click', () => {
+        rates.view = btn.dataset.view;
+        saveRates();
+        $$('.rate-box [data-view]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === rates.view ? 'true' : 'false'));
+        renderAmounts();
+      })
+    );
+  });
+}
+
+function renderAmounts() {
+  if (!state.stats) return;
+  renderOverview();
+  renderRevenue();
+}
+
+function countryTitle(code, cur) {
+  return (COUNTRY_NAME[code] || code) + ' (' + cur + ')';
+}
+
 function renderOverview() {
   const s = state.stats;
   if (!s) return;
   const c = s.counters;
+  const t = s.totals || { paidCount: 0, gross: {}, fee: {}, net: {} };
+
+  // Argent gagné : en francs congolais ET en dollars, toujours visibles.
+  const earned = $('#ov-earned');
+  clear(earned);
+  earned.append(
+    stat('Gagné en francs congolais', fmtCdf(toCdfAmt(t.net)), 'hero'),
+    stat('Gagné en dollars', usd(toUsdAmt(t.net)), 'hero'),
+    statMoney('Ce mois-ci (net)', s.thisMonth.net, 'gold'),
+    stat('Paiements reçus', String(t.paidCount)),
+    statMoney('Total payé (brut)', t.gross),
+    statMoney('Frais SasPay', t.fee, 'warn')
+  );
 
   const users = $('#ov-users');
   clear(users);
@@ -207,9 +363,10 @@ function renderOverview() {
 
   const mrr = $('#ov-mrr');
   clear(mrr);
-  mrr.append(stat('MRR (≈ USD)', usd(s.mrr.mrrUsd), 'hero'));
+  mrr.append(statMoney('Abonnements actifs (par mois)', s.mrr.mrr, 'hero'));
   Object.keys(s.mrr.mrr || {}).forEach((cur) => {
-    mrr.append(stat('MRR ' + cur, num(s.mrr.mrr[cur]).toLocaleString('fr-FR') + ' ' + cur, 'gold'));
+    if (num(s.mrr.mrr[cur]) === 0) return;
+    mrr.append(stat('Abonnés ' + cur, num(s.mrr.mrr[cur]).toLocaleString('fr-FR') + ' ' + cur, 'gold'));
   });
 
   const m = s.thisMonth;
@@ -218,9 +375,9 @@ function renderOverview() {
   clear(month);
   month.append(
     row('Paiements', 'ce mois-ci', String(m.paidCount)),
-    row('Brut', local(m.gross), usd(m.grossUsd)),
-    row('Frais SasPay', local(m.fee), usd(m.feeUsd)),
-    row('Gain net', local(m.net), usd(m.netUsd))
+    row('Brut', local(m.gross), primary(m.gross), secondary(m.gross)),
+    row('Frais SasPay', local(m.fee), primary(m.fee), secondary(m.fee)),
+    row('Gain net', local(m.net), primary(m.net), secondary(m.net))
   );
 
   const plans = $('#ov-plans');
@@ -228,6 +385,23 @@ function renderOverview() {
   const byPlan = s.mrr.activeByPlan || {};
   Object.keys(byPlan).forEach((id) => plans.append(row(PLAN_LABEL[id] || id, 'abonnés actifs', String(byPlan[id]))));
   if (!Object.keys(byPlan).length) plans.append(emptyBox('Aucun abonné pour le moment.'));
+
+  const list = $('#ov-countries');
+  clear(list);
+  const countries = (s.countries || [])
+    .map((x) => ({ x, map: { [x.currency]: x.net } }))
+    .sort((a, b) => toUsdAmt(b.map) - toUsdAmt(a.map));
+  if (!countries.length) list.append(emptyBox('Aucun paiement reçu pour le moment.'));
+  countries.forEach(({ x, map }) =>
+    list.append(
+      row(
+        countryTitle(x.country, x.currency),
+        x.count + ' paiement(s) · net ' + num(x.net).toLocaleString('fr-FR') + ' ' + x.currency,
+        primary(map),
+        secondary(map)
+      )
+    )
+  );
 
   const del = $('#ov-deleted');
   clear(del);
@@ -243,37 +417,44 @@ function renderRevenue() {
   const s = state.stats;
   if (!s) return;
   const months = s.months.slice().reverse();
-  const max = Math.max(1, ...months.map((m) => num(m.netUsd)));
+  const val = (m) => (rates.view === 'USD' ? toUsdAmt(m.net) : toCdfAmt(m.net));
+  const max = Math.max(1, ...months.map(val));
 
   const bars = $('#rv-bars');
-  clear(bars);
-  months.forEach((m) => {
-    bars.append(
-      h(
-        'div',
-        { class: 'bar-row' },
-        h('span', { text: monthLabel(m.month) }),
-        h('div', { class: 'meter-bar' }, h('i', { style: 'width:' + Math.round((num(m.netUsd) / max) * 100) + '%' })),
-        h('b', { text: usd(m.netUsd) })
-      )
-    );
-  });
+  if (bars) {
+    clear(bars);
+    months.forEach((m) => {
+      bars.append(
+        h(
+          'div',
+          { class: 'bar-row' },
+          h('span', { text: monthLabel(m.month) }),
+          h('div', { class: 'meter-bar' }, h('i', { style: 'width:' + Math.round((val(m) / max) * 100) + '%' })),
+          h('b', { text: primary(m.net) })
+        )
+      );
+    });
+  }
+  const barsTitle = $('#view-revenue .panel-head h2');
+  if (barsTitle) barsTitle.textContent = '6 derniers mois (net en ' + (rates.view === 'USD' ? '$' : 'FC') + ')';
 
   const table = $('#rv-table');
-  clear(table);
-  s.months.forEach((m) => {
-    table.append(
-      h(
-        'tr',
-        {},
-        h('td', { text: monthLabel(m.month) }),
-        h('td', { text: String(m.paidCount) }),
-        h('td', { text: usd(m.grossUsd) }),
-        h('td', { text: usd(m.feeUsd) }),
-        h('td', { text: usd(m.netUsd) })
-      )
-    );
-  });
+  if (table) {
+    clear(table);
+    s.months.forEach((m) => {
+      table.append(
+        h(
+          'tr',
+          {},
+          h('td', { text: monthLabel(m.month) }),
+          h('td', { text: String(m.paidCount) }),
+          moneyCell(m.gross),
+          moneyCell(m.fee),
+          moneyCell(m.net)
+        )
+      );
+    });
+  }
 
   const sel = $('#rv-month');
   if (sel && !sel.options.length) {
@@ -289,21 +470,27 @@ function renderCountries() {
   if (!s || !sel || !body) return;
   clear(body);
   const m = s.months.find((x) => x.month === sel.value) || s.months[0];
-  const entries = Object.keys(m.byCountry || {});
-  if (!entries.length) {
+  const lines = [];
+  Object.keys(m.byCountry || {}).forEach((code) => {
+    const perCur = m.byCountry[code] && typeof m.byCountry[code] === 'object' ? m.byCountry[code] : {};
+    Object.keys(perCur).forEach((cur) => {
+      const d = perCur[cur] || {};
+      lines.push({ code, cur, count: num(d.count), gross: num(d.gross), net: num(d.net) });
+    });
+  });
+  if (!lines.length) {
     body.append(h('tr', {}, h('td', { colspan: '4', class: 'muted', text: 'Aucun paiement ce mois-là.' })));
     return;
   }
-  entries.forEach((code) => {
-    const d = m.byCountry[code] || {};
+  lines.forEach((l) => {
     body.append(
       h(
         'tr',
         {},
-        h('td', { text: code }),
-        h('td', { text: String(num(d.paidCount || d.count)) }),
-        h('td', { text: local(d.gross && typeof d.gross === 'object' ? d.gross : {}) }),
-        h('td', { text: local(d.net && typeof d.net === 'object' ? d.net : {}) })
+        h('td', { text: countryTitle(l.code, l.cur) }),
+        h('td', { text: String(l.count) }),
+        moneyCell({ [l.cur]: l.gross }),
+        moneyCell({ [l.cur]: l.net })
       )
     );
   });
@@ -578,6 +765,8 @@ function bind() {
 }
 
 function start() {
+  loadRates();
+  renderRateBoxes();
   initUI();
   watchNetwork();
   bind();
