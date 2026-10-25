@@ -1,5 +1,5 @@
 import { $, h, clear, money, formatDate, toast, setLoading } from '../ui.js';
-import { fxMoney, renderFxBar, onFxChange, symbol } from '../fx.js';
+import { fxMoney, renderFxBar, onFxChange, defaultSymbol } from '../fx.js';
 
 const DAY_MS = 86400000;
 const CONTACT = 'optisitedigital@gmail.com';
@@ -407,6 +407,7 @@ function fillProfile() {
   set('pf-address', p.address);
   set('pf-goal', p.savingsGoal);
   set('pf-rate', p.rate);
+  set('pf-sym', p.symbol);
   syncRateLabel();
   const select = $('#pf-cur');
   if (select) select.value = CURRENCIES.some(([code]) => code === p.currency) ? p.currency : currency();
@@ -415,7 +416,10 @@ function fillProfile() {
 function syncRateLabel() {
   const select = $('#pf-cur');
   const label = $('#pf-rate-cur');
-  if (label) label.textContent = symbol(select ? select.value : currency());
+  const typed = $('#pf-sym') ? String($('#pf-sym').value || '').replace(/\s+/g, ' ').trim() : '';
+  if (label) label.textContent = typed || defaultSymbol(select ? select.value : currency());
+  const sym = $('#pf-sym');
+  if (sym) sym.placeholder = 'Ex. ' + defaultSymbol(select ? select.value : currency());
 }
 
 function injectCurrency() {
@@ -425,6 +429,16 @@ function injectCurrency() {
   if (!anchor) return;
   const select = h('select', { id: 'pf-cur', style: ARROW }, ...CURRENCIES.map(([code, label]) => h('option', { value: code, text: label })));
   anchor.before(h('label', { class: 'field' }, h('span', { text: 'Monnaie utilisée' }), select));
+  const sym = h('input', { type: 'text', id: 'pf-sym', maxlength: '8', autocomplete: 'off', autocapitalize: 'off', placeholder: 'Ex. FC' });
+  anchor.before(
+    h(
+      'label',
+      { class: 'field' },
+      h('span', { text: 'Symbole de la monnaie' }),
+      sym,
+      h('small', { class: 'hint', text: 'Écrivez le symbole que vous voulez voir partout (FC, FCFA, CFA…). Laissez vide pour garder celui par défaut.' })
+    )
+  );
 }
 
 function profileError(err) {
@@ -444,6 +458,8 @@ function wire() {
   injectCurrency();
   const curSelect = $('#pf-cur');
   if (curSelect) curSelect.addEventListener('change', syncRateLabel);
+  const symInput = $('#pf-sym');
+  if (symInput) symInput.addEventListener('input', syncRateLabel);
 
   const more = $('#history-more');
   more.addEventListener('click', async () => {
@@ -470,7 +486,8 @@ function wire() {
         address: $('#pf-address').value,
         savingsGoal: $('#pf-goal').value,
         rate: $('#pf-rate').value.replace(',', '.'),
-        currency: $('#pf-cur').value
+        currency: $('#pf-cur').value,
+        symbol: $('#pf-sym') ? $('#pf-sym').value : ''
       });
       toast('Boutique enregistrée.');
     } catch (err) {
