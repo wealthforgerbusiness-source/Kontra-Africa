@@ -19,7 +19,7 @@ import {
 const DAY_MS = 86400000;
 const PLAN_IDS = ['starter', 'business', 'pro'];
 const PAYMENT_RE = /^[A-Za-z0-9_-]{16,64}$/;
-const VIEWS = ['home', 'stock', 'sale', 'debts', 'more', 'history', 'finance', 'account'];
+const VIEWS = ['home', 'stock', 'sale', 'debts', 'more', 'history', 'finance', 'closing', 'account'];
 const TITLES = {
   home: 'Accueil',
   stock: 'Stock',
@@ -28,6 +28,7 @@ const TITLES = {
   more: 'Plus',
   history: 'Ventes',
   finance: 'Finances',
+  closing: 'Clôture',
   account: 'Compte et offre'
 };
 const ROUTES = {
@@ -38,6 +39,7 @@ const ROUTES = {
   more: './views/more.js',
   history: './views/more.js',
   finance: './views/more.js',
+  closing: './views/closing.js',
   account: './views/more.js'
 };
 const ACTIONS = {
@@ -420,7 +422,7 @@ function renderNotices() {
 }
 
 function updateNav(name) {
-  const tabName = ['history', 'finance', 'account'].includes(name) ? 'more' : name;
+  const tabName = ['history', 'finance', 'closing', 'account'].includes(name) ? 'more' : name;
   const mark = (node, on) => (on ? node.setAttribute('aria-current', 'page') : node.removeAttribute('aria-current'));
   $$('.tabbar .tab').forEach((b) => mark(b, b.dataset.nav === tabName));
   $$('.side-nav button').forEach((b) => mark(b, b.dataset.nav === name));
