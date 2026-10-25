@@ -224,15 +224,22 @@ export const payments = Object.freeze({
 });
 
 export async function refreshAfterPayment(paymentId, tries) {
-  const max = tries || 12;
+  const max = Math.max(tries || 0, 30);
+  let delay = 4000;
   for (let i = 0; i < max; i += 1) {
-    const state = await payments.status(paymentId);
-    if (state.status === 'SUCCESS') {
-      if (auth.currentUser) await auth.currentUser.getIdToken(true);
-      return 'SUCCESS';
+    try {
+      const state = await payments.status(paymentId);
+      if (state.status === 'SUCCESS') {
+        if (auth.currentUser) await auth.currentUser.getIdToken(true);
+        return 'SUCCESS';
+      }
+      if (['FAILED', 'CANCELLED', 'REVIEW', 'DISMISSED'].includes(state.status)) return state.status;
+      delay = 4000;
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) throw err;
+      delay = Math.min(delay * 2, 15000);
     }
-    if (['FAILED', 'CANCELLED', 'REVIEW', 'DISMISSED'].includes(state.status)) return state.status;
-    await wait(2500);
+    await wait(delay);
   }
   return 'PENDING';
 }
