@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -78,29 +79,29 @@ app.use(
   })
 );
 
-const globalLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'too_many_requests' }
-});
+function clientKey(req) {
+  const auth = req.get('Authorization');
+  if (auth) return 't:' + crypto.createHash('sha256').update(auth).digest('hex').slice(0, 32);
+  return 'ip:' + req.ip;
+}
 
-const strictLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 15,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'too_many_requests' }
-});
+function limiter(limit, keyed) {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    limit,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: keyed ? clientKey : (req) => 'ip:' + req.ip,
+    message: { error: 'too_many_requests' }
+  });
+}
 
-const webhookLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { error: 'too_many_requests' }
-});
+const globalLimiter = limiter(900, false);
+const authLimiter = limiter(90, true);
+const paymentLimiter = limiter(150, true);
+const adminLimiter = limiter(240, true);
+const cronLimiter = limiter(60, false);
+const webhookLimiter = limiter(600, false);
 
 app.use(globalLimiter);
 
@@ -128,11 +129,11 @@ function mount(path, file, ...middlewares) {
   }
 }
 
-mount('/api/auth', './routes/auth', strictLimiter);
-mount('/api/payments', './routes/payments', strictLimiter);
+mount('/api/auth', './routes/auth', authLimiter);
+mount('/api/payments', './routes/payments', paymentLimiter);
 mount('/api/webhooks/saspay', './routes/webhook', webhookLimiter);
-mount('/api/cron', './routes/cron', strictLimiter);
-mount('/api/admin', './routes/admin', strictLimiter);
+mount('/api/cron', './routes/cron', cronLimiter);
+mount('/api/admin', './routes/admin', adminLimiter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' });
