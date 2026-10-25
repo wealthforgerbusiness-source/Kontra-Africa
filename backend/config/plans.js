@@ -78,7 +78,7 @@ const PLANS = Object.freeze({
 const LOCAL_PRICES = Object.freeze({
   XOF: Object.freeze({ starter: 2900, business: 6960, pro: 14500 }),
   XAF: Object.freeze({ starter: 2900, business: 6960, pro: 14500 }),
-  CDF: Object.freeze({ starter: 250, business: 27000, pro: 56250 })
+  CDF: Object.freeze({ starter: 11250, business: 27000, pro: 56250 })
 });
 
 const COUNTRIES = Object.freeze({
