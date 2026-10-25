@@ -14,6 +14,10 @@ const TOLERANCE_SECONDS = 300;
 const REQUEST_TIMEOUT_MS = 15000;
 const DAY_MS = 86400000;
 const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+const MARK_RE = /\[KA:([A-Za-z0-9_-]{8,64})\]/;
+const SESSION_BASE = 'https://api.saspay.me/api/v1/checkout-sessions/';
+const OK_STATUS = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED', 'PAID', 'PAYE', 'PAYÉ'];
+const isOk = (v) => OK_STATUS.includes(String(v || '').toUpperCase());
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -60,17 +64,35 @@ function metaPaymentId(meta) {
   return typeof id === 'string' && ID_RE.test(id) ? id : null;
 }
 
-async function findPaymentRef(txId, ...metas) {
-  for (const meta of metas) {
-    const id = metaPaymentId(meta);
-    if (id) {
-      const ref = db.collection('payments').doc(id);
-      const snap = await ref.get();
-      if (snap.exists) return ref;
+function markerPaymentId(...objs) {
+  for (const o of objs) {
+    if (!o || typeof o !== 'object') continue;
+    for (const key of ['description', 'reference', 'narration', 'label']) {
+      const m = typeof o[key] === 'string' ? MARK_RE.exec(o[key]) : null;
+      if (m) return m[1];
     }
   }
-  const q = await db.collection('payments').where('saspaySessionId', '==', txId).limit(1).get();
-  return q.empty ? null : q.docs[0].ref;
+  return null;
+}
+
+async function findPaymentRef(txId, data, vData) {
+  const d = data && typeof data === 'object' ? data : {};
+  const v = vData && typeof vData === 'object' ? vData : {};
+  const candidates = [markerPaymentId(d, v), metaPaymentId(d.metadata), metaPaymentId(v.metadata)];
+  for (const id of candidates) {
+    if (!id) continue;
+    const ref = db.collection('payments').doc(id);
+    const snap = await ref.get();
+    if (snap.exists) return ref;
+  }
+  const sessionIds = [d.session_id, d.checkout_session_id, d.checkout_session, v.session_id, v.checkout_session_id]
+    .filter((x) => typeof x === 'string' && x);
+  for (const sid of sessionIds.concat([txId])) {
+    const q = await db.collection('payments').where('saspaySessionId', '==', sid).limit(1).get();
+    if (!q.empty) return q.docs[0].ref;
+  }
+  const q2 = await db.collection('payments').where('saspayTxId', '==', txId).limit(1).get();
+  return q2.empty ? null : q2.docs[0].ref;
 }
 
 async function storeUnmatched(txId, event, data, reason) {
@@ -120,7 +142,7 @@ async function activate(payRef, txId, data, verified) {
       t.update(payRef, { status: 'REVIEW', failReason: 'currency_mismatch', saspayTxId: txId });
       return { skip: 'review' };
     }
-    const paidAmount = num(data.amount);
+    const paidAmount = num(verified.amount !== null && verified.amount !== undefined ? verified.amount : data.amount);
     if (paidAmount === null || Math.abs(paidAmount - pay.amount) > 0.005) {
       t.update(payRef, { status: 'REVIEW', failReason: 'amount_mismatch', saspayTxId: txId });
       return { skip: 'review' };
@@ -229,6 +251,31 @@ async function markNotPaid(payRef, status, reason) {
   });
 }
 
+async function confirmAndActivate(payRef, txId, data, event) {
+  const verifyResult = await verifyPayment(txId);
+  const vData = verifyResult.json && verifyResult.json.data;
+  if (verifyResult.status !== 200 || !vData) return { code: 503, error: 'verify_unavailable' };
+  if (!isOk(vData.status)) return { code: 503, error: 'not_confirmed' };
+  if (vData.id && String(vData.id) !== txId) return { code: 400, error: 'id_mismatch' };
+
+  let ref = payRef;
+  if (!ref) ref = await findPaymentRef(txId, data, vData);
+  if (!ref) {
+    await storeUnmatched(txId, event, data, 'no_matching_payment');
+    console.error('Paiement réussi sans correspondance, id ' + txId);
+    return { code: 200 };
+  }
+
+  const verified = {
+    currency: typeof vData.currency === 'string' ? vData.currency : '',
+    amount: num(vData.amount)
+  };
+  const merged = Object.assign({}, vData, data);
+  const result = await activate(ref, txId, merged, verified);
+  if (result === 'review') console.error('Paiement à vérifier manuellement, id ' + txId);
+  return { code: 200, result };
+}
+
 router.post(
   '/',
   wrap(async (req, res) => {
@@ -246,12 +293,9 @@ router.post(
     const handled = ['transaction.success', 'transaction.failed', 'transaction.cancelled'];
     if (!handled.includes(event)) return res.json({ received: true });
     if (!ID_RE.test(txId)) return res.status(400).json({ error: 'invalid_payload' });
-    if (data.type && String(data.type).toUpperCase() !== 'PAIEMENT') {
-      return res.json({ received: true });
-    }
 
     if (event === 'transaction.failed' || event === 'transaction.cancelled') {
-      const payRef = await findPaymentRef(txId, data.metadata);
+      const payRef = await findPaymentRef(txId, data, null);
       if (payRef) {
         await markNotPaid(
           payRef,
@@ -262,42 +306,61 @@ router.post(
       return res.json({ received: true });
     }
 
-    if (String(data.status || '').toUpperCase() !== 'SUCCESS') {
-      return res.json({ received: true });
-    }
-
-    let verifyResult;
+    let out;
     try {
-      verifyResult = await verifyPayment(txId);
+      const payRef = await findPaymentRef(txId, data, null);
+      out = await confirmAndActivate(payRef, txId, data, event);
     } catch (_err) {
       return res.status(503).json({ error: 'verify_unavailable' });
     }
-
-    const vData = verifyResult.json && verifyResult.json.data;
-    if (verifyResult.status !== 200 || !vData) {
-      console.error('Vérification SasPay impossible, HTTP ' + verifyResult.status);
-      return res.status(503).json({ error: 'verify_unavailable' });
-    }
-    if (String(vData.status || '').toUpperCase() !== 'SUCCESS') {
-      return res.status(503).json({ error: 'not_confirmed' });
-    }
-    if (vData.id && String(vData.id) !== txId) {
-      return res.status(400).json({ error: 'id_mismatch' });
-    }
-
-    const payRef = await findPaymentRef(txId, data.metadata, vData.metadata);
-    if (!payRef) {
-      await storeUnmatched(txId, event, data, 'no_matching_payment');
-      console.error('Paiement réussi sans correspondance, id ' + txId);
-      return res.json({ received: true });
-    }
-
-    const verified = { currency: typeof vData.currency === 'string' ? vData.currency : '' };
-    const result = await activate(payRef, txId, data, verified);
-    if (result === 'review') console.error('Paiement à vérifier manuellement, id ' + txId);
-
+    if (out.code !== 200) return res.status(out.code).json({ error: out.error });
     return res.json({ received: true });
   })
 );
+
+function pickTxId(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  const direct = [obj.transaction_id, obj.payment_id, obj.transaction && obj.transaction.id, obj.payment && obj.payment.id];
+  for (const c of direct) if (typeof c === 'string' && ID_RE.test(c)) return c;
+  const lists = [obj.transactions, obj.payments];
+  for (const l of lists) {
+    if (Array.isArray(l)) {
+      for (const it of l) {
+        if (it && typeof it.id === 'string' && ID_RE.test(it.id) && (!it.status || isOk(it.status))) return it.id;
+      }
+    }
+  }
+  return '';
+}
+
+router.confirmFromSession = async function confirmFromSession(payRef, pay) {
+  if (!pay || pay.status !== 'PENDING' || !pay.saspaySessionId) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let json = null;
+  try {
+    const response = await fetch(SESSION_BASE + encodeURIComponent(pay.saspaySessionId) + '/', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + process.env.SASPAY_SECRET_KEY },
+      signal: controller.signal
+    });
+    if (response.status !== 200) return false;
+    json = await response.json().catch(() => null);
+  } catch (_err) {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+  const d = json && json.data;
+  if (!d || typeof d !== 'object') return false;
+  const txId = pickTxId(d);
+  if (!txId) return false;
+  try {
+    const out = await confirmAndActivate(payRef, txId, { id: txId }, 'status_check');
+    return out.code === 200;
+  } catch (_err) {
+    return false;
+  }
+};
 
 module.exports = router;
