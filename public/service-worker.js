@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'kontra-v3';
+const VERSION = 'kontra-v4';
 const STATIC_CACHE = VERSION + '-static';
 const CDN_CACHE = VERSION + '-cdn';
 const NETWORK_TIMEOUT_MS = 4500;
@@ -25,6 +25,7 @@ const PRECACHE = [
   'js/views/sale.js',
   'js/views/debts.js',
   'js/views/more.js',
+  'js/views/closing.js',
   'assets/logo/logo-192.png',
   'assets/logo/logo-512.png'
 ];
