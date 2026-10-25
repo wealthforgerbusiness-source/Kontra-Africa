@@ -17,6 +17,7 @@ import {
   increment
 } from './firebase.js';
 import { deleteField } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { setCustomSymbol } from './ui.js';
 
 const MAX_MONEY = 1000000000000;
 const MAX_LINES = 60;
@@ -24,7 +25,7 @@ const PRODUCT_PAGE = 500;
 const CUSTOMER_PAGE = 200;
 const SALES_PAGE = 20;
 const TX_PAGE = 30;
-const PROFILE_TEXT = { businessName: 80, country: 40, currency: 8, phone: 24, address: 160 };
+const PROFILE_TEXT = { businessName: 80, country: 40, currency: 8, symbol: 8, phone: 24, address: 160 };
 
 export class StoreError extends Error {
   constructor(code, detail) {
@@ -59,6 +60,7 @@ let state = blank();
 const listeners = new Set();
 
 function emit() {
+  setCustomSymbol(state.profile && state.profile.symbol);
   listeners.forEach((fn) => {
     try {
       fn();
