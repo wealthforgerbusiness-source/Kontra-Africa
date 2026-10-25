@@ -1,19 +1,4 @@
-import {
-  auth,
-  db,
-  api,
-  onUser,
-  signUpEmail,
-  signInEmail,
-  signInGoogle,
-  finishRedirect,
-  resetPassword,
-  resendVerification,
-  refreshVerification,
-  logout,
-  loadAccount,
-  errorMessage
-} from './firebase.js';
+import { auth, db, onUser, logout, loadAccount, errorMessage } from './firebase.js';
 import { terminate, clearIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import * as store from './store.js';
 import {
@@ -23,7 +8,6 @@ import {
   clear,
   getParam,
   toast,
-  setLoading,
   openOverlay,
   closeOverlay,
   confirmDialog,
@@ -35,8 +19,6 @@ import {
 const DAY_MS = 86400000;
 const PLAN_IDS = ['starter', 'business', 'pro'];
 const PAYMENT_RE = /^[A-Za-z0-9_-]{16,64}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PANES = ['auth', 'reset', 'verify', 'terms', 'error'];
 const VIEWS = ['home', 'stock', 'sale', 'debts', 'more', 'history', 'finance', 'account'];
 const TITLES = {
   home: 'Accueil',
@@ -64,12 +46,11 @@ const ACTIONS = {
   'add-tx': { path: './views/more.js', write: true }
 };
 
-const K_PENDING = 'kontra_terms_pending';
-const K_OK = 'kontra_terms_ok';
 const K_PLAN = 'kontra_plan';
 const K_PAYMENT = 'kontra_payment';
-const PENDING_MS = 5 * 60 * 1000;
-const ACCEPT_MS = 3 * DAY_MS;
+const K_LOOP = 'kontra_loop';
+
+const ignore = () => undefined;
 
 function lsGet(key) {
   try {
@@ -82,14 +63,14 @@ function lsSet(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (_e) {
-    return;
+    ignore();
   }
 }
 function lsDel(key) {
   try {
     localStorage.removeItem(key);
   } catch (_e) {
-    return;
+    ignore();
   }
 }
 function ssGet(key) {
@@ -103,45 +84,40 @@ function ssSet(key, value) {
   try {
     sessionStorage.setItem(key, value);
   } catch (_e) {
-    return;
+    ignore();
   }
 }
 function ssDel(key) {
   try {
     sessionStorage.removeItem(key);
   } catch (_e) {
-    return;
+    ignore();
   }
 }
 
-const startMode = getParam('mode') === 'signup' ? 'signup' : 'login';
 const planParam = getParam('plan');
 if (PLAN_IDS.includes(planParam)) lsSet(K_PLAN, planParam);
 const payParam = getParam('payment');
 if (payParam && PAYMENT_RE.test(payParam)) ssSet(K_PAYMENT, payParam);
+
+const loginParams = new URLSearchParams();
+if (getParam('mode') === 'signup') loginParams.set('mode', 'signup');
+if (PLAN_IDS.includes(planParam)) loginParams.set('plan', planParam);
+const LOGIN_URL = 'login.html' + (loginParams.toString() ? '?' + loginParams.toString() : '');
+
 if (window.location.search) history.replaceState(null, '', window.location.pathname + window.location.hash);
 
-let mode = 'login';
 let session = null;
 let current = 'home';
 let routeId = 0;
 let renderToken = 0;
 let tickTimer = 0;
-let verifyTimer = 0;
-let resendTimer = 0;
-let resendUntil = 0;
 let lastRefresh = 0;
 let installEvent = null;
 const modules = new Map();
 
 function setHidden(node, hidden) {
   if (node) node.classList.toggle('hide', Boolean(hidden));
-}
-
-function setError(node, message) {
-  if (!node) return;
-  node.textContent = message || '';
-  setHidden(node, !message);
 }
 
 function plural(n, word) {
@@ -160,48 +136,60 @@ function setSplash(on, text) {
   line.textContent = on && text ? text : '';
 }
 
-function openPane(name) {
-  PANES.forEach((p) => setHidden($('#pane-' + p), p !== name));
-  ['#auth-error', '#reset-error', '#verify-error', '#terms-error'].forEach((id) => setError($(id), ''));
-  window.scrollTo(0, 0);
-}
-
-function showAuthScreen(pane) {
-  setSplash(false);
-  setHidden($('#app'), true);
-  setHidden($('#auth'), false);
-  document.body.classList.add('is-auth');
-  openPane(pane);
-}
-
 function showAppScreen() {
-  setHidden($('#auth'), true);
   setHidden($('#app'), false);
   document.body.classList.remove('is-auth');
   setSplash(false);
 }
 
-function setPending() {
-  lsSet(K_PENDING, String(Date.now()));
-}
-function clearPending() {
-  lsDel(K_PENDING);
-}
-function takePending() {
-  const at = Number(lsGet(K_PENDING));
-  clearPending();
-  return Number.isFinite(at) && at > 0 && Date.now() - at < PENDING_MS;
-}
-function saveAcceptance(email) {
-  lsSet(K_OK, JSON.stringify({ email: String(email || '').toLowerCase(), at: Date.now() }));
-}
-function hasRecentAcceptance(email) {
+function loopBlocked() {
+  const now = Date.now();
+  let list = [];
   try {
-    const data = JSON.parse(lsGet(K_OK) || 'null');
-    return Boolean(data) && data.email === String(email || '').toLowerCase() && Date.now() - Number(data.at) < ACCEPT_MS;
+    list = JSON.parse(ssGet(K_LOOP) || '[]');
   } catch (_e) {
-    return false;
+    list = [];
   }
+  list = list.filter((t) => now - t < 60000);
+  list.push(now);
+  ssSet(K_LOOP, JSON.stringify(list));
+  return list.length > 3;
+}
+
+function goLogin() {
+  window.location.replace(LOGIN_URL);
+}
+
+function goLoginGuarded() {
+  if (loopBlocked()) {
+    fail(new Error('redirect_loop'));
+    return;
+  }
+  goLogin();
+}
+
+function fail(err) {
+  console.error('Application indisponible:', err);
+  const splash = $('#splash');
+  setSplash(true, '');
+  const loader = $('.square-loader', splash);
+  if (loader) loader.classList.add('hide');
+
+  const code = err && err.code ? String(err.code) : err && err.message ? String(err.message) : '';
+  const status = err && err.status ? ' · HTTP ' + err.status : '';
+  let box = $('#splash-error');
+  if (!box) {
+    box = h('div', { id: 'splash-error', class: 'stack', style: '--gap:.75rem;text-align:center;padding:0 1.25rem;max-width:380px' });
+    splash.append(box);
+  }
+  clear(box);
+  box.append(
+    h('h2', { text: 'Connexion impossible' }),
+    h('p', { class: 'muted', text: errorMessage(err) }),
+    code ? h('p', { class: 'muted', style: 'font-size:.78rem;word-break:break-all', text: 'Code technique : ' + code + status }) : null,
+    h('button', { type: 'button', class: 'btn btn-block', text: 'Réessayer', onclick: () => window.location.reload() }),
+    h('button', { type: 'button', class: 'link-btn', text: 'Se déconnecter', onclick: hardLogout })
+  );
 }
 
 function readCached(uid) {
@@ -212,57 +200,34 @@ function readCached(uid) {
     return null;
   }
 }
+
 function writeCached(uid, data) {
   lsSet('kontra_acct_' + uid, JSON.stringify({ isAdmin: data.isAdmin === true, subscription: data.subscription }));
 }
 
-async function initAccount(accept) {
-  const data = await api('/api/auth/init', { method: 'POST', body: { acceptTerms: accept === true }, retry: true });
-  if (data.refreshToken && auth.currentUser) await auth.currentUser.getIdToken(true);
-  return data;
-}
-
-async function createAccount(user) {
-  try {
-    return await initAccount(hasRecentAcceptance(user.email));
-  } catch (err) {
-    if (err && err.code === 'terms_required') return null;
-    throw err;
-  }
-}
-
-function fail(err) {
-  $('#error-text').textContent = errorMessage(err);
-  showAuthScreen('error');
-}
-
 async function routeUser(user) {
   const rid = ++routeId;
-  stopVerifyPolling();
   stopTimers();
 
   if (!user) {
     session = null;
-    showAuthScreen('auth');
+    goLogin();
     return;
   }
 
-  if (takePending() && user.email) saveAcceptance(user.email);
   setSplash(true, '');
 
   if (!user.emailVerified) {
     try {
       await user.reload();
     } catch (_e) {
-      /* hors ligne */
+      ignore();
     }
     if (rid !== routeId) return;
   }
 
   if (!user.emailVerified) {
-    $('#verify-email').textContent = user.email || '';
-    showAuthScreen('verify');
-    startVerifyPolling();
+    goLogin();
     return;
   }
 
@@ -270,7 +235,7 @@ async function routeUser(user) {
     const result = await user.getIdTokenResult();
     if (result.claims.email_verified !== true) await user.getIdToken(true);
   } catch (_e) {
-    /* hors ligne */
+    ignore();
   }
   if (rid !== routeId) return;
 
@@ -283,37 +248,38 @@ async function enter(user, rid) {
   let offline = false;
 
   try {
-    try {
-      data = await loadAccount();
-      writeCached(user.uid, data);
-    } catch (err) {
-      if (err && (err.status === 404 || err.code === 'no_subscription')) {
-        data = await createAccount(user);
-        if (data) writeCached(user.uid, data);
-      } else if (err && (err.code === 'network' || err.code === 'timeout')) {
-        const cached = readCached(user.uid);
-        if (!cached) throw err;
-        data = cached;
-        offline = true;
-      } else {
-        throw err;
-      }
-    }
+    data = await loadAccount();
+    writeCached(user.uid, data);
   } catch (err) {
     clearTimeout(slow);
     if (rid !== routeId) return;
-    fail(err);
-    return;
+    if (err && (err.status === 404 || err.code === 'no_subscription')) {
+      goLoginGuarded();
+      return;
+    }
+    if (err && (err.code === 'network' || err.code === 'timeout')) {
+      const cached = readCached(user.uid);
+      if (!cached) {
+        fail(err);
+        return;
+      }
+      data = cached;
+      offline = true;
+    } else {
+      fail(err);
+      return;
+    }
   }
 
   clearTimeout(slow);
   if (rid !== routeId) return;
 
-  if (!data || (data.subscription && data.subscription.needsTerms)) {
-    showAuthScreen('terms');
+  if (data.subscription && data.subscription.needsTerms) {
+    goLoginGuarded();
     return;
   }
 
+  ssDel(K_LOOP);
   finishEntry(user, data);
   if (offline) toast('Mode hors ligne : consultation uniquement.', 'warn', 5000);
   afterBoot();
@@ -552,7 +518,7 @@ async function runAction(name) {
 async function refreshAccount() {
   const data = await loadAccount();
   if (data.subscription && data.subscription.needsTerms) {
-    await routeUser(auth.currentUser);
+    goLoginGuarded();
     return null;
   }
   if (session) {
@@ -590,20 +556,19 @@ function checkExpiry() {
 
 async function hardLogout() {
   stopTimers();
-  stopVerifyPolling();
   store.reset();
   try {
     await logout();
   } catch (_e) {
-    /* déjà déconnecté */
+    ignore();
   }
   try {
     await terminate(db);
     await clearIndexedDbPersistence(db);
   } catch (_e) {
-    /* cache déjà vide */
+    ignore();
   }
-  window.location.replace('app.html?mode=login');
+  window.location.replace('login.html');
 }
 
 async function doLogout() {
@@ -613,44 +578,6 @@ async function doLogout() {
     ok: 'Se déconnecter'
   });
   if (ok) await hardLogout();
-}
-
-function startVerifyPolling() {
-  stopVerifyPolling();
-  verifyTimer = setInterval(async () => {
-    if (document.hidden) return;
-    try {
-      if (await refreshVerification()) {
-        stopVerifyPolling();
-        routeUser(auth.currentUser);
-      }
-    } catch (_e) {
-      return;
-    }
-  }, 5000);
-}
-
-function stopVerifyPolling() {
-  clearInterval(verifyTimer);
-  verifyTimer = 0;
-}
-
-function startCooldown(button, seconds) {
-  clearInterval(resendTimer);
-  resendUntil = Date.now() + seconds * 1000;
-  button.disabled = true;
-  const tick = () => {
-    const left = Math.ceil((resendUntil - Date.now()) / 1000);
-    if (left <= 0) {
-      clearInterval(resendTimer);
-      button.disabled = false;
-      button.textContent = 'Renvoyer l’email';
-      return;
-    }
-    button.textContent = 'Renvoyer l’email (' + left + ' s)';
-  };
-  tick();
-  resendTimer = setInterval(tick, 1000);
 }
 
 const ctx = {
@@ -668,204 +595,6 @@ const ctx = {
   user: () => (session ? session.user : null),
   canWrite: () => store.canWrite()
 };
-
-function syncGate() {
-  const blocked = mode === 'signup' && !$('#accept-terms').checked;
-  $('#btn-submit').disabled = blocked;
-  $('#btn-google').disabled = blocked;
-}
-
-function setMode(next) {
-  mode = next === 'signup' ? 'signup' : 'login';
-  const signup = mode === 'signup';
-  $('#tab-login').setAttribute('aria-selected', String(!signup));
-  $('#tab-signup').setAttribute('aria-selected', String(signup));
-  $('#auth-title').textContent = signup ? 'Créez votre compte' : 'Bon retour';
-  $('#auth-sub').textContent = signup
-    ? 'Essai gratuit de 14 jours, sans carte bancaire.'
-    : 'Connectez-vous pour retrouver votre boutique.';
-  setHidden($('#field-name'), !signup);
-  setHidden($('#terms-wrap'), !signup);
-  setHidden($('#pw-hint'), !signup);
-  setHidden($('#btn-forgot').parentElement, signup);
-  $('#auth-password').setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
-  $('#btn-submit').textContent = signup ? 'Créer mon compte' : 'Se connecter';
-  $('#btn-google-label').textContent = signup ? 'S’inscrire avec Google' : 'Continuer avec Google';
-  setError($('#auth-error'), '');
-  $('#terms-wrap').classList.remove('has-error');
-  syncGate();
-}
-
-function wireAuth() {
-  const accept = $('#accept-terms');
-  const authError = $('#auth-error');
-  const submit = $('#btn-submit');
-  const google = $('#btn-google');
-
-  $('#tab-login').addEventListener('click', () => setMode('login'));
-  $('#tab-signup').addEventListener('click', () => setMode('signup'));
-  accept.addEventListener('change', () => {
-    $('#terms-wrap').classList.remove('has-error');
-    setError(authError, '');
-    syncGate();
-  });
-
-  google.addEventListener('click', async () => {
-    setError(authError, '');
-    if (mode === 'signup') {
-      if (!accept.checked) {
-        $('#terms-wrap').classList.add('has-error');
-        setError(authError, 'Acceptez les conditions pour créer un compte.');
-        return;
-      }
-      setPending();
-    } else {
-      clearPending();
-    }
-    setLoading(google, true);
-    try {
-      await signInGoogle();
-    } catch (err) {
-      clearPending();
-      const code = err && err.code;
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setError(authError, errorMessage(err));
-      }
-    } finally {
-      setLoading(google, false);
-      syncGate();
-    }
-  });
-
-  $('#auth-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    setError(authError, '');
-    const email = $('#auth-email').value.trim();
-    const password = $('#auth-password').value;
-    const name = $('#auth-name').value.trim();
-    const signup = mode === 'signup';
-
-    if (!EMAIL_RE.test(email)) return setError(authError, 'Adresse email invalide.');
-    if (signup && name.length < 2) return setError(authError, 'Entrez votre nom ou le nom de votre boutique.');
-    if (!password) return setError(authError, 'Entrez votre mot de passe.');
-    if (signup && password.length < 8) return setError(authError, 'Mot de passe trop faible : 8 caractères minimum.');
-    if (signup && !accept.checked) {
-      $('#terms-wrap').classList.add('has-error');
-      return setError(authError, 'Acceptez les conditions pour créer un compte.');
-    }
-
-    if (signup) setPending();
-    else clearPending();
-    setLoading(submit, true);
-    try {
-      if (signup) await signUpEmail(name, email, password);
-      else await signInEmail(email, password);
-    } catch (err) {
-      clearPending();
-      setError(authError, errorMessage(err));
-    } finally {
-      setLoading(submit, false);
-      syncGate();
-    }
-  });
-
-  $('#btn-forgot').addEventListener('click', () => {
-    openPane('reset');
-    $('#reset-email').value = $('#auth-email').value.trim();
-  });
-  $('#btn-reset-back').addEventListener('click', () => openPane('auth'));
-
-  $('#reset-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const error = $('#reset-error');
-    const button = $('#btn-reset');
-    const email = $('#reset-email').value.trim();
-    setError(error, '');
-    if (!EMAIL_RE.test(email)) return setError(error, 'Adresse email invalide.');
-    setLoading(button, true);
-    try {
-      await resetPassword(email);
-      toast('Si un compte existe avec cet email, un lien vient d’être envoyé.', 'ok', 6000);
-      openPane('auth');
-    } catch (err) {
-      if (err && err.code === 'auth/too-many-requests') setError(error, errorMessage(err));
-      else {
-        toast('Si un compte existe avec cet email, un lien vient d’être envoyé.', 'ok', 6000);
-        openPane('auth');
-      }
-    } finally {
-      setLoading(button, false);
-    }
-  });
-
-  const verified = $('#btn-verified');
-  verified.addEventListener('click', async () => {
-    const error = $('#verify-error');
-    setError(error, '');
-    setLoading(verified, true);
-    try {
-      if (await refreshVerification()) {
-        stopVerifyPolling();
-        routeUser(auth.currentUser);
-      } else {
-        setError(error, 'Email pas encore confirmé. Ouvrez le lien reçu, puis réessayez.');
-      }
-    } catch (err) {
-      setError(error, errorMessage(err));
-    } finally {
-      setLoading(verified, false);
-    }
-  });
-
-  const resend = $('#btn-resend');
-  resend.addEventListener('click', async () => {
-    if (Date.now() < resendUntil) return;
-    const error = $('#verify-error');
-    setError(error, '');
-    try {
-      await resendVerification();
-      toast('Email renvoyé.');
-      startCooldown(resend, 60);
-    } catch (err) {
-      setError(error, errorMessage(err));
-    }
-  });
-
-  $('#btn-verify-out').addEventListener('click', hardLogout);
-  $('#btn-terms-out').addEventListener('click', hardLogout);
-  $('#btn-error-out').addEventListener('click', hardLogout);
-  $('#btn-retry').addEventListener('click', () => routeUser(auth.currentUser));
-
-  const accept2 = $('#accept-terms2');
-  accept2.addEventListener('change', () => {
-    $('#terms2-wrap').classList.remove('has-error');
-    setError($('#terms-error'), '');
-  });
-
-  const termsButton = $('#btn-terms');
-  termsButton.addEventListener('click', async () => {
-    const user = auth.currentUser;
-    const error = $('#terms-error');
-    if (!user) return routeUser(null);
-    if (!accept2.checked) {
-      $('#terms2-wrap').classList.add('has-error');
-      return setError(error, 'Cochez la case pour continuer.');
-    }
-    setError(error, '');
-    setLoading(termsButton, true);
-    try {
-      const data = await initAccount(true);
-      saveAcceptance(user.email);
-      writeCached(user.uid, data);
-      finishEntry(user, data);
-      afterBoot();
-    } catch (err) {
-      setError(error, errorMessage(err));
-    } finally {
-      setLoading(termsButton, false);
-    }
-  });
-}
 
 function wireApp() {
   document.addEventListener('click', (event) => {
@@ -893,7 +622,7 @@ function wireApp() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || !session) return;
     checkExpiry();
-    if (Date.now() - lastRefresh > 5 * 60 * 1000) refreshAccount().catch(() => {});
+    if (Date.now() - lastRefresh > 5 * 60 * 1000) refreshAccount().catch(ignore);
   });
 
   const banner = $('#install-banner');
@@ -915,7 +644,7 @@ function wireApp() {
     try {
       await prompt.prompt();
     } catch (_e) {
-      return;
+      ignore();
     }
   });
 }
@@ -923,18 +652,15 @@ function wireApp() {
 function registerWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('service-worker.js').catch(ignore);
   });
 }
 
 function boot() {
   initUI();
   watchNetwork();
-  wireAuth();
   wireApp();
   registerWorker();
-  setMode(startMode);
-  finishRedirect();
   onUser((user) => {
     routeUser(user);
   });
