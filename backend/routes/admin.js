@@ -109,7 +109,7 @@ function monthView(id, data) {
   };
 }
 
-async function computeMrr() {
+async function computeMrrAggregate() {
   const col = db.collection('subscriptions');
   const currencies = Object.keys(plans.LOCAL_PRICES);
 
@@ -146,18 +146,91 @@ async function computeMrr() {
   return { mrr, mrrUsd: toUsd(mrr), activeByCurrency, activeByPlan };
 }
 
+
+/* Plan B quand les index Firestore ne sont pas encore créés : on lit les abonnements actifs
+   (un seul filtre, donc aucun index spécial) et on additionne ici. */
+async function computeMrrScan() {
+  const currencies = Object.keys(plans.LOCAL_PRICES);
+  const snap = await db.collection('subscriptions').where('status', '==', 'active').limit(5000).get();
+  const mrr = {};
+  const activeByCurrency = {};
+  currencies.forEach((cur) => { mrr[cur] = 0; activeByCurrency[cur] = 0; });
+  const activeByPlan = {};
+  plans.PAID_PLAN_IDS.forEach((id) => { activeByPlan[id] = 0; });
+  snap.forEach((d) => {
+    const s = d.data();
+    if (s.currency in mrr) {
+      mrr[s.currency] += Number(s.paidAmount) || 0;
+      activeByCurrency[s.currency] += 1;
+    }
+    if (s.planId in activeByPlan) activeByPlan[s.planId] += 1;
+  });
+  return { mrr, mrrUsd: toUsd(mrr), activeByCurrency, activeByPlan };
+}
+
+async function computeMrr() {
+  try {
+    return await computeMrrAggregate();
+  } catch (err) {
+    console.error('computeMrr (agrégats, index manquant ?):', err && err.message ? err.message : err);
+    try {
+      return await computeMrrScan();
+    } catch (err2) {
+      console.error('computeMrr (plan B):', err2 && err2.message ? err2.message : err2);
+      const zero = {};
+      Object.keys(plans.LOCAL_PRICES).forEach((cur) => { zero[cur] = 0; });
+      const byPlan = {};
+      plans.PAID_PLAN_IDS.forEach((id) => { byPlan[id] = 0; });
+      return { mrr: zero, mrrUsd: 0, activeByCurrency: Object.assign({}, zero), activeByPlan: byPlan };
+    }
+  }
+}
+
+const MONTH_ID_RE = /^\d{4}-\d{2}$/;
+
+function addMaps(target, source) {
+  Object.keys(source || {}).forEach((k) => {
+    const n = Number(source[k]);
+    if (Number.isFinite(n)) target[k] = (target[k] || 0) + n;
+  });
+}
+
 async function buildStats() {
   const now = new Date();
   const ids = lastMonths(now);
-  const refs = [db.collection('adminStats').doc('global')].concat(
-    ids.map((id) => db.collection('adminStats').doc(id))
-  );
 
-  const [snaps, mrr] = await Promise.all([db.getAll(...refs), computeMrr()]);
-  const global = snaps[0].exists ? snaps[0].data() : {};
+  // Une seule lecture de la petite collection adminStats (1 document par mois + « global »).
+  const [statsSnap, mrr] = await Promise.all([db.collection('adminStats').get(), computeMrr()]);
+  const byId = new Map();
+  statsSnap.forEach((d) => byId.set(d.id, d.data()));
+
+  const global = byId.get('global') || {};
   const c = global.counters || {};
 
-  const months = ids.map((id, i) => monthView(id, snaps[i + 1].exists ? snaps[i + 1].data() : null));
+  const months = ids.map((id) => monthView(id, byId.get(id) || null));
+
+  // Totaux depuis le début + détail par pays (dans la monnaie de chaque pays).
+  const totals = { paidCount: 0, gross: {}, fee: {}, net: {} };
+  const countries = {};
+  byId.forEach((data, id) => {
+    if (!MONTH_ID_RE.test(id)) return;
+    totals.paidCount += Number(data.paidCount) || 0;
+    addMaps(totals.gross, data.gross);
+    addMaps(totals.fee, data.fee);
+    addMaps(totals.net, data.net);
+    const by = data.byCountry && typeof data.byCountry === 'object' ? data.byCountry : {};
+    Object.keys(by).forEach((code) => {
+      const perCur = by[code] && typeof by[code] === 'object' ? by[code] : {};
+      Object.keys(perCur).forEach((cur) => {
+        const v = perCur[cur] || {};
+        const key = code + '|' + cur;
+        if (!countries[key]) countries[key] = { country: code, currency: cur, count: 0, gross: 0, net: 0 };
+        countries[key].count += Number(v.count) || 0;
+        countries[key].gross += Number(v.gross) || 0;
+        countries[key].net += Number(v.net) || 0;
+      });
+    });
+  });
 
   return {
     ok: true,
@@ -174,6 +247,13 @@ async function buildStats() {
       deletedManual: Number(c.deletedManual) || 0
     },
     mrr,
+    totals: {
+      paidCount: totals.paidCount,
+      gross: cleanMap(totals.gross),
+      fee: cleanMap(totals.fee),
+      net: cleanMap(totals.net)
+    },
+    countries: Object.keys(countries).map((k) => countries[k]),
     thisMonth: months[0],
     months
   };
@@ -225,18 +305,32 @@ router.get(
     const status = typeof req.query.status === 'string' ? req.query.status : '';
     if (status && !STATUSES.includes(status)) return res.status(400).json({ error: 'invalid' });
 
-    let query = db.collection('subscriptions');
-    if (status) query = query.where('status', '==', status);
-    query = query.orderBy('createdAtMs', 'desc');
+    const before = req.query.before !== undefined ? Number(req.query.before) : null;
+    if (before !== null && !Number.isFinite(before)) return res.status(400).json({ error: 'invalid' });
 
-    if (req.query.before !== undefined) {
-      const before = Number(req.query.before);
-      if (!Number.isFinite(before)) return res.status(400).json({ error: 'invalid' });
-      query = query.startAfter(before);
+    let docs;
+    let hasMore;
+    try {
+      let query = db.collection('subscriptions');
+      if (status) query = query.where('status', '==', status);
+      query = query.orderBy('createdAtMs', 'desc');
+      if (before !== null) query = query.startAfter(before);
+      const snap = await query.limit(limit).get();
+      docs = snap.docs;
+      hasMore = snap.size === limit;
+    } catch (err) {
+      // Index (status + createdAtMs) pas encore créé : on filtre sans index, sur au plus 500 comptes.
+      console.error('users (index manquant ?):', err && err.message ? err.message : err);
+      let fb = db.collection('subscriptions');
+      if (status) fb = fb.where('status', '==', status);
+      const snap = await fb.limit(500).get();
+      const all = snap.docs
+        .filter((d) => before === null || (Number(d.data().createdAtMs) || 0) < before)
+        .sort((a, b) => (Number(b.data().createdAtMs) || 0) - (Number(a.data().createdAtMs) || 0));
+      docs = all.slice(0, limit);
+      hasMore = all.length > limit;
     }
-
-    const snap = await query.limit(limit).get();
-    const subs = snap.docs.map((d) => Object.assign({ __uid: d.id }, d.data()));
+    const subs = docs.map((d) => Object.assign({ __uid: d.id }, d.data()));
 
     const authMap = new Map();
     if (subs.length) {
@@ -251,7 +345,7 @@ router.get(
     return res.json({
       ok: true,
       users,
-      nextBefore: snap.size === limit && Number.isFinite(last) ? last : null
+      nextBefore: hasMore && Number.isFinite(last) ? last : null
     });
   })
 );
