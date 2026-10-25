@@ -324,3 +324,12 @@ button.item:hover, button.item:active { background: var(--green-l); }
 .paywall .notes { display: grid; gap: 0.6rem; max-width: 640px; margin: 1.75rem auto 0; padding: 0; list-style: none; }
 .paywall .notes li { padding: 0.75rem 1rem; background: #fff; border-left: 6px solid var(--gold); font-size: 0.9rem; color: var(--muted); }
 .paywall .notes b { color: var(--navy); }
+
+/* ===== Taux de change : bascule monnaie locale / dollars ===== */
+.fx-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; padding: 0.55rem 0.75rem; background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--gold); }
+.fx-seg { display: inline-flex; border: 2px solid var(--navy); }
+.fx-seg button { min-width: 58px; min-height: 40px; padding: 0 0.9rem; border: 0; background: #fff; color: var(--navy); font-family: var(--font-head); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.fx-seg button + button { border-left: 2px solid var(--navy); }
+.fx-seg button.on { background: var(--navy); color: #fff; }
+.fx-rate { padding: 0.4rem 0; border: 0; background: none; color: var(--green); font-size: 0.85rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.fx-rate:hover { color: var(--navy); }
