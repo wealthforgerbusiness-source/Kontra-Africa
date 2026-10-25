@@ -31,8 +31,7 @@ const PLANS = Object.freeze({
       salesPerMonth: 30,
       customers: 5,
       remindersPerMonth: 3,
-      users: 1,
-      exportData: false
+      users: 1
     })
   }),
   starter: Object.freeze({
@@ -45,8 +44,7 @@ const PLANS = Object.freeze({
       salesPerMonth: 500,
       customers: 50,
       remindersPerMonth: 30,
-      users: 1,
-      exportData: false
+      users: 1
     })
   }),
   business: Object.freeze({
@@ -59,8 +57,7 @@ const PLANS = Object.freeze({
       salesPerMonth: 5000,
       customers: 500,
       remindersPerMonth: 300,
-      users: 3,
-      exportData: true
+      users: 3
     })
   }),
   pro: Object.freeze({
@@ -73,8 +70,7 @@ const PLANS = Object.freeze({
       salesPerMonth: 20000,
       customers: 2000,
       remindersPerMonth: 1000,
-      users: 10,
-      exportData: true
+      users: 10
     })
   })
 });
