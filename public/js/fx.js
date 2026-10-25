@@ -1,4 +1,4 @@
-import { h, clear, money, setLoading, toast } from './ui.js';
+import { h, clear, money, setLoading, toast, getCustomSymbol } from './ui.js';
 
 const K_MODE = 'kontra_fx_mode';
 const SYMBOL = { XOF: 'FCFA', XAF: 'FCFA', CDF: 'FC' };
@@ -14,7 +14,10 @@ function read() {
 
 let mode = read();
 
-export const symbol = (cur) => SYMBOL[String(cur || '').toUpperCase()] || String(cur || '');
+export const defaultSymbol = (cur) => SYMBOL[String(cur || '').toUpperCase()] || String(cur || '');
+
+/* Symbole affiché : celui choisi par le commerçant, sinon celui par défaut. */
+export const symbol = (cur) => getCustomSymbol() || defaultSymbol(cur);
 
 export function rateOf(profile) {
   const r = Number(profile && profile.rate);
@@ -51,13 +54,29 @@ export function fxMoney(amount, cur, profile) {
 
 function openRateSheet(ctx, cur, switchAfter) {
   const profile = ctx.store.getProfile();
-  const sym = symbol(cur);
   const current = rateOf(profile);
 
+  const symInput = h('input', {
+    type: 'text',
+    maxlength: '8',
+    autocomplete: 'off',
+    autocapitalize: 'off',
+    placeholder: 'Ex. ' + defaultSymbol(cur),
+    value: profile.symbol || ''
+  });
+  const rateLabel = h('span', { text: '' });
   const input = h('input', { type: 'number', min: '0', step: 'any', inputmode: 'decimal', placeholder: 'Ex. 2250', value: current || '' });
   const error = h('p', { class: 'error hide', role: 'alert', style: 'margin-top:.5rem' });
-  const save = h('button', { type: 'button', class: 'btn btn-block btn-lg', text: 'Enregistrer le taux' });
+  const save = h('button', { type: 'button', class: 'btn btn-block btn-lg', text: 'Enregistrer' });
   const cancel = h('button', { type: 'button', class: 'btn btn-ghost btn-block', text: 'Annuler', onclick: () => ctx.closeSheet() });
+
+  const typedSymbol = () => String(symInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 8);
+  const shownSymbol = () => typedSymbol() || defaultSymbol(cur);
+  const syncLabel = () => {
+    rateLabel.textContent = '1 $ = … ' + shownSymbol();
+  };
+  symInput.addEventListener('input', syncLabel);
+  syncLabel();
 
   save.addEventListener('click', async () => {
     const value = Number(String(input.value).replace(',', '.'));
@@ -69,10 +88,10 @@ function openRateSheet(ctx, cur, switchAfter) {
     error.classList.add('hide');
     setLoading(save, true);
     try {
-      await ctx.store.saveProfile({ rate: value });
+      await ctx.store.saveProfile({ rate: value, symbol: typedSymbol() });
       if (switchAfter) setFxMode('usd');
       ctx.closeSheet();
-      toast('Taux enregistré.');
+      toast('Taux et symbole enregistrés.');
     } catch (err) {
       error.textContent = ctx.store.storeError(err);
       error.classList.remove('hide');
@@ -82,9 +101,10 @@ function openRateSheet(ctx, cur, switchAfter) {
   });
 
   ctx.openSheet([
-    h('h3', { text: 'Taux de change' }),
-    h('p', { class: 'muted', style: 'margin:.25rem 0 1rem;font-size:.9rem', text: 'Combien de ' + sym + ' valent 1 dollar aujourd’hui ? Vous pouvez le modifier à tout moment.' }),
-    h('label', { class: 'field' }, h('span', { text: '1 $ = … ' + sym }), input),
+    h('h3', { text: 'Taux de change et symbole' }),
+    h('p', { class: 'muted', style: 'margin:.25rem 0 1rem;font-size:.9rem', text: 'Choisissez le symbole de votre monnaie (FC, FCFA, CFA…) et combien elle vaut pour 1 dollar aujourd’hui. Vous pouvez les modifier à tout moment.' }),
+    h('label', { class: 'field' }, h('span', { text: 'Symbole de votre monnaie' }), symInput),
+    h('label', { class: 'field', style: 'margin-top:.75rem' }, rateLabel, input),
     error,
     h('div', { class: 'stack', style: '--gap:.6rem;margin-top:1.25rem' }, save, cancel)
   ]);
