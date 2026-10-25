@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'kontra-v2';
+const VERSION = 'kontra-v3';
 const STATIC_CACHE = VERSION + '-static';
 const CDN_CACHE = VERSION + '-cdn';
 const NETWORK_TIMEOUT_MS = 4500;
@@ -14,6 +14,7 @@ const PRECACHE = [
   'css/landing.css',
   'js/config.js',
   'js/ui.js',
+  'js/fx.js',
   'js/firebase.js',
   'js/store.js',
   'js/app.js',
