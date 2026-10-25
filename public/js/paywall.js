@@ -325,6 +325,85 @@ async function confirmPayment(button) {
   }
 }
 
+
+let carouselUpdate = () => {};
+
+function setupCarousel() {
+  const track = $('#pw-plans');
+  const dots = $('#pw-dots');
+  const prev = $('#pw-prev');
+  const next = $('#pw-next');
+  if (!track || !dots) return;
+  const cards = Array.from(track.children);
+
+  const buttons = cards.map((card, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Offre ' + (i + 1));
+    b.addEventListener('click', () => scrollToCard(i, true));
+    dots.append(b);
+    return b;
+  });
+
+  function leftFor(card) {
+    return card.offsetLeft - (track.clientWidth - card.offsetWidth) / 2;
+  }
+
+  function scrollToCard(i, smooth) {
+    const card = cards[Math.max(0, Math.min(cards.length - 1, i))];
+    track.scrollTo({ left: leftFor(card), behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  function current() {
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let best = 0;
+    let gap = Infinity;
+    cards.forEach((card, i) => {
+      const d = Math.abs(card.offsetLeft + card.offsetWidth / 2 - mid);
+      if (d < gap) {
+        gap = d;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  function update() {
+    const scrollable = track.scrollWidth > track.clientWidth + 4;
+    dots.hidden = !scrollable;
+    prev.hidden = !scrollable;
+    next.hidden = !scrollable;
+    if (!scrollable) return;
+    const i = current();
+    buttons.forEach((b, k) => b.classList.toggle('on', k === i));
+    prev.disabled = track.scrollLeft <= 4;
+    next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+  }
+
+  let ticking = false;
+  track.addEventListener(
+    'scroll',
+    () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        update();
+      });
+    },
+    { passive: true }
+  );
+  prev.addEventListener('click', () => scrollToCard(current() - 1, true));
+  next.addEventListener('click', () => scrollToCard(current() + 1, true));
+  window.addEventListener('resize', update);
+
+  carouselUpdate = (planId) => {
+    const idx = cards.findIndex((c) => c.getAttribute('data-plan-card') === planId);
+    scrollToCard(idx < 0 ? 1 : idx, false);
+    update();
+  };
+}
+
 function show() {
   const overlay = $('#paywall');
   if (isOpen) return;
@@ -332,6 +411,8 @@ function show() {
   overlay.classList.remove('hide');
   lockScroll(true);
   overlay.scrollTop = 0;
+  const sub = activeSub();
+  requestAnimationFrame(() => carouselUpdate(sub ? sub.planId : 'business'));
 }
 
 function hide() {
@@ -348,6 +429,7 @@ function hide() {
 function wire() {
   if (wired) return;
   wired = true;
+  setupCarousel();
 
   $('#paywall-close').addEventListener('click', () => {
     if (!busy) hide();
