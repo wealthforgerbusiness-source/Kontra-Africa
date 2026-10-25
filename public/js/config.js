@@ -10,7 +10,8 @@ export const FIREBASE_CONFIG = Object.freeze({
 export const FIREBASE_SDK_VERSION = '10.14.1';
 export const FIREBASE_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_SDK_VERSION + '/';
 
-export const API_URL = 'https://kontra-africa.onrender.com/';
+const RAW_API_URL = 'https://kontra-africa.onrender.com/';
+export const API_URL = RAW_API_URL.replace(/\/+$/, '');
 export const APP_URL = 'https://kontra-africa-app.onrender.com';
 
 export const BRAND = Object.freeze({
