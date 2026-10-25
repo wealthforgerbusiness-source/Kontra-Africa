@@ -88,6 +88,7 @@
             <h1 id="home-greet">Bonjour</h1>
           </div>
         </div>
+        <div id="home-fx"></div>
         <div class="stats" id="home-stats"></div>
         <div class="quick">
           <button type="button" data-nav="sale"><svg viewBox="0 0 24 24"><use href="#i-cart"/></svg>Vendre</button>
@@ -197,6 +198,7 @@
           <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Finances</h1></div>
           <button class="btn btn-sm" type="button" data-action="add-tx">+ Opération</button>
         </div>
+        <div id="finance-fx"></div>
         <div class="stats" id="finance-stats"></div>
         <div class="panel">
           <div class="panel-head"><h2>Opérations récentes</h2></div>
@@ -221,6 +223,7 @@
             </div>
             <label class="field"><span>Adresse</span><input type="text" id="pf-address" maxlength="160" autocomplete="street-address"></label>
             <label class="field"><span>Objectif d’épargne</span><input type="number" id="pf-goal" min="0" step="1" inputmode="numeric"></label>
+            <label class="field"><span>Taux de change : 1 $ = … <b id="pf-rate-cur">FC</b></span><input type="number" id="pf-rate" min="0" step="any" inputmode="decimal" placeholder="Ex. 2250"><small class="hint">Sert à afficher vos gains en dollars sur l’accueil et les finances. Modifiable à tout moment.</small></label>
             <div class="form-actions"><button class="btn" id="btn-profile" type="submit">Enregistrer</button></div>
           </form>
         </div>
