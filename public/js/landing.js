@@ -214,6 +214,55 @@ function setupDrawer() {
   });
 }
 
+
+function setupCarousels() {
+  $$('[data-carousel]').forEach((track) => {
+    const items = Array.from(track.children);
+    if (items.length < 2) return;
+
+    const dots = document.createElement('div');
+    dots.className = 'dots';
+    dots.setAttribute('role', 'tablist');
+    items.forEach((_item, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Aller à l’élément ' + (i + 1));
+      b.addEventListener('click', () => {
+        track.scrollTo({ left: items[i].offsetLeft - track.offsetLeft - 16, behavior: 'smooth' });
+      });
+      dots.append(b);
+    });
+    track.after(dots);
+
+    const buttons = Array.from(dots.children);
+    let ticking = false;
+
+    function update() {
+      ticking = false;
+      const scrollable = track.scrollWidth > track.clientWidth + 4;
+      dots.hidden = !scrollable;
+      if (!scrollable) return;
+      const base = track.scrollLeft + track.offsetLeft + 16;
+      let best = 0;
+      let gap = Infinity;
+      items.forEach((item, i) => {
+        const d = Math.abs(item.offsetLeft - base);
+        if (d < gap) { gap = d; best = i; }
+      });
+      if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 4) best = items.length - 1;
+      buttons.forEach((b, i) => b.classList.toggle('on', i === best));
+    }
+
+    track.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    }, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+}
+
 function wakeBackend() {
   if (!BACKEND_READY) return;
   fetch(API_URL + '/health', { cache: 'no-store', mode: 'cors' }).catch(() => {});
@@ -223,6 +272,7 @@ function boot() {
   initUI();
   watchScroll($('#nav'), 'scrolled', 8);
   setupDrawer();
+  setupCarousels();
   setupCountry();
   loadCatalog();
   wakeBackend();
