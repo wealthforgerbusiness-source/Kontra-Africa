@@ -1,4 +1,5 @@
 import { $, h, clear, money, formatDate, toast, setLoading } from '../ui.js';
+import { fxMoney, renderFxBar, onFxChange, symbol } from '../fx.js';
 
 const DAY_MS = 86400000;
 const CONTACT = 'optisitedigital@gmail.com';
@@ -193,20 +194,22 @@ function openSale(saleId) {
 function renderFinance() {
   const s = ctx.store;
   const cur = currency();
+  const f = (v) => fxMoney(v, cur, s.getProfile());
+  renderFxBar($('#finance-fx'), ctx, cur);
   const stats = s.getStats();
   const m = stats ? stats.month : { revenue: 0, profit: 0, expenses: 0, income: 0 };
   const net = Math.round((m.profit - m.expenses) * 100) / 100;
 
-  const hero = statCard('Résultat du mois', money(net, cur), 'hero');
+  const hero = statCard('Résultat du mois', f(net), 'hero');
   hero.append(h('em', { style: 'font-style:normal;font-size:.82rem;color:var(--gold)', text: 'Bénéfice des ventes moins les dépenses' }));
   const box = $('#finance-stats');
   clear(box);
   box.append(
     hero,
-    statCard('Ventes du mois', money(m.revenue, cur), 'gold'),
-    statCard('Bénéfice des ventes', money(m.profit, cur)),
-    statCard('Dépenses du mois', money(m.expenses, cur), m.expenses > 0 ? 'warn' : ''),
-    statCard('Entrées d’argent', money(m.income, cur))
+    statCard('Ventes du mois', f(m.revenue), 'gold'),
+    statCard('Bénéfice des ventes', f(m.profit)),
+    statCard('Dépenses du mois', f(m.expenses), m.expenses > 0 ? 'warn' : ''),
+    statCard('Entrées d’argent', f(m.income))
   );
 
   let goalPanel = $('#finance-goal');
@@ -224,7 +227,7 @@ function renderFinance() {
       h(
         'div',
         { class: 'meter' },
-        h('div', { class: 'meter-top' }, h('span', { text: 'Objectif d’épargne' }), h('b', { text: money(done, cur) + ' / ' + money(goal, cur) })),
+        h('div', { class: 'meter-top' }, h('span', { text: 'Objectif d’épargne' }), h('b', { text: f(done) + ' / ' + f(goal) })),
         h('div', { class: 'meter-bar' }, h('i', { style: 'width:' + pct + '%' }))
       )
     );
@@ -403,8 +406,16 @@ function fillProfile() {
   set('pf-phone', p.phone);
   set('pf-address', p.address);
   set('pf-goal', p.savingsGoal);
+  set('pf-rate', p.rate);
+  syncRateLabel();
   const select = $('#pf-cur');
   if (select) select.value = CURRENCIES.some(([code]) => code === p.currency) ? p.currency : currency();
+}
+
+function syncRateLabel() {
+  const select = $('#pf-cur');
+  const label = $('#pf-rate-cur');
+  if (label) label.textContent = symbol(select ? select.value : currency());
 }
 
 function injectCurrency() {
@@ -431,6 +442,8 @@ function wire() {
   if (wired) return;
   wired = true;
   injectCurrency();
+  const curSelect = $('#pf-cur');
+  if (curSelect) curSelect.addEventListener('change', syncRateLabel);
 
   const more = $('#history-more');
   more.addEventListener('click', async () => {
@@ -456,6 +469,7 @@ function wire() {
         phone: $('#pf-phone').value,
         address: $('#pf-address').value,
         savingsGoal: $('#pf-goal').value,
+        rate: $('#pf-rate').value.replace(',', '.'),
         currency: $('#pf-cur').value
       });
       toast('Boutique enregistrée.');
@@ -470,6 +484,9 @@ function wire() {
 export function init(context) {
   ctx = context;
   wire();
+  onFxChange(() => {
+    if (current === 'finance') renderFinance();
+  });
   ctx.store.subscribe(() => {
     const view = $('#view-' + current);
     if (view && view.classList.contains('active')) renderCurrent();
