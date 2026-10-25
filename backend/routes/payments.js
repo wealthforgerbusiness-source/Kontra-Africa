@@ -4,12 +4,15 @@ const crypto = require('crypto');
 const express = require('express');
 const admin = require('firebase-admin');
 const plans = require('../config/plans');
+const webhook = require('./webhook');
 
 const db = admin.firestore();
 const router = express.Router();
 
 const SASPAY_CHECKOUT_URL = 'https://api.saspay.me/api/v1/checkout-sessions/';
 const COOLDOWN_MS = 15000;
+const CHECK_EVERY_MS = 6000;
+const CHECK_AFTER_MS = 8000;
 const REQUEST_TIMEOUT_MS = 15000;
 const ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
@@ -175,7 +178,7 @@ router.post(
       result = await createSession({
         amount: Number(quote.amount).toFixed(2),
         currency: quote.currency,
-        description: 'Kontra Africa - ' + plan.name,
+        description: 'Kontra Africa - ' + plan.name + ' [KA:' + paymentId + ']',
         country,
         customer_email: email,
         customer_name: name,
@@ -225,9 +228,25 @@ router.get(
     const id = req.params.id;
     if (!ID_RE.test(id)) return res.status(400).json({ error: 'invalid' });
 
-    const snap = await db.collection('payments').doc(id).get();
-    const data = snap.exists ? snap.data() : null;
+    const payRef = db.collection('payments').doc(id);
+    const snap = await payRef.get();
+    let data = snap.exists ? snap.data() : null;
     if (!data || data.uid !== req.user.uid) return res.status(404).json({ error: 'not_found' });
+
+    const now = Date.now();
+    if (
+      data.status === 'PENDING' &&
+      data.saspaySessionId &&
+      now - Number(data.createdAtMs || 0) > CHECK_AFTER_MS &&
+      now - Number(data.lastCheckMs || 0) > CHECK_EVERY_MS
+    ) {
+      await payRef.update({ lastCheckMs: now }).catch(() => null);
+      const changed = await webhook.confirmFromSession(payRef, data);
+      if (changed) {
+        const fresh = await payRef.get();
+        if (fresh.exists) data = fresh.data();
+      }
+    }
 
     res.set('Cache-Control', 'no-store');
     return res.json({
