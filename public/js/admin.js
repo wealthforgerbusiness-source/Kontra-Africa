@@ -1,427 +1,611 @@
-'use strict';
+import {
+  auth,
+  api,
+  onUser,
+  signInEmail,
+  signInGoogle,
+  finishRedirect,
+  logout,
+  completeLogin,
+  errorMessage
+} from './firebase.js';
+import {
+  $,
+  $$,
+  h,
+  clear,
+  toast,
+  setLoading,
+  confirmDialog,
+  formatDate,
+  initUI,
+  watchNetwork
+} from './ui.js';
 
-const express = require('express');
-const crypto = require('crypto');
-const admin = require('firebase-admin');
-const plans = require('../config/plans');
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const TITLES = {
+  overview: 'Vue d’ensemble',
+  users: 'Utilisateurs',
+  revenue: 'Revenus',
+  alerts: 'Alertes'
+};
+const PLAN_LABEL = { trial: 'Essai', starter: 'Starter', business: 'Business', pro: 'Pro' };
+const STATUS_LABEL = { trial: 'En essai', active: 'Payant', expired: 'Expiré' };
 
-const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
-const AggregateField = admin.firestore.AggregateField;
-const router = express.Router();
+const state = {
+  view: 'overview',
+  stats: null,
+  users: [],
+  usersStatus: '',
+  usersBefore: null,
+  usersLoaded: false,
+  payments: [],
+  paymentsBefore: null,
+  paymentsLoaded: false,
+  alertsLoaded: false,
+  routeId: 0
+};
 
-const DAY_MS = 86400000;
-const STATS_TTL_MS = 60 * 1000;
-const MONTHS_BACK = 6;
-const UID_RE = /^[A-Za-z0-9_-]{6,128}$/;
-const PAY_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
-const STATUSES = ['trial', 'active', 'expired'];
-const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || 'optisitedigital@gmail.com')
-  .trim()
-  .toLowerCase();
+/* ---------- Écrans ---------- */
 
-let statsCache = { at: 0, body: null };
+function setHidden(node, hidden) {
+  if (node) node.classList.toggle('hide', Boolean(hidden));
+}
 
-const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+function setSplash(on) {
+  const splash = $('#splash');
+  if (splash) splash.classList.toggle('done', !on);
+}
 
-async function requireAdmin(req, res, next) {
-  const match = /^Bearer\s+(\S+)$/.exec(req.get('Authorization') || '');
-  if (!match) return res.status(401).json({ error: 'unauthorized' });
+function setError(message) {
+  const node = $('#adm-error');
+  if (!node) return;
+  node.textContent = message || '';
+  setHidden(node, !message);
+}
+
+function showLogin() {
+  setSplash(false);
+  setHidden($('#app'), true);
+  setHidden($('#auth'), false);
+  setHidden($('#pane-denied'), true);
+  setHidden($('#pane-login'), false);
+  document.body.classList.add('is-auth');
+}
+
+function showDenied(text) {
+  setSplash(false);
+  setHidden($('#app'), true);
+  setHidden($('#auth'), false);
+  setHidden($('#pane-login'), true);
+  setHidden($('#pane-denied'), false);
+  const node = $('#denied-text');
+  if (node) node.textContent = text || 'Ce compte n’a pas accès à l’administration.';
+  document.body.classList.add('is-auth');
+}
+
+function showApp(user) {
+  setSplash(false);
+  setHidden($('#auth'), true);
+  setHidden($('#app'), false);
+  document.body.classList.remove('is-auth');
+  const mail = $('#side-email');
+  if (mail) mail.textContent = user.email || '';
+}
+
+/* ---------- Formatage ---------- */
+
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+function usd(value) {
+  return '$' + num(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function local(map) {
+  const parts = Object.keys(map || {})
+    .filter((cur) => num(map[cur]) !== 0)
+    .map((cur) => num(map[cur]).toLocaleString('fr-FR') + ' ' + cur);
+  return parts.length ? parts.join(' · ') : '—';
+}
+
+function monthLabel(id) {
+  const [y, m] = String(id).split('-').map(Number);
+  if (!y || !m) return String(id);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('fr-FR', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+}
+
+function stat(label, value, cls) {
+  return h('div', { class: 'stat' + (cls ? ' ' + cls : '') }, h('small', { text: label }), h('strong', { text: value }));
+}
+
+function emptyBox(text) {
+  return h('div', { class: 'empty' }, h('p', { text }));
+}
+
+function row(title, sub, endTop, endSub, actions) {
+  return h(
+    'div',
+    { class: 'item' },
+    h('div', { class: 'item-main' }, h('div', { class: 'item-title', text: title }), h('div', { class: 'item-sub', text: sub })),
+    h('div', { class: 'item-end' }, endTop, endSub ? h('small', { text: endSub }) : null),
+    actions || null
+  );
+}
+
+/* ---------- Navigation ---------- */
+
+function go(view) {
+  if (!TITLES[view]) return;
+  state.view = view;
+  $$('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === view));
+  $$('[data-nav]').forEach((b) => {
+    const on = b.dataset.nav === view;
+    b.classList.toggle('active', on);
+    b.classList.toggle('is-active', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  const title = $('#topbar-title');
+  if (title) title.textContent = TITLES[view];
+  window.scrollTo(0, 0);
+  loadView(view, false);
+}
+
+async function loadView(view, force) {
   try {
-    const decoded = await admin.auth().verifyIdToken(match[1], true);
-    const email = String(decoded.email || '').trim().toLowerCase();
-    if (decoded.admin !== true || decoded.email_verified !== true || email !== ADMIN_EMAIL) {
-      return res.status(403).json({ error: 'forbidden' });
+    if (view === 'overview' || view === 'revenue') {
+      if (force || !state.stats) await loadStats();
+      if (view === 'overview') renderOverview();
+      else {
+        renderRevenue();
+        if (force || !state.paymentsLoaded) await loadPayments(true);
+      }
+    } else if (view === 'users') {
+      if (force || !state.usersLoaded) await loadUsers(true);
+    } else if (view === 'alerts') {
+      if (force || !state.alertsLoaded) await loadAlerts();
     }
-    req.user = decoded;
-    res.set('Cache-Control', 'no-store');
-    return next();
-  } catch (_err) {
-    return res.status(401).json({ error: 'unauthorized' });
+  } catch (err) {
+    handleApiError(err);
   }
 }
 
-function normalizeEmail(email) {
-  const lower = String(email || '').trim().toLowerCase();
-  const at = lower.lastIndexOf('@');
-  if (at < 1) return lower;
-  let local = lower.slice(0, at).split('+')[0];
-  let domain = lower.slice(at + 1);
-  if (domain === 'googlemail.com') domain = 'gmail.com';
-  if (domain === 'gmail.com') local = local.replace(/\./g, '');
-  return local + '@' + domain;
-}
-
-function emailKey(email) {
-  return crypto.createHash('sha256').update(normalizeEmail(email)).digest('hex');
-}
-
-function monthId(date) {
-  return date.toISOString().slice(0, 7);
-}
-
-function lastMonths(now) {
-  const ids = [];
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  for (let i = 0; i < MONTHS_BACK; i += 1) {
-    ids.push(monthId(d));
-    d.setUTCMonth(d.getUTCMonth() - 1);
+function handleApiError(err) {
+  if (err && (err.status === 401 || err.status === 403)) {
+    showDenied(errorMessage(err));
+    return;
   }
-  return ids;
+  toast(errorMessage(err), 'error');
 }
 
-function toUsd(byCurrency) {
-  let total = 0;
-  Object.keys(byCurrency || {}).forEach((cur) => {
-    const rate = plans.USD_RATES[cur];
-    const value = Number(byCurrency[cur]);
-    if (rate && Number.isFinite(value)) total += value / rate;
-  });
-  return Math.round(total * 100) / 100;
+/* ---------- Données ---------- */
+
+async function loadStats() {
+  const data = await api('/api/admin/stats', { retry: true });
+  state.stats = data;
+  const upd = $('#adm-updated');
+  if (upd) upd.textContent = 'Mis à jour ' + new Date(data.generatedAtMs).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function cleanMap(value) {
-  const out = {};
-  if (!value || typeof value !== 'object') return out;
-  Object.keys(value).forEach((k) => {
-    const n = Number(value[k]);
-    if (Number.isFinite(n)) out[k] = Math.round(n * 100) / 100;
-  });
-  return out;
-}
+function renderOverview() {
+  const s = state.stats;
+  if (!s) return;
+  const c = s.counters;
 
-function monthView(id, data) {
-  const d = data || {};
-  const gross = cleanMap(d.gross);
-  const fee = cleanMap(d.fee);
-  const net = cleanMap(d.net);
-  return {
-    month: id,
-    paidCount: Number(d.paidCount) || 0,
-    deletedCount: Number(d.deletedCount) || 0,
-    gross,
-    fee,
-    net,
-    grossUsd: toUsd(gross),
-    feeUsd: toUsd(fee),
-    netUsd: toUsd(net),
-    byCountry: d.byCountry && typeof d.byCountry === 'object' ? d.byCountry : {}
-  };
-}
-
-async function computeMrr() {
-  const col = db.collection('subscriptions');
-  const currencies = Object.keys(plans.LOCAL_PRICES);
-
-  const [sums, planCounts] = await Promise.all([
-    Promise.all(
-      currencies.map((cur) =>
-        col
-          .where('status', '==', 'active')
-          .where('currency', '==', cur)
-          .aggregate({ total: AggregateField.sum('paidAmount'), count: AggregateField.count() })
-          .get()
-      )
-    ),
-    Promise.all(
-      plans.PAID_PLAN_IDS.map((id) =>
-        col.where('status', '==', 'active').where('planId', '==', id).count().get()
-      )
-    )
-  ]);
-
-  const mrr = {};
-  const activeByCurrency = {};
-  currencies.forEach((cur, i) => {
-    const data = sums[i].data();
-    mrr[cur] = Number(data.total) || 0;
-    activeByCurrency[cur] = Number(data.count) || 0;
-  });
-
-  const activeByPlan = {};
-  plans.PAID_PLAN_IDS.forEach((id, i) => {
-    activeByPlan[id] = planCounts[i].data().count;
-  });
-
-  return { mrr, mrrUsd: toUsd(mrr), activeByCurrency, activeByPlan };
-}
-
-async function buildStats() {
-  const now = new Date();
-  const ids = lastMonths(now);
-  const refs = [db.collection('adminStats').doc('global')].concat(
-    ids.map((id) => db.collection('adminStats').doc(id))
+  const users = $('#ov-users');
+  clear(users);
+  users.append(
+    stat('Utilisateurs', String(c.total), 'hero'),
+    stat('En essai', String(c.trial), 'gold'),
+    stat('Payants', String(c.active)),
+    stat('Expirés', String(c.expired), 'warn')
   );
 
-  const [snaps, mrr] = await Promise.all([
-    db.getAll(...refs),
-    computeMrr().catch((err) => {
-      console.error('computeMrr:', err && err.message ? err.message : err);
-      const zero = {};
-      Object.keys(plans.LOCAL_PRICES).forEach((cur) => { zero[cur] = 0; });
-      const byPlan = {};
-      plans.PAID_PLAN_IDS.forEach((id) => { byPlan[id] = 0; });
-      return { mrr: zero, mrrUsd: 0, activeByCurrency: Object.assign({}, zero), activeByPlan: byPlan };
-    })
-  ]);
-  const global = snaps[0].exists ? snaps[0].data() : {};
-  const c = global.counters || {};
+  const mrr = $('#ov-mrr');
+  clear(mrr);
+  mrr.append(stat('MRR (≈ USD)', usd(s.mrr.mrrUsd), 'hero'));
+  Object.keys(s.mrr.mrr || {}).forEach((cur) => {
+    mrr.append(stat('MRR ' + cur, num(s.mrr.mrr[cur]).toLocaleString('fr-FR') + ' ' + cur, 'gold'));
+  });
 
-  const months = ids.map((id, i) => monthView(id, snaps[i + 1].exists ? snaps[i + 1].data() : null));
+  const m = s.thisMonth;
+  $('#ov-month-title').textContent = monthLabel(m.month);
+  const month = $('#ov-month');
+  clear(month);
+  month.append(
+    row('Paiements', 'ce mois-ci', String(m.paidCount)),
+    row('Brut', local(m.gross), usd(m.grossUsd)),
+    row('Frais SasPay', local(m.fee), usd(m.feeUsd)),
+    row('Gain net', local(m.net), usd(m.netUsd))
+  );
 
-  return {
-    ok: true,
-    generatedAtMs: now.getTime(),
-    countsAtMs: Number(global.countsAtMs) || null,
-    counters: {
-      total: Number(c.total) || 0,
-      trial: Number(c.trial) || 0,
-      active: Number(c.active) || 0,
-      expired: Number(c.expired) || 0,
-      deleted: Number(c.deleted) || 0,
-      deletedTrial: Number(c.deletedTrial) || 0,
-      deletedPaid: Number(c.deletedPaid) || 0,
-      deletedManual: Number(c.deletedManual) || 0
-    },
-    mrr,
-    thisMonth: months[0],
-    months
-  };
+  const plans = $('#ov-plans');
+  clear(plans);
+  const byPlan = s.mrr.activeByPlan || {};
+  Object.keys(byPlan).forEach((id) => plans.append(row(PLAN_LABEL[id] || id, 'abonnés actifs', String(byPlan[id]))));
+  if (!Object.keys(byPlan).length) plans.append(emptyBox('Aucun abonné pour le moment.'));
+
+  const del = $('#ov-deleted');
+  clear(del);
+  del.append(
+    row('Total supprimés', 'depuis le début', String(c.deleted)),
+    row('Essais non payés', 'supprimés automatiquement', String(c.deletedTrial)),
+    row('Comptes payants', 'supprimés', String(c.deletedPaid)),
+    row('Supprimés à la main', 'par l’administrateur', String(c.deletedManual))
+  );
 }
 
-function userView(sub, authUser, now) {
-  const expiresAtMs = Number(sub.expiresAtMs) || 0;
-  const deleteAtMs = Number(sub.deleteAtMs) || null;
-  return {
-    uid: sub.__uid,
-    email: authUser && authUser.email ? authUser.email : null,
-    name: authUser && authUser.displayName ? authUser.displayName : null,
-    status: sub.status || 'expired',
-    planId: sub.planId || 'trial',
-    country: sub.country || null,
-    currency: sub.currency || null,
-    createdAtMs: Number(sub.createdAtMs) || null,
-    expiresAtMs,
-    daysLeft: expiresAtMs > now ? Math.ceil((expiresAtMs - now) / DAY_MS) : 0,
-    deleteAtMs,
-    daysUntilDelete: deleteAtMs ? Math.max(0, Math.ceil((deleteAtMs - now) / DAY_MS)) : null,
-    isAdmin: authUser && authUser.email ? authUser.email.toLowerCase() === ADMIN_EMAIL : false
-  };
+function renderRevenue() {
+  const s = state.stats;
+  if (!s) return;
+  const months = s.months.slice().reverse();
+  const max = Math.max(1, ...months.map((m) => num(m.netUsd)));
+
+  const bars = $('#rv-bars');
+  clear(bars);
+  months.forEach((m) => {
+    bars.append(
+      h(
+        'div',
+        { class: 'bar-row' },
+        h('span', { text: monthLabel(m.month) }),
+        h('div', { class: 'meter-bar' }, h('i', { style: 'width:' + Math.round((num(m.netUsd) / max) * 100) + '%' })),
+        h('b', { text: usd(m.netUsd) })
+      )
+    );
+  });
+
+  const table = $('#rv-table');
+  clear(table);
+  s.months.forEach((m) => {
+    table.append(
+      h(
+        'tr',
+        {},
+        h('td', { text: monthLabel(m.month) }),
+        h('td', { text: String(m.paidCount) }),
+        h('td', { text: usd(m.grossUsd) }),
+        h('td', { text: usd(m.feeUsd) }),
+        h('td', { text: usd(m.netUsd) })
+      )
+    );
+  });
+
+  const sel = $('#rv-month');
+  if (sel && !sel.options.length) {
+    s.months.forEach((m) => sel.append(h('option', { value: m.month, text: monthLabel(m.month) })));
+  }
+  renderCountries();
 }
 
-router.use(requireAdmin);
+function renderCountries() {
+  const s = state.stats;
+  const sel = $('#rv-month');
+  const body = $('#rv-country');
+  if (!s || !sel || !body) return;
+  clear(body);
+  const m = s.months.find((x) => x.month === sel.value) || s.months[0];
+  const entries = Object.keys(m.byCountry || {});
+  if (!entries.length) {
+    body.append(h('tr', {}, h('td', { colspan: '4', class: 'muted', text: 'Aucun paiement ce mois-là.' })));
+    return;
+  }
+  entries.forEach((code) => {
+    const d = m.byCountry[code] || {};
+    body.append(
+      h(
+        'tr',
+        {},
+        h('td', { text: code }),
+        h('td', { text: String(num(d.paidCount || d.count)) }),
+        h('td', { text: local(d.gross && typeof d.gross === 'object' ? d.gross : {}) }),
+        h('td', { text: local(d.net && typeof d.net === 'object' ? d.net : {}) })
+      )
+    );
+  });
+}
 
-router.get('/ping', (req, res) => {
-  res.json({ ok: true, email: req.user.email });
-});
+async function loadUsers(reset) {
+  if (reset) {
+    state.users = [];
+    state.usersBefore = null;
+  }
+  let path = '/api/admin/users?limit=25';
+  if (state.usersStatus) path += '&status=' + encodeURIComponent(state.usersStatus);
+  if (!reset && state.usersBefore !== null) path += '&before=' + encodeURIComponent(state.usersBefore);
+  const data = await api(path, { retry: true });
+  state.users = state.users.concat(data.users || []);
+  state.usersBefore = data.nextBefore;
+  state.usersLoaded = true;
+  renderUsers();
+}
 
-router.get(
-  '/stats',
-  wrap(async (_req, res) => {
-    const now = Date.now();
-    if (statsCache.body && now - statsCache.at < STATS_TTL_MS) {
-      return res.json(statsCache.body);
-    }
-    const body = await buildStats();
-    statsCache = { at: now, body };
-    return res.json(body);
-  })
-);
+function renderUsers() {
+  const q = String(($('#us-search') || {}).value || '').trim().toLowerCase();
+  const list = $('#us-list');
+  clear(list);
+  const shown = state.users.filter(
+    (u) => !q || String(u.email || '').toLowerCase().includes(q) || String(u.name || '').toLowerCase().includes(q)
+  );
+  $('#us-count').textContent = shown.length + ' affiché(s)';
+  if (!shown.length) list.append(emptyBox('Aucun utilisateur.'));
 
-router.get(
-  '/users',
-  wrap(async (req, res) => {
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 25));
-    const status = typeof req.query.status === 'string' ? req.query.status : '';
-    if (status && !STATUSES.includes(status)) return res.status(400).json({ error: 'invalid' });
+  shown.forEach((u) => {
+    const del = u.isAdmin
+      ? h('span', { class: 'badge badge-dark', text: 'Admin' })
+      : h('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Supprimer', onclick: () => deleteUser(u) });
+    list.append(
+      row(
+        u.email || u.uid,
+        [PLAN_LABEL[u.planId] || u.planId, u.country, u.createdAtMs ? 'inscrit le ' + formatDate(u.createdAtMs) : null]
+          .filter(Boolean)
+          .join(' · '),
+        STATUS_LABEL[u.status] || u.status,
+        u.status === 'expired'
+          ? u.daysUntilDelete !== null
+            ? 'suppression dans ' + u.daysUntilDelete + ' j'
+            : 'expiré'
+          : u.daysLeft + ' j restants',
+        del
+      )
+    );
+  });
+  setHidden($('#us-more'), state.usersBefore === null);
+}
 
-    let query = db.collection('subscriptions');
-    if (status) query = query.where('status', '==', status);
-    query = query.orderBy('createdAtMs', 'desc');
+async function deleteUser(u) {
+  const ok = await confirmDialog({
+    title: 'Supprimer ce compte ?',
+    text: (u.email || u.uid) + ' et toutes ses données seront supprimés définitivement.',
+    ok: 'Supprimer',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    await api('/api/admin/users/' + encodeURIComponent(u.uid) + '/delete', { method: 'POST', body: { confirm: true } });
+    toast('Compte supprimé.');
+    state.stats = null;
+    await loadUsers(true);
+  } catch (err) {
+    handleApiError(err);
+  }
+}
 
-    if (req.query.before !== undefined) {
-      const before = Number(req.query.before);
-      if (!Number.isFinite(before)) return res.status(400).json({ error: 'invalid' });
-      query = query.startAfter(before);
-    }
+async function loadPayments(reset) {
+  if (reset) {
+    state.payments = [];
+    state.paymentsBefore = null;
+  }
+  let path = '/api/admin/payments?limit=25';
+  if (!reset && state.paymentsBefore !== null) path += '&before=' + encodeURIComponent(state.paymentsBefore);
+  const data = await api(path, { retry: true });
+  state.payments = state.payments.concat(data.payments || []);
+  state.paymentsBefore = data.nextBefore;
+  state.paymentsLoaded = true;
 
-    const snap = await query.limit(limit).get();
-    const subs = snap.docs.map((d) => Object.assign({ __uid: d.id }, d.data()));
+  const list = $('#pay-list');
+  clear(list);
+  if (!state.payments.length) list.append(emptyBox('Aucun paiement.'));
+  state.payments.forEach((p) => {
+    list.append(
+      row(
+        num(p.amount).toLocaleString('fr-FR') + ' ' + (p.currency || ''),
+        [PLAN_LABEL[p.planId] || p.planId, p.country, p.network].filter(Boolean).join(' · '),
+        p.status || '—',
+        p.createdAtMs ? formatDate(p.createdAtMs) : ''
+      )
+    );
+  });
+  setHidden($('#pay-more'), state.paymentsBefore === null);
+}
 
-    const authMap = new Map();
-    if (subs.length) {
-      const result = await admin.auth().getUsers(subs.map((s) => ({ uid: s.__uid })));
-      result.users.forEach((u) => authMap.set(u.uid, u));
-    }
+async function loadAlerts() {
+  const data = await api('/api/admin/alerts', { retry: true });
+  state.alertsLoaded = true;
 
-    const now = Date.now();
-    const users = subs.map((s) => userView(s, authMap.get(s.__uid), now));
-    const last = subs.length ? Number(subs[subs.length - 1].createdAtMs) : null;
+  const review = $('#al-review');
+  const unmatched = $('#al-unmatched');
+  clear(review);
+  clear(unmatched);
 
-    return res.json({
-      ok: true,
-      users,
-      nextBefore: snap.size === limit && Number.isFinite(last) ? last : null
+  const dismiss = (id) =>
+    h('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-sm',
+      text: 'Ignorer',
+      onclick: async () => {
+        try {
+          await api('/api/admin/payments/' + encodeURIComponent(id) + '/dismiss', { method: 'POST', body: {} });
+          toast('Alerte ignorée.');
+          await loadAlerts();
+        } catch (err) {
+          handleApiError(err);
+        }
+      }
     });
-  })
-);
 
-router.get(
-  '/payments',
-  wrap(async (req, res) => {
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 25));
-    let query = db.collection('payments').orderBy('createdAtMs', 'desc');
-    if (req.query.before !== undefined) {
-      const before = Number(req.query.before);
-      if (!Number.isFinite(before)) return res.status(400).json({ error: 'invalid' });
-      query = query.startAfter(before);
+  if (!data.review.length) review.append(emptyBox('Rien à vérifier.'));
+  data.review.forEach((p) =>
+    review.append(
+      row(
+        num(p.amount).toLocaleString('fr-FR') + ' ' + (p.currency || ''),
+        [PLAN_LABEL[p.planId] || p.planId, p.reason, p.saspayTxId].filter(Boolean).join(' · '),
+        '',
+        p.createdAtMs ? formatDate(p.createdAtMs) : '',
+        dismiss(p.id)
+      )
+    )
+  );
+
+  if (!data.unmatched.length) unmatched.append(emptyBox('Aucun paiement orphelin.'));
+  data.unmatched.forEach((p) =>
+    unmatched.append(
+      row(
+        p.amount ? num(p.amount).toLocaleString('fr-FR') + ' ' + (p.currency || '') : 'Montant inconnu',
+        [p.reason, p.country, p.network].filter(Boolean).join(' · '),
+        '',
+        p.createdAtMs ? formatDate(p.createdAtMs) : '',
+        dismiss(p.id)
+      )
+    )
+  );
+
+  const count = data.review.length + data.unmatched.length;
+  ['#side-alert-count', '#tab-alert-count'].forEach((sel) => {
+    const b = $(sel);
+    if (!b) return;
+    b.textContent = String(count);
+    setHidden(b, count === 0);
+  });
+}
+
+/* ---------- Connexion ---------- */
+
+async function enter(user) {
+  const id = ++state.routeId;
+  setSplash(true);
+  try {
+    if (!user.emailVerified) {
+      showDenied('Confirmez d’abord l’email de ce compte.');
+      return;
     }
-    const snap = await query.limit(limit).get();
-
-    const payments = snap.docs.map((d) => {
-      const p = d.data();
-      return {
-        id: d.id,
-        uid: p.uid,
-        planId: p.planId,
-        country: p.country,
-        currency: p.currency,
-        amount: p.amount,
-        type: p.type,
-        status: p.status,
-        net: p.net !== undefined ? p.net : null,
-        fee: p.fee !== undefined ? p.fee : null,
-        network: p.network || null,
-        createdAtMs: p.createdAtMs,
-        paidAtMs: p.paidAtMs || null
-      };
+    // Pose le droit « admin » sur le compte (côté serveur) puis rafraîchit le jeton.
+    await completeLogin().catch((err) => {
+      if (err && (err.code === 'terms_required' || err.status === 400)) return null;
+      throw err;
     });
-    const last = payments.length ? payments[payments.length - 1].createdAtMs : null;
-
-    return res.json({
-      ok: true,
-      payments,
-      nextBefore: snap.size === limit && Number.isFinite(last) ? last : null
-    });
-  })
-);
-
-router.get(
-  '/alerts',
-  wrap(async (_req, res) => {
-    const [review, unmatched] = await Promise.all([
-      db.collection('payments').where('status', '==', 'REVIEW').limit(50).get(),
-      db.collection('unmatchedPayments').limit(50).get()
-    ]);
-
-    return res.json({
-      ok: true,
-      review: review.docs.map((d) => {
-        const p = d.data();
-        return {
-          id: d.id,
-          uid: p.uid,
-          planId: p.planId,
-          amount: p.amount,
-          currency: p.currency,
-          reason: p.failReason || null,
-          saspayTxId: p.saspayTxId || null,
-          createdAtMs: p.createdAtMs
-        };
-      }),
-      unmatched: unmatched.docs.map((d) => {
-        const p = d.data();
-        return {
-          id: d.id,
-          reason: p.reason || null,
-          amount: p.amount || null,
-          currency: p.currency || null,
-          country: p.country || null,
-          network: p.network || null,
-          createdAtMs: p.createdAtMs || null
-        };
-      })
-    });
-  })
-);
-
-router.post(
-  '/users/:uid/delete',
-  wrap(async (req, res) => {
-    const uid = req.params.uid;
-    if (!UID_RE.test(uid)) return res.status(400).json({ error: 'invalid' });
-    if (!req.body || req.body.confirm !== true) {
-      return res.status(400).json({ error: 'confirmation_required' });
-    }
-    if (uid === req.user.uid) return res.status(403).json({ error: 'cannot_delete_admin' });
-
-    let authUser = null;
-    try {
-      authUser = await admin.auth().getUser(uid);
-    } catch (err) {
-      if (!err || err.code !== 'auth/user-not-found') throw err;
-    }
-    if (authUser && String(authUser.email || '').toLowerCase() === ADMIN_EMAIL) {
-      return res.status(403).json({ error: 'cannot_delete_admin' });
-    }
-
-    const subRef = db.collection('subscriptions').doc(uid);
-    const subSnap = await subRef.get();
-    const sub = subSnap.exists ? subSnap.data() : null;
-    if (!authUser && !sub) return res.status(404).json({ error: 'not_found' });
-
-    await db.recursiveDelete(db.collection('users').doc(uid));
-    if (authUser) await admin.auth().deleteUser(uid);
-    await db.collection('checkoutLocks').doc(uid).delete();
-
-    if (req.body.allowNewTrial === true && authUser && authUser.email) {
-      await db.collection('usedTrials').doc(emailKey(authUser.email)).delete();
-    }
-
-    if (sub) {
-      const counters = {
-        total: FieldValue.increment(-1),
-        deleted: FieldValue.increment(1),
-        deletedManual: FieldValue.increment(1)
-      };
-      if (STATUSES.includes(sub.status)) counters[sub.status] = FieldValue.increment(-1);
-      if (sub.lastPaymentId) counters.deletedPaid = FieldValue.increment(1);
-      else counters.deletedTrial = FieldValue.increment(1);
-
-      const now = Date.now();
-      await Promise.all([
-        db.collection('adminStats').doc('global').set({ counters, updatedAtMs: now }, { merge: true }),
-        db
-          .collection('adminStats')
-          .doc(monthId(new Date(now)))
-          .set({ deletedCount: FieldValue.increment(1), updatedAtMs: now }, { merge: true }),
-        subRef.delete()
-      ]);
-    }
-
-    statsCache = { at: 0, body: null };
-    return res.json({ ok: true });
-  })
-);
-
-router.post(
-  '/payments/:id/dismiss',
-  wrap(async (req, res) => {
-    const id = req.params.id;
-    if (!PAY_ID_RE.test(id)) return res.status(400).json({ error: 'invalid' });
-
-    const unmatchedRef = db.collection('unmatchedPayments').doc(id);
-    const payRef = db.collection('payments').doc(id);
-    const [unmatched, pay] = await db.getAll(unmatchedRef, payRef);
-
-    if (unmatched.exists) await unmatchedRef.delete();
-    else if (pay.exists && pay.data().status === 'REVIEW') {
-      await payRef.update({ status: 'DISMISSED', dismissedAtMs: Date.now() });
+    await api('/api/admin/ping', { retry: true });
+    if (id !== state.routeId) return;
+    showApp(user);
+    go(state.view);
+  } catch (err) {
+    if (id !== state.routeId) return;
+    if (err && (err.status === 401 || err.status === 403)) {
+      showDenied('Ce compte n’a pas accès à l’administration.');
+    } else if (err && (err.code === 'timeout' || err.code === 'network')) {
+      showDenied('Le serveur ne répond pas (il peut être en train de démarrer). Réessayez dans quelques secondes.');
     } else {
-      return res.status(404).json({ error: 'not_found' });
+      showDenied(errorMessage(err));
     }
-    return res.json({ ok: true });
-  })
-);
+  }
+}
 
-module.exports = router;
+async function submitEmail(event) {
+  event.preventDefault();
+  const email = $('#adm-email').value.trim();
+  const password = $('#adm-password').value;
+  const button = $('#adm-submit');
+  setError('');
+  if (!EMAIL_RE.test(email)) return setError('Adresse email invalide.');
+  if (!password) return setError('Entrez votre mot de passe.');
+  setLoading(button, true);
+  try {
+    await signInEmail(email, password);
+  } catch (err) {
+    setError(errorMessage(err));
+  } finally {
+    setLoading(button, false);
+  }
+  return undefined;
+}
+
+async function submitGoogle() {
+  const button = $('#adm-google');
+  setError('');
+  setLoading(button, true);
+  try {
+    await signInGoogle();
+  } catch (err) {
+    setError(errorMessage(err));
+  } finally {
+    setLoading(button, false);
+  }
+}
+
+async function signOutAll() {
+  state.routeId += 1;
+  state.stats = null;
+  state.usersLoaded = false;
+  state.paymentsLoaded = false;
+  state.alertsLoaded = false;
+  await logout().catch(() => {});
+  showLogin();
+}
+
+/* ---------- Démarrage ---------- */
+
+function bind() {
+  $('#adm-form').addEventListener('submit', submitEmail);
+  $('#adm-google').addEventListener('click', submitGoogle);
+  $('#adm-out').addEventListener('click', signOutAll);
+  $('#adm-logout-side').addEventListener('click', signOutAll);
+  $('#adm-retry').addEventListener('click', () => {
+    if (auth.currentUser) enter(auth.currentUser);
+    else showLogin();
+  });
+
+  $$('[data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
+  $$('[data-refresh]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      state.stats = null;
+      state.usersLoaded = false;
+      state.paymentsLoaded = false;
+      state.alertsLoaded = false;
+      await loadView(state.view, true);
+      toast('Chiffres actualisés.');
+    })
+  );
+
+  $$('#us-chips .chip').forEach((chip) =>
+    chip.addEventListener('click', async () => {
+      $$('#us-chips .chip').forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
+      state.usersStatus = chip.dataset.status || '';
+      try {
+        await loadUsers(true);
+      } catch (err) {
+        handleApiError(err);
+      }
+    })
+  );
+  $('#us-search').addEventListener('input', renderUsers);
+  $('#us-more').addEventListener('click', () => loadUsers(false).catch(handleApiError));
+  $('#pay-more').addEventListener('click', () => loadPayments(false).catch(handleApiError));
+  $('#rv-month').addEventListener('change', renderCountries);
+}
+
+function start() {
+  initUI();
+  watchNetwork();
+  bind();
+
+  // Filet de sécurité : si Firebase ne répond pas, on n'affiche jamais un écran de chargement infini.
+  const guard = setTimeout(() => {
+    if (!auth.currentUser) showLogin();
+  }, 8000);
+
+  finishRedirect().catch(() => null);
+
+  onUser((user) => {
+    clearTimeout(guard);
+    if (!user) {
+      state.routeId += 1;
+      showLogin();
+      return;
+    }
+    enter(user);
+  });
+}
+
+window.addEventListener('unhandledrejection', () => setSplash(false));
+
+try {
+  start();
+} catch (_err) {
+  setSplash(false);
+  showLogin();
+  setError('Impossible de démarrer l’administration. Rechargez la page.');
+}
