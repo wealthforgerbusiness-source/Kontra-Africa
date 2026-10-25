@@ -1,5 +1,5 @@
 import { api, payments, refreshAfterPayment, errorMessage, ApiError } from './firebase.js';
-import { $, $$, h, clear, toast, setLoading, lockScroll, money, formatDate } from './ui.js';
+import { $, $$, h, clear, toast, setLoading, lockScroll, moneyPlain as money, formatDate } from './ui.js';
 
 const PLAN_RANK = { starter: 1, business: 2, pro: 3 };
 const PLAN_NAMES = { starter: 'Starter', business: 'Business', pro: 'Pro' };
