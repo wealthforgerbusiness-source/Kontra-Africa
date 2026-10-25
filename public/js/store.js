@@ -16,7 +16,7 @@ import {
   serverTimestamp,
   increment
 } from './firebase.js';
-import { deleteField } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { deleteField, documentId } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { setCustomSymbol } from './ui.js';
 
 const MAX_MONEY = 1000000000000;
@@ -339,6 +339,144 @@ export async function saveProfile(changes) {
   state.profile = out;
   emit();
   return out;
+}
+
+/* ---------- Clôture de journée ---------- */
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_RE = /^\d{4}-\d{2}$/;
+const DAY_PAGE = 50;
+const DAY_MAX_ROWS = 1000;
+
+function mapClosing(id, d) {
+  const n = (v) => (v === undefined || v === null || !Number.isFinite(Number(v)) ? null : Number(v));
+  return {
+    day: id,
+    revenue: n(d.revenue) || 0,
+    profit: n(d.profit) || 0,
+    salesCount: n(d.salesCount) || 0,
+    expenses: n(d.expenses) || 0,
+    income: n(d.income) || 0,
+    cashSales: n(d.cashSales),
+    debtCollected: n(d.debtCollected),
+    otherIncome: n(d.otherIncome),
+    creditDue: n(d.creditDue),
+    expected: n(d.expected),
+    counted: n(d.counted),
+    gap: n(d.gap),
+    note: String(d.note || ''),
+    closedAtMs: ms(d.closedAt) || Date.now()
+  };
+}
+
+async function loadByDay(name, day, mapper) {
+  const rows = [];
+  let cursor = null;
+  let truncated = false;
+  for (;;) {
+    const parts = [colRef(name), where('day', '==', day)];
+    if (cursor) parts.push(startAfter(cursor));
+    parts.push(fsLimit(DAY_PAGE));
+    const snap = await getDocs(query(...parts));
+    snap.docs.forEach((d) => rows.push(mapper(d.id, d.data())));
+    if (snap.size < DAY_PAGE) break;
+    if (rows.length >= DAY_MAX_ROWS) {
+      truncated = true;
+      break;
+    }
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return { rows, truncated };
+}
+
+/* La lecture des clôtures ne doit jamais empêcher d'afficher le bilan du jour
+   (par exemple si les règles Firestore ne sont pas encore à jour). */
+async function readClosingSafe(day) {
+  try {
+    const snap = await getDoc(itemRef('closings', day));
+    return { closing: snap.exists() ? mapClosing(day, snap.data()) : null, available: true };
+  } catch (_err) {
+    return { closing: null, available: false };
+  }
+}
+
+/* Toutes les données utiles au bilan d'un jour (format AAAA-MM-JJ). */
+export async function loadDayReport(day) {
+  bind();
+  if (!DAY_RE.test(String(day))) throw new StoreError('invalid_day');
+  const [statsSnap, sales, txs, closed] = await Promise.all([
+    getDoc(itemRef('stats', day)),
+    loadByDay('sales', day, (id, d) => Object.assign(mapSale(id, d), { touched: Boolean(d.updatedAt) })),
+    loadByDay('transactions', day, mapTx),
+    readClosingSafe(day)
+  ]);
+  return {
+    day,
+    stats: mapStats(statsSnap.exists() ? statsSnap.data() : null),
+    sales: sales.rows,
+    txs: txs.rows,
+    truncated: sales.truncated || txs.truncated,
+    closing: closed.closing,
+    closingsAvailable: closed.available
+  };
+}
+
+/* Bilan jour par jour d'un mois (format AAAA-MM), à partir des statistiques journalières. */
+export async function loadMonthReport(month) {
+  bind();
+  if (!MONTH_RE.test(String(month))) throw new StoreError('invalid_day');
+  const range = (coll) =>
+    query(colRef(coll), where(documentId(), '>=', month + '-01'), where(documentId(), '<=', month + '-31'), fsLimit(40));
+  const [statsSnap, closingsSnap] = await Promise.all([
+    getDocs(range('stats')),
+    getDocs(range('closings')).catch(() => null)
+  ]);
+  const days = statsSnap.docs
+    .filter((d) => DAY_RE.test(d.id))
+    .map((d) => Object.assign({ day: d.id }, mapStats(d.data())));
+  const closings = closingsSnap ? closingsSnap.docs.map((d) => mapClosing(d.id, d.data())) : [];
+  days.sort((a, b) => (a.day < b.day ? 1 : -1));
+  return { month, days, closings };
+}
+
+/* Enregistre (ou met à jour) la clôture d'un jour. */
+export async function saveClosing(day, input) {
+  guard();
+  if (!DAY_RE.test(String(day))) throw new StoreError('invalid_day');
+  const i = input || {};
+  const data = {
+    day,
+    month: day.slice(0, 7),
+    revenue: num(i.revenue, 'revenue', -MAX_MONEY, MAX_MONEY),
+    profit: num(i.profit, 'profit', -MAX_MONEY, MAX_MONEY),
+    salesCount: Math.round(num(i.salesCount, 'salesCount', 0, 100000000)),
+    expenses: num(i.expenses, 'expenses', 0, MAX_MONEY),
+    income: num(i.income, 'income', 0, MAX_MONEY)
+  };
+  [
+    ['cashSales', 0],
+    ['debtCollected', 0],
+    ['otherIncome', 0],
+    ['creditDue', 0],
+    ['expected', -MAX_MONEY],
+    ['counted', 0],
+    ['gap', -MAX_MONEY]
+  ].forEach(([key, min]) => {
+    const v = i[key];
+    if (v === undefined || v === null || v === '') return;
+    data[key] = num(v, key, min, MAX_MONEY);
+  });
+  const note = text(i.note, 300);
+  if (note) data.note = note;
+  data.closedAt = serverTimestamp();
+
+  try {
+    await setDoc(itemRef('closings', day), data);
+  } catch (err) {
+    if (err && err.code === 'permission-denied') throw new StoreError('closing_denied');
+    throw err;
+  }
+  return mapClosing(day, Object.assign({}, data, { closedAt: null }));
 }
 
 export const getProducts = () => state.products;
@@ -779,6 +917,9 @@ const MESSAGES = {
   invalid_transaction: 'Opération introuvable.',
   customer_required: 'Choisissez le client pour une vente à crédit.',
   no_debt: 'Ce client ne doit rien.',
+  invalid_day: 'Date invalide.',
+  closing_denied: 'La clôture n’est pas encore disponible sur votre compte. Réessayez dans un moment.',
+  invalid_counted: 'Le montant compté en caisse est invalide.',
   rate: 'Taux invalide.',
   savingsGoal: 'Objectif invalide.'
 };
