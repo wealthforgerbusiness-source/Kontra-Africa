@@ -294,13 +294,37 @@ function trapFocus(event) {
 const CURRENCY_LABEL = { XOF: 'FCFA', XAF: 'FCFA', CDF: 'FC', USD: '$' };
 const NO_DECIMALS = ['XOF', 'XAF', 'CDF'];
 
-export function money(amount, currency) {
+/* Symbole choisi par le commerçant (ex. « FC », « FCFA », « CFA », « F »).
+   Vide = symbole par défaut de la monnaie. */
+let customSymbol = '';
+
+export function setCustomSymbol(value) {
+  customSymbol = String(value === undefined || value === null ? '' : value)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 8);
+}
+
+export const getCustomSymbol = () => customSymbol;
+
+function formatMoney(amount, currency, useCustom) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return '—';
   const cur = String(currency || '').toUpperCase();
   const digits = NO_DECIMALS.includes(cur) ? 0 : 2;
   const text = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: digits }).format(n);
-  return text + (cur ? ' ' + (CURRENCY_LABEL[cur] || cur) : '');
+  const label = useCustom && customSymbol && cur !== 'USD' ? customSymbol : CURRENCY_LABEL[cur] || cur;
+  return text + (cur ? ' ' + label : '');
+}
+
+/* Montants de la boutique : utilisent le symbole personnalisé s'il existe. */
+export function money(amount, currency) {
+  return formatMoney(amount, currency, true);
+}
+
+/* Montants fixes (prix des abonnements) : toujours le symbole officiel. */
+export function moneyPlain(amount, currency) {
+  return formatMoney(amount, currency, false);
 }
 
 export function formatDate(ms) {
