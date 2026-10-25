@@ -1,4 +1,5 @@
 import { $, h, clear, money, countUp, toast } from '../ui.js';
+import { fxMoney, renderFxBar, onFxChange } from '../fx.js';
 
 const TZ_CURRENCY = {
   'Africa/Kinshasa': 'CDF',
@@ -75,6 +76,8 @@ function renderGreeting() {
 function renderStats(animate) {
   const s = ctx.store;
   const cur = currency();
+  const f = (v) => fxMoney(v, cur, s.getProfile());
+  renderFxBar($('#home-fx'), ctx, cur);
   const stats = s.getStats();
   const day = stats ? stats.day : { revenue: 0, profit: 0, salesCount: 0 };
   const month = stats ? stats.month : { revenue: 0, profit: 0, salesCount: 0 };
@@ -87,23 +90,23 @@ function renderStats(animate) {
     debt: s.totalDebt()
   };
 
-  const hero = stat('Ventes aujourd’hui', money(values.dayRevenue, cur), 'hero', 'dayRevenue');
-  hero.append(h('em', { style: 'font-style:normal;font-size:.82rem;color:var(--gold)', text: day.salesCount + (day.salesCount > 1 ? ' ventes' : ' vente') + ' · bénéfice ' + money(values.dayProfit, cur) }));
+  const hero = stat('Ventes aujourd’hui', f(values.dayRevenue), 'hero', 'dayRevenue');
+  hero.append(h('em', { style: 'font-style:normal;font-size:.82rem;color:var(--gold)', text: day.salesCount + (day.salesCount > 1 ? ' ventes' : ' vente') + ' · bénéfice ' + f(values.dayProfit) }));
 
   const box = $('#home-stats');
   clear(box);
   box.append(
     hero,
-    stat('Ventes du mois', money(values.monthRevenue, cur), 'gold', 'monthRevenue'),
-    stat('Bénéfice du mois', money(values.monthProfit, cur), '', 'monthProfit'),
-    stat('Dettes à encaisser', money(values.debt, cur), values.debt > 0 ? 'danger' : '', 'debt'),
+    stat('Ventes du mois', f(values.monthRevenue), 'gold', 'monthRevenue'),
+    stat('Bénéfice du mois', f(values.monthProfit), '', 'monthProfit'),
+    stat('Dettes à encaisser', f(values.debt), values.debt > 0 ? 'danger' : '', 'debt'),
     stat('Stock bas', String(s.lowStock().length), s.lowStock().length ? 'warn' : '', 'low')
   );
 
   if (animate) {
     Object.keys(values).forEach((key) => {
       const node = $('[data-key="' + key + '"]', box);
-      if (node) countUp(node, values[key], 800, (v) => money(v, cur));
+      if (node) countUp(node, values[key], 800, (v) => f(v));
     });
   }
 }
@@ -227,6 +230,9 @@ export function init(context) {
   ctx = context;
   offStore = ctx.store.subscribe(() => {
     if (active) renderAll(false);
+  });
+  onFxChange(() => {
+    if (active) renderStats(false);
   });
 }
 
