@@ -273,3 +273,59 @@ main { padding-top: calc(var(--nav-h) + env(safe-area-inset-top, 0px)); }
 .footer-links a:hover { color: var(--gold); }
 .footer-bottom { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid #263248; color: #94A3B8; font-size: 0.82rem; }
 @media (min-width: 700px) { .footer-grid { grid-template-columns: 1.2fr 1fr; } }
+
+/* ===== Mobile : moins de scroll vertical, contenu qui défile sur le côté ===== */
+.dots { display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.9rem; }
+.dots button { width: 10px; height: 10px; padding: 0; border: 0; background: var(--line); transition: background 0.2s, width 0.2s var(--ease); }
+.dots button.on { width: 26px; background: var(--green); }
+.section-dark .dots button { background: #38465f; }
+.section-dark .dots button.on { background: var(--gold); }
+
+@media (max-width: 899px) {
+  .plans[data-carousel] { max-width: none; }
+}
+
+@media (max-width: 899px) {
+  [data-carousel] {
+    display: flex;
+    gap: 0.9rem;
+    max-width: none;
+    margin-inline: -1rem;
+    padding: 1.1rem 1rem 0.5rem;
+    scroll-padding-inline: 1rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  [data-carousel]::-webkit-scrollbar { display: none; }
+  [data-carousel] > * {
+    flex: 0 0 84%;
+    max-width: 340px;
+    scroll-snap-align: start;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .plans[data-carousel] > * { flex-basis: 86%; }
+  .problems, .features, .steps, .plans { margin-top: 0.5rem; }
+}
+
+@media (max-width: 767px) {
+  .section { padding: 2.5rem 0; }
+  .hero-grid { gap: 1.75rem; padding-block: 1.75rem 2.25rem; }
+  .hero-copy > * + * { margin-top: 0.9rem; }
+  .hero-cta { margin-top: 1.25rem !important; }
+  .trust { margin-top: 1rem !important; }
+  .ticker { margin-top: 1.25rem; }
+  .country-pick { margin-top: 1.25rem; }
+  .notes { margin-top: 1.5rem; }
+  .final-cta .container { --gap: 0.9rem; }
+  .step-num { width: 40px; height: 40px; margin-bottom: 0.6rem; font-size: 1.2rem; }
+  .steps .step, .plan { padding: 1.25rem 1.1rem; }
+  .plan-featured { padding-top: 1.75rem; }
+  .faq { margin-top: 1.25rem; }
+  .faq-item summary { min-height: 52px; padding: 0.8rem 0; }
+  .footer { padding-top: 2rem; }
+  .footer-bottom { margin-top: 1.25rem; }
+}
