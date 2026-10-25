@@ -275,7 +275,9 @@
         </div>
         <p class="text-center muted methods-line">Paiement possible avec : <b id="pw-methods"></b></p>
 
-        <div class="plans">
+        <div class="pw-carousel">
+          <button class="pw-arrow prev" id="pw-prev" type="button" aria-label="Offre précédente" hidden>‹</button>
+          <div class="plans" id="pw-plans" aria-label="Les offres">
           <article class="plan" data-plan-card="starter">
             <h3>Starter</h3>
             <p class="muted">Pour démarrer et ranger votre boutique.</p>
@@ -317,7 +319,10 @@
             </ul>
             <button class="btn btn-ghost btn-block" type="button" data-choose="pro">Choisir Pro</button>
           </article>
+          </div>
+          <button class="pw-arrow next" id="pw-next" type="button" aria-label="Offre suivante" hidden>›</button>
         </div>
+        <div class="pw-dots" id="pw-dots" hidden></div>
 
         <div class="pay-summary hide" id="pay-summary" aria-live="polite"></div>
         <div class="pay-wait hide" id="pay-wait" role="status" aria-live="polite">
