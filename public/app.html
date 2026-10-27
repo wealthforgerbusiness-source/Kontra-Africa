@@ -150,22 +150,39 @@
                   <label class="field"><span>Client</span><select id="credit-customer"></select></label>
                 </div>
 
-                <!-- Calculatrice de paiement : montant reçu, monnaie à rendre, taux de change -->
+                <!-- Encaissement : montant reçu, monnaie à rendre, taux de change -->
                 <div class="calc" id="calc">
-                  <div class="calc-title">Calculatrice de paiement</div>
-                  <div class="calc-row">
-                    <label class="field"><span>Montant reçu</span><input type="text" id="calc-received" inputmode="decimal" autocomplete="off" placeholder="0"></label>
-                    <label class="field"><span>Reçu en</span>
-                      <select id="calc-rcv-cur"><option value="FC">FC</option><option value="USD">USD ($)</option></select>
-                    </label>
+                  <div class="calc-head">
+                    <span class="calc-title">Encaissement</span>
                   </div>
-                  <div class="calc-row">
-                    <label class="field"><span>Taux : 1 USD = … FC</span><input type="text" id="calc-rate" inputmode="decimal" autocomplete="off" placeholder="2800"></label>
-                    <label class="field"><span>Rendre en</span>
-                      <select id="calc-ret-cur"><option value="FC">FC</option><option value="USD">USD ($)</option></select>
-                    </label>
+                  <div class="calc-due"><span>Total à payer</span><b id="calc-due">—</b></div>
+
+                  <div class="calc-block">
+                    <div class="calc-label">Montant reçu du client</div>
+                    <div class="calc-line">
+                      <input type="text" id="calc-received" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Montant reçu">
+                      <div class="seg" id="calc-rcv-seg" role="group" aria-label="Monnaie reçue">
+                        <button type="button" data-cur="FC" aria-pressed="true">FC</button>
+                        <button type="button" data-cur="USD" aria-pressed="false">USD</button>
+                      </div>
+                    </div>
+                    <button class="mini" id="calc-exact" type="button">Montant exact</button>
                   </div>
-                  <button class="mini" id="calc-exact" type="button">Montant exact</button>
+
+                  <div class="calc-block">
+                    <div class="calc-label">Rendre la monnaie en</div>
+                    <div class="seg" id="calc-ret-seg" role="group" aria-label="Monnaie à rendre">
+                      <button type="button" data-cur="FC" aria-pressed="true">FC</button>
+                      <button type="button" data-cur="USD" aria-pressed="false">USD</button>
+                    </div>
+                  </div>
+
+                  <label class="calc-rate">
+                    <span>Taux : 1 USD =</span>
+                    <input type="text" id="calc-rate" inputmode="decimal" autocomplete="off" placeholder="2800" aria-label="Taux de change en FC">
+                    <span>FC</span>
+                  </label>
+
                   <div class="calc-result" id="calc-result" aria-live="polite"></div>
                 </div>
 
@@ -192,8 +209,8 @@
         <div class="view-head"><div><h1>Plus</h1></div></div>
         <div class="panel" style="margin-top:0">
           <div class="settings-list">
-            <div class="setting hide" id="install-banner">
-              <span><b>Installer Kontra Africa</b><small>Ajoutez l’application sur votre écran d’accueil</small></span>
+            <div class="setting" id="install-row">
+              <span><b id="install-title">Installer Kontra Africa</b><small id="install-sub">Ajoutez l’application sur votre écran d’accueil</small></span>
               <button class="btn btn-gold btn-sm" id="btn-install" type="button">Installer</button>
             </div>
             <button class="setting tap" type="button" data-nav="history"><span><b>Historique des ventes</b><small>Toutes vos ventes récentes</small></span><span aria-hidden="true">›</span></button>
@@ -362,6 +379,5 @@
 
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/export-ui.js"></script>
-  <script type="module" src="js/pos-calc.js"></script>
 </body>
 </html>
