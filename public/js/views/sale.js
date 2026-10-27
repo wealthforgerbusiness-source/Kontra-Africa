@@ -1,4 +1,5 @@
 import { $, $$, h, clear, money, toast, setLoading, debounce } from '../ui.js';
+import { rateOf, symbol, openRateSheet } from '../fx.js';
 
 const SHOW_MAX = 120;
 const TZ_CURRENCY = { 'Africa/Kinshasa': 'CDF', 'Africa/Lubumbashi': 'CDF', 'Africa/Douala': 'XAF' };
@@ -12,6 +13,8 @@ let mode = 'paid';
 let customerId = '';
 let creditSignature = '';
 let busy = false;
+let givenCur = 'local';
+let backCur = 'local';
 const cart = new Map();
 
 function currency() {
@@ -57,6 +60,151 @@ function cartTotal() {
   });
   return Math.round(total * 100) / 100;
 }
+
+/* ---------- Monnaie à rendre ---------- */
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function showIn(localAmount, which, rate, cur) {
+  if (which === 'usd' && rate > 0) return money(round2(localAmount / rate), 'USD');
+  return money(round2(localAmount), cur);
+}
+
+function cashInfo() {
+  const input = $('#cash-given');
+  const raw = input ? input.value.trim() : '';
+  if (mode !== 'paid' || raw === '') return { typed: false };
+  const rate = rateOf(ctx.store.getProfile());
+  const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return { typed: true, invalid: true };
+  if (givenCur === 'usd' && !rate) return { typed: true, invalid: true };
+  const givenLocal = givenCur === 'usd' ? n * rate : n;
+  const diff = round2(givenLocal - cartTotal());
+  return { typed: true, n, rate, givenLocal, diff, short: diff < -0.005 };
+}
+
+function ensureChangeBox() {
+  if ($('#change-box')) return;
+
+  const mkSeg = (id, label, onPick) => {
+    const wrap = h('div', { class: 'seg', id, role: 'group', 'aria-label': label });
+    wrap.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-cur]');
+      if (button) onPick(button.dataset.cur);
+    });
+    return wrap;
+  };
+
+  const box = h(
+    'div',
+    { id: 'change-box', class: 'change-box' },
+    h('div', { class: 'change-head' }, h('b', { text: 'Monnaie à rendre' }), h('button', { type: 'button', class: 'link-btn', id: 'change-rate', 'data-act-rate': '1', text: '' })),
+    h(
+      'label',
+      { class: 'field' },
+      h('span', { text: 'Le client donne' }),
+      h('input', { id: 'cash-given', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0' })
+    ),
+    mkSeg('given-cur', 'Monnaie donnée par le client', (value) => pickCurrency('given', value)),
+    h('span', { class: 'change-label', text: 'Vous rendez en' }),
+    mkSeg('back-cur', 'Monnaie rendue au client', (value) => pickCurrency('back', value)),
+    h('div', { id: 'change-result', class: 'change-result', 'aria-live': 'polite' })
+  );
+
+  $('#btn-checkout').before(box);
+
+  $('#cash-given').addEventListener('input', () => {
+    updateChange();
+    updateCheckout();
+  });
+  $('#change-rate').addEventListener('click', () => openRateSheet(ctx, currency(), false));
+}
+
+function pickCurrency(which, value) {
+  const rate = rateOf(ctx.store.getProfile());
+  if (value === 'usd' && !rate) {
+    openRateSheet(ctx, currency(), false);
+    return;
+  }
+  const next = value === 'usd' ? 'usd' : 'local';
+  if (which === 'given') givenCur = next;
+  else backCur = next;
+  updateChange();
+  updateCheckout();
+}
+
+function updateChange() {
+  const box = $('#change-box');
+  if (!box) return;
+  box.classList.toggle('hide', mode !== 'paid');
+  if (mode !== 'paid') return;
+
+  const cur = currency();
+  const sym = symbol(cur);
+  const rate = rateOf(ctx.store.getProfile());
+  if (!rate) {
+    givenCur = 'local';
+    backCur = 'local';
+  }
+
+  const paint = (id, selected) => {
+    const wrap = $(id);
+    clear(wrap);
+    [
+      ['local', sym],
+      ['usd', '$']
+    ].forEach(([value, label]) =>
+      wrap.append(h('button', { type: 'button', 'data-cur': value, 'aria-pressed': String(selected === value), text: label }))
+    );
+  };
+  paint('#given-cur', givenCur);
+  paint('#back-cur', backCur);
+
+  $('#change-rate').textContent = rate > 0 ? '1 $ = ' + new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(rate) + ' ' + sym + ' · Modifier' : 'Définir le taux de change';
+
+  const out = $('#change-result');
+  clear(out);
+  const total = cartTotal();
+
+  if (!cart.size) {
+    out.append(h('p', { class: 'muted', text: 'Ajoutez des produits pour calculer la monnaie.' }));
+    return;
+  }
+
+  const totalLine = showIn(total, 'local', rate, cur) + (rate > 0 ? ' · ' + showIn(total, 'usd', rate, cur) : '');
+  out.append(h('div', { class: 'kv' }, h('small', { text: 'Total à payer' }), h('b', { text: totalLine })));
+
+  const info = cashInfo();
+  if (!info.typed) {
+    out.append(h('p', { class: 'muted', text: 'Saisissez le montant donné par le client.' }));
+    return;
+  }
+  if (info.invalid) {
+    out.append(h('p', { class: 'error', text: givenCur === 'usd' && !rate ? 'Définissez d’abord le taux de change.' : 'Montant invalide.' }));
+    return;
+  }
+  if (info.short) {
+    out.append(h('div', { class: 'kv' }, h('small', { text: 'Il manque' }), h('b', { class: 'change-short', text: showIn(-info.diff, givenCur, rate, cur) })));
+    return;
+  }
+  if (info.diff === 0) {
+    out.append(h('div', { class: 'kv' }, h('small', { text: 'Monnaie à rendre' }), h('b', { class: 'change-ok', text: 'Compte exact, rien à rendre' })));
+    return;
+  }
+  out.append(
+    h(
+      'div',
+      { class: 'kv' },
+      h('small', { text: 'Monnaie à rendre' }),
+      h('b', { class: 'change-ok', text: showIn(info.diff, backCur, rate, cur) }),
+      rate > 0 ? h('small', { text: '≈ ' + showIn(info.diff, backCur === 'usd' ? 'local' : 'usd', rate, cur) }) : null
+    )
+  );
+}
+
+/* ---------- Produits et panier ---------- */
 
 function renderProducts() {
   const box = $('#pos-products');
@@ -137,6 +285,8 @@ function renderCart() {
   }
 
   $('#cart-total').textContent = money(cartTotal(), cur);
+  ensureChangeBox();
+  updateChange();
   updateCheckout();
 }
 
@@ -179,18 +329,25 @@ function updateCheckout() {
   if (busy) return;
   const total = cartTotal();
   const missing = mode === 'credit' && !customerId;
-  button.disabled = !cart.size || missing;
+  const cash = cashInfo();
+  const cashBad = cash.typed && (cash.invalid || cash.short);
+  button.disabled = !cart.size || missing || cashBad;
   button.textContent = !cart.size
     ? 'Valider la vente'
     : missing
       ? 'Choisissez le client'
-      : 'Valider · ' + money(total, currency());
+      : cashBad
+        ? cash.invalid
+          ? 'Montant reçu invalide'
+          : 'Montant reçu insuffisant'
+        : 'Valider · ' + money(total, currency());
 }
 
 function setMode(next) {
   mode = next === 'credit' ? 'credit' : 'paid';
   $$('#pay-mode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   renderCredit();
+  updateChange();
   updateCheckout();
 }
 
@@ -220,12 +377,13 @@ function changeQty(id, delta) {
   renderCart();
 }
 
-function receiptText(sale, paidNow) {
+function receiptText(sale, paidNow, cash) {
   const cur = currency();
   const profile = ctx.store.getProfile();
   const lines = ['*' + (profile.businessName || 'Kontra Africa') + '*', 'Reçu n° ' + sale.invoiceNo, new Date(sale.createdAtMs).toLocaleString('fr-FR'), ''];
   sale.items.forEach((i) => lines.push(qtyText(i.qty) + ' × ' + i.name + ' : ' + money(i.price * i.qty, cur)));
   lines.push('', 'Total : ' + money(sale.total, cur));
+  if (cash) lines.push('Reçu : ' + cash.given, 'Rendu : ' + cash.change);
   if (sale.status === 'credit') {
     lines.push('Payé : ' + money(paidNow, cur), 'Reste à payer : ' + money(sale.total - paidNow, cur));
   }
@@ -233,11 +391,11 @@ function receiptText(sale, paidNow) {
   return lines.join('\n');
 }
 
-function showReceipt(sale, paidNow) {
+function showReceipt(sale, paidNow, cash) {
   const cur = currency();
   const share = h('a', {
     class: 'btn btn-gold btn-block',
-    href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale, paidNow)),
+    href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale, paidNow, cash)),
     target: '_blank',
     rel: 'noopener',
     text: 'Envoyer le reçu par WhatsApp'
@@ -250,6 +408,8 @@ function showReceipt(sale, paidNow) {
       'div',
       { class: 'panel', style: 'margin:0 0 1rem' },
       h('div', { class: 'kv' }, h('small', { text: 'Total' }), h('b', { text: money(sale.total, cur) })),
+      cash ? h('div', { class: 'kv' }, h('small', { text: 'Reçu du client' }), h('b', { text: cash.given })) : null,
+      cash ? h('div', { class: 'kv' }, h('small', { text: 'Monnaie à rendre' }), h('b', { text: cash.change })) : null,
       sale.status === 'credit'
         ? h('div', { class: 'kv' }, h('small', { text: 'Reste à payer par ' + sale.customerName }), h('b', { text: money(sale.total - paidNow, cur) }))
         : null
@@ -266,6 +426,20 @@ async function checkout() {
   cart.forEach((qty, productId) => lines.push({ productId, qty }));
   const paidNow = mode === 'credit' && paidInput ? paidInput.value.trim() : '';
 
+  let cash = null;
+  const info = cashInfo();
+  if (info.typed) {
+    if (info.invalid || info.short) {
+      toast('Vérifiez le montant donné par le client.', 'warn');
+      return;
+    }
+    const cur = currency();
+    cash = {
+      given: givenCur === 'usd' ? money(info.n, 'USD') : money(info.n, cur),
+      change: info.diff === 0 ? 'Aucune' : showIn(info.diff, backCur, info.rate, cur)
+    };
+  }
+
   busy = true;
   setLoading(button, true);
   try {
@@ -277,7 +451,9 @@ async function checkout() {
     });
     cart.clear();
     if (paidInput) paidInput.value = '';
-    showReceipt(sale, sale.paid);
+    const cashInput = $('#cash-given');
+    if (cashInput) cashInput.value = '';
+    showReceipt(sale, sale.paid, cash);
   } catch (err) {
     toast(ctx.store.storeError(err), 'error', 5000);
     if (isLimit(err)) ctx.openPaywall();
@@ -353,7 +529,7 @@ export async function show(_name, context) {
   renderCart();
   setMode(mode);
   try {
-    await Promise.all([ctx.store.loadProducts(), ctx.store.loadCustomers(), ctx.store.loadStats()]);
+    await Promise.all([ctx.store.loadProducts(), ctx.store.loadCustomers(), ctx.store.loadStats(), ctx.store.loadProfile()]);
   } catch (err) {
     if (mine === token) toast(ctx.store.storeError(err), 'error', 5000);
     return;
