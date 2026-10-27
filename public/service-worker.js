@@ -22,6 +22,7 @@ const PRECACHE = [
   'js/login.js',
   'js/paywall.js',
   'js/landing.js',
+  'js/pos-calc.js',
   'js/views/home.js',
   'js/views/stock.js',
   'js/views/sale.js',
