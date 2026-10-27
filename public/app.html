@@ -149,6 +149,26 @@
                 <div id="credit-fields" class="hide">
                   <label class="field"><span>Client</span><select id="credit-customer"></select></label>
                 </div>
+
+                <!-- Calculatrice de paiement : montant reçu, monnaie à rendre, taux de change -->
+                <div class="calc" id="calc">
+                  <div class="calc-title">Calculatrice de paiement</div>
+                  <div class="calc-row">
+                    <label class="field"><span>Montant reçu</span><input type="text" id="calc-received" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+                    <label class="field"><span>Reçu en</span>
+                      <select id="calc-rcv-cur"><option value="FC">FC</option><option value="USD">USD ($)</option></select>
+                    </label>
+                  </div>
+                  <div class="calc-row">
+                    <label class="field"><span>Taux : 1 USD = … FC</span><input type="text" id="calc-rate" inputmode="decimal" autocomplete="off" placeholder="2800"></label>
+                    <label class="field"><span>Rendre en</span>
+                      <select id="calc-ret-cur"><option value="FC">FC</option><option value="USD">USD ($)</option></select>
+                    </label>
+                  </div>
+                  <button class="mini" id="calc-exact" type="button">Montant exact</button>
+                  <div class="calc-result" id="calc-result" aria-live="polite"></div>
+                </div>
+
                 <button class="btn btn-lg btn-block" id="btn-checkout" type="button" disabled>Valider la vente</button>
               </div>
             </div>
@@ -342,5 +362,6 @@
 
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/export-ui.js"></script>
+  <script type="module" src="js/pos-calc.js"></script>
 </body>
 </html>
