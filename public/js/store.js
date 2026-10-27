@@ -3,10 +3,10 @@ import {
   auth,
   doc,
   collection,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
+  getDoc as rawGetDoc,
+  getDocs as rawGetDocs,
+  setDoc as rawSetDoc,
+  updateDoc as rawUpdateDoc,
   query,
   where,
   orderBy,
@@ -16,8 +16,8 @@ import {
   serverTimestamp,
   increment
 } from './firebase.js';
-import { deleteField, documentId } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { setCustomSymbol } from './ui.js';
+import { deleteField, documentId, getDocFromCache, getDocsFromCache } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { setCustomSymbol, toast } from './ui.js';
 
 const MAX_MONEY = 1000000000000;
 const MAX_LINES = 60;
@@ -85,14 +85,103 @@ function bind() {
   return user.uid;
 }
 
-function online() {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new StoreError('offline');
+function isOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
+/* ---------- Mode hors ligne ----------
+   Firestore garde une copie locale et une file d'attente d'écritures.
+   Hors ligne (ou réseau très lent), l'écriture est enregistrée sur l'appareil
+   tout de suite et envoyée au serveur dès que la connexion revient. */
+
+const READ_TIMEOUT_MS = 7000;
+const WRITE_WAIT_MS = 5000;
+let lastSyncToast = 0;
+
+const after = (ms) =>
+  new Promise((_resolve, reject) => {
+    setTimeout(() => reject({ code: 'timeout' }), ms);
+  });
+
+const emptySnap = () => ({ exists: () => false, data: () => null });
+
+async function getDocs(q) {
+  if (isOffline()) return getDocsFromCache(q);
+  try {
+    return await Promise.race([rawGetDocs(q), after(READ_TIMEOUT_MS)]);
+  } catch (err) {
+    if (err && (err.code === 'timeout' || err.code === 'unavailable')) return getDocsFromCache(q);
+    throw err;
+  }
+}
+
+async function getDoc(ref) {
+  const fromCache = async () => {
+    try {
+      return await getDocFromCache(ref);
+    } catch (_e) {
+      return emptySnap();
+    }
+  };
+  if (isOffline()) return fromCache();
+  try {
+    return await Promise.race([rawGetDoc(ref), after(READ_TIMEOUT_MS)]);
+  } catch (err) {
+    if (err && (err.code === 'timeout' || err.code === 'unavailable')) return fromCache();
+    throw err;
+  }
+}
+
+function watchQueued(promise) {
+  promise.then(
+    () => {
+      const now = Date.now();
+      if (now - lastSyncToast < 4000) return;
+      lastSyncToast = now;
+      toast('Connexion rétablie : vos données hors ligne sont synchronisées.');
+    },
+    () => {
+      const now = Date.now();
+      state.productsLoaded = false;
+      state.customersLoaded = false;
+      state.salesLoaded = false;
+      state.txsLoaded = false;
+      state.stats = null;
+      emit();
+      if (now - lastSyncToast < 4000) return;
+      lastSyncToast = now;
+      toast('Une opération faite hors ligne a été refusée par le serveur (limite de votre offre ou accès expiré).', 'error', 9000);
+    }
+  );
+}
+
+/* Renvoie true si le serveur a confirmé, false si l'écriture attend la connexion. */
+async function queued(promise) {
+  if (isOffline()) {
+    watchQueued(promise);
+    return false;
+  }
+  let timer = 0;
+  const wait = new Promise((resolve) => {
+    timer = setTimeout(() => resolve('queued'), WRITE_WAIT_MS);
+  });
+  try {
+    const outcome = await Promise.race([promise.then(() => 'done'), wait]);
+    if (outcome === 'queued') {
+      watchQueued(promise);
+      return false;
+    }
+    return true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const setDoc = (...args) => queued(rawSetDoc(...args));
+const updateDoc = (...args) => queued(rawUpdateDoc(...args));
+
 function guardLite() {
-  const id = bind();
-  online();
-  return id;
+  return bind();
 }
 
 function guard() {
@@ -545,7 +634,7 @@ export async function addProduct(input) {
   const batch = writeBatch(db);
   batch.set(ref, data);
   batch.set(usageRef(), { products: increment(1), lastProduct: ref.id }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
 
   const product = mapProduct(ref.id, data);
   state.products.push(product);
@@ -603,7 +692,7 @@ export async function removeProduct(productId) {
   const batch = writeBatch(db);
   batch.delete(itemRef('products', p.id));
   batch.set(usageRef(), { products: increment(-1), lastProduct: p.id }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
   state.products = state.products.filter((x) => x.id !== p.id);
   emit();
 }
@@ -622,7 +711,7 @@ export async function addCustomer(input) {
   const batch = writeBatch(db);
   batch.set(ref, data);
   batch.set(usageRef(), { customers: increment(1), lastCustomer: ref.id }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
 
   const customer = mapCustomer(ref.id, data);
   state.customers.push(customer);
@@ -659,7 +748,7 @@ export async function removeCustomer(customerId) {
   const batch = writeBatch(db);
   batch.delete(itemRef('customers', c.id));
   batch.set(usageRef(), { customers: increment(-1), lastCustomer: c.id }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
   state.customers = state.customers.filter((x) => x.id !== c.id);
   emit();
 }
@@ -757,7 +846,7 @@ export async function createSale(input) {
       updatedAt: serverTimestamp()
     });
   }
-  await batch.commit();
+  const synced = await queued(batch.commit());
 
   merged.forEach(({ p, qty }) => {
     p.qty = round2(p.qty - qty);
@@ -769,8 +858,10 @@ export async function createSale(input) {
 
   const local = mapSale(saleRef.id, Object.assign({}, sale, { createdAt: null }));
   local.createdAtMs = now.getTime();
+  local.pending = !synced;
   if (state.salesLoaded) state.sales.unshift(local);
   emit();
+  if (!synced) toast('Vente enregistrée sur l’appareil. Elle sera synchronisée dès le retour de la connexion.', 'warn', 5000);
   return local;
 }
 
@@ -817,7 +908,7 @@ export async function collectDebt(customerId, amountInput) {
   batch.set(txRef, { type: 'in', amount, label, day, createdAt: serverTimestamp() });
   batch.set(itemRef('stats', day), { income: increment(amount) }, { merge: true });
   batch.set(itemRef('stats', monthId(now)), { income: increment(amount) }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
 
   customer.debt = round2(Math.max(0, customer.debt - amount));
   state.sales.forEach((s) => {
@@ -848,7 +939,7 @@ export async function addTransaction(input) {
   batch.set(ref, { type, amount, label, day, createdAt: serverTimestamp() });
   batch.set(itemRef('stats', day), { [field]: increment(amount) }, { merge: true });
   batch.set(itemRef('stats', monthId(now)), { [field]: increment(amount) }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
 
   const local = { id: ref.id, type, amount, label, day, createdAtMs: now.getTime() };
   if (state.txsLoaded) state.txs.unshift(local);
@@ -867,7 +958,7 @@ export async function removeTransaction(txId) {
   batch.delete(itemRef('transactions', tx.id));
   batch.set(itemRef('stats', tx.day), { [field]: increment(-tx.amount) }, { merge: true });
   batch.set(itemRef('stats', monthId(new Date(tx.createdAtMs))), { [field]: increment(-tx.amount) }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
   state.txs = state.txs.filter((t) => t.id !== tx.id);
   if (state.stats) applyStats({ [field]: -tx.amount });
   emit();
@@ -886,7 +977,7 @@ export async function addReminder(customerId) {
   const batch = writeBatch(db);
   batch.set(ref, data);
   batch.set(itemRef('stats', month), { remindersCount: increment(1), lastReminder: ref.id }, { merge: true });
-  await batch.commit();
+  await queued(batch.commit());
 
   state.stats.month.remindersCount += 1;
   emit();
