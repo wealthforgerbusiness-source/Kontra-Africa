@@ -1,13 +1,14 @@
 'use strict';
 
-const VERSION = 'kontra-v4';
+const VERSION = 'kontra-v5';
 const STATIC_CACHE = VERSION + '-static';
-const CDN_CACHE = VERSION + '-cdn';
-const NETWORK_TIMEOUT_MS = 4500;
+const CDN_CACHE = 'kontra-cdn';
+const NETWORK_TIMEOUT_MS = 3000;
 
 const PRECACHE = [
   'app.html',
   'index.html',
+  'login.html',
   'manifest.json',
   'css/style.css',
   'css/app.css',
@@ -18,6 +19,7 @@ const PRECACHE = [
   'js/firebase.js',
   'js/store.js',
   'js/app.js',
+  'js/login.js',
   'js/paywall.js',
   'js/landing.js',
   'js/views/home.js',
@@ -27,13 +29,23 @@ const PRECACHE = [
   'js/views/more.js',
   'js/views/closing.js',
   'assets/logo/logo-192.png',
-  'assets/logo/logo-512.png'
+  'assets/logo/logo-512.png',
+  'assets/logo/logo-maskable-192.png',
+  'assets/logo/logo-maskable-512.png',
+  'assets/logo/apple-touch-icon.png',
+  'assets/logo/favicon-32.png'
+];
+
+const PRECACHE_CDN = [
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js'
 ];
 
 const OFFLINE_HTML =
   '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hors ligne</title></head>' +
   '<body style="font-family:system-ui,sans-serif;display:grid;place-content:center;min-height:100vh;margin:0;padding:1.5rem;text-align:center;color:#0F172A">' +
-  '<h1 style="color:#0B6B4F">Vous êtes hors ligne</h1><p>Vérifiez votre connexion internet puis rechargez la page.</p></body></html>';
+  '<h1 style="color:#0B6B4F">Vous êtes hors ligne</h1><p>Ouvrez l’application une première fois avec internet, puis elle fonctionnera sans connexion.</p></body></html>';
 
 function isCdn(url) {
   return (
@@ -58,6 +70,15 @@ self.addEventListener('install', (event) => {
     (async () => {
       const cache = await caches.open(STATIC_CACHE);
       await Promise.allSettled(PRECACHE.map((path) => cache.add(new Request(path, { cache: 'reload' }))));
+      const cdn = await caches.open(CDN_CACHE);
+      await Promise.allSettled(
+        PRECACHE_CDN.map(async (href) => {
+          const request = new Request(href);
+          if (await cdn.match(request)) return;
+          const response = await fetch(request);
+          if (canStore(response)) await cdn.put(request, response);
+        })
+      );
       await self.skipWaiting();
     })()
   );
@@ -96,9 +117,11 @@ async function networkFirst(request) {
     }
   }
 
+  /* Hors ligne ou réseau très lent : on sert tout de suite la copie de l'appareil. */
   const timeout = new Promise((resolve) => setTimeout(() => resolve(cached), NETWORK_TIMEOUT_MS));
+  const fallback = network.catch(() => cached);
   try {
-    return await Promise.race([network, timeout]);
+    return await Promise.race([fallback, timeout]);
   } catch (_e) {
     return cached;
   }
