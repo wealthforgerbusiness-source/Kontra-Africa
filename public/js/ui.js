@@ -359,7 +359,7 @@ export async function copyText(text) {
 }
 
 export function watchNetwork() {
-  window.addEventListener('offline', () => toast('Vous êtes hors ligne. Certaines actions sont indisponibles.', 'warn', 5000));
+  window.addEventListener('offline', () => toast('Vous êtes hors ligne. Vous pouvez continuer à vendre, tout sera synchronisé plus tard.', 'warn', 5000));
   window.addEventListener('online', () => toast('Connexion rétablie.'));
 }
 
