@@ -52,7 +52,7 @@ export function fxMoney(amount, cur, profile) {
   return money(amount, cur);
 }
 
-function openRateSheet(ctx, cur, switchAfter) {
+export function openRateSheet(ctx, cur, switchAfter) {
   const profile = ctx.store.getProfile();
   const current = rateOf(profile);
 
