@@ -51,6 +51,8 @@ const ACTIONS = {
 const K_PLAN = 'kontra_plan';
 const K_PAYMENT = 'kontra_payment';
 const K_LOOP = 'kontra_loop';
+const K_INSTALLED = 'kontra_installed';
+const RATE_KEY = 'kontra_rate_usd_fc';
 const ACCOUNT_WAIT_MS = 8000;
 
 const ignore = () => undefined;
@@ -613,6 +615,216 @@ const ctx = {
   canWrite: () => store.canWrite()
 };
 
+/* ========= Installation de l'application ========= */
+function isStandalone() {
+  return (
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true
+  );
+}
+
+function isInstalled() {
+  if (isStandalone()) lsSet(K_INSTALLED, '1');
+  return isStandalone() || lsGet(K_INSTALLED) === '1';
+}
+
+function renderInstall() {
+  const title = $('#install-title');
+  const sub = $('#install-sub');
+  const btn = $('#btn-install');
+  if (!title || !sub || !btn) return;
+  if (isInstalled()) {
+    title.textContent = 'Application installée';
+    sub.textContent = 'Kontra Africa est déjà installée sur cet appareil';
+    btn.textContent = 'Déjà installée ✓';
+    btn.disabled = true;
+  } else {
+    title.textContent = 'Installer Kontra Africa';
+    sub.textContent = 'Ajoutez l’application sur votre écran d’accueil';
+    btn.textContent = installEvent ? 'Installer' : 'Comment installer';
+    btn.disabled = false;
+  }
+}
+
+function showInstallHelp() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const steps = ios
+    ? [
+        'Ouvrez cette page dans Safari.',
+        'Touchez le bouton Partager (carré avec une flèche).',
+        'Choisissez « Sur l’écran d’accueil », puis « Ajouter ».'
+      ]
+    : [
+        'Ouvrez le menu de votre navigateur (⋮ ou ⋯).',
+        'Choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».',
+        'Confirmez : l’icône Kontra Africa apparaît sur votre appareil.'
+      ];
+  openSheet([
+    h('h2', { text: 'Installer Kontra Africa' }),
+    h('ol', { class: 'install-steps' }, ...steps.map((s) => h('li', { text: s }))),
+    h('button', { type: 'button', class: 'btn btn-block', text: 'Compris', onclick: closeSheet })
+  ]);
+}
+
+/* ========= Calculatrice d'encaissement (ex pos-calc.js) ========= */
+function initPosCalc() {
+  const byId = (id) => document.getElementById(id);
+  const cart = byId('cart');
+  const pos = document.querySelector('#view-sale .pos');
+  const search = byId('pos-search');
+  const totalEl = byId('cart-total');
+  const calc = byId('calc');
+  const received = byId('calc-received');
+  const rateIn = byId('calc-rate');
+  const result = byId('calc-result');
+  const dueEl = byId('calc-due');
+  if (!cart || !pos || !search || !totalEl || !calc || !received || !rateIn || !result || !dueEl) return;
+
+  const state = { rcv: 'FC', ret: 'FC', fresh: true };
+  rateIn.value = lsGet(RATE_KEY) || '';
+
+  const parse = (s) => {
+    const n = parseFloat(String(s || '').replace(/[\s\u00A0\u202F]/g, '').replace(',', '.').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmt = (n, cur) =>
+    cur === 'USD'
+      ? new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' $'
+      : new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round(n)) + ' FC';
+  const node = (tag, cls, text) => {
+    const d = document.createElement(tag);
+    if (cls) d.className = cls;
+    if (text !== undefined) d.textContent = text;
+    return d;
+  };
+  const baseOf = (text) => (/\$|USD/i.test(text) ? 'USD' : 'FC');
+  const isCredit = () => {
+    const on = document.querySelector('#pay-mode [aria-pressed="true"]');
+    return !!on && on.dataset.mode === 'credit';
+  };
+
+  function paintSeg(id, cur) {
+    document.querySelectorAll('#' + id + ' button').forEach((b) => {
+      b.setAttribute('aria-pressed', b.dataset.cur === cur ? 'true' : 'false');
+    });
+  }
+
+  function update() {
+    calc.classList.toggle('hide', isCredit());
+    result.textContent = '';
+    const text = totalEl.textContent || '';
+    const total = parse(text);
+    const baseCur = baseOf(text);
+
+    if (total && state.fresh) {
+      state.rcv = baseCur;
+      state.ret = baseCur;
+      state.fresh = false;
+    }
+    paintSeg('calc-rcv-seg', state.rcv);
+    paintSeg('calc-ret-seg', state.ret);
+    dueEl.textContent = total ? fmt(total, baseCur) : '—';
+    if (!total) return;
+
+    const rate = parse(rateIn.value);
+    const needRate = baseCur === 'USD' || state.rcv === 'USD' || state.ret === 'USD';
+    rateIn.closest('.calc-rate').classList.toggle('need', needRate && !rate);
+
+    const frag = document.createDocumentFragment();
+    if (needRate && !rate) {
+      frag.append(node('div', 'calc-warn', 'Entrez le taux de change (1 USD = … FC) pour calculer la monnaie.'));
+      result.append(frag);
+      return;
+    }
+
+    const toFC = (amt, cur) => (cur === 'USD' ? amt * rate : amt);
+    const fromFC = (amt, cur) => (cur === 'USD' ? amt / rate : amt);
+    const rcv = parse(received.value);
+    if (!rcv) return;
+
+    const diffFC = toFC(rcv, state.rcv) - toFC(total, baseCur);
+    const out = state.ret;
+    const other = out === 'FC' ? 'USD' : 'FC';
+
+    const recap = node('div', 'calc-recap');
+    recap.append(node('span', '', 'Montant reçu'), node('b', '', fmt(rcv, state.rcv)));
+    frag.append(recap);
+
+    const card = node('div', 'calc-out');
+    if (Math.abs(diffFC) < 0.005) {
+      card.classList.add('exact');
+      card.append(node('span', 'calc-out-label', 'Compte juste'), node('b', 'calc-out-value', 'Rien à rendre ✓'));
+    } else {
+      const abs = Math.abs(diffFC);
+      card.classList.add(diffFC < 0 ? 'miss' : 'ok');
+      card.append(
+        node('span', 'calc-out-label', diffFC < 0 ? 'Il manque' : 'Monnaie à rendre au client'),
+        node('b', 'calc-out-value', fmt(fromFC(abs, out), out))
+      );
+      if (rate) card.append(node('small', 'calc-out-alt', '≈ ' + fmt(fromFC(abs, other), other)));
+    }
+    frag.append(card);
+    result.append(frag);
+  }
+
+  document.querySelectorAll('#calc-rcv-seg button').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.rcv = b.dataset.cur;
+      update();
+    })
+  );
+  document.querySelectorAll('#calc-ret-seg button').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.ret = b.dataset.cur;
+      update();
+    })
+  );
+  received.addEventListener('input', update);
+  rateIn.addEventListener('input', () => {
+    lsSet(RATE_KEY, rateIn.value);
+    update();
+  });
+  byId('calc-exact').addEventListener('click', () => {
+    const text = totalEl.textContent || '';
+    state.rcv = baseOf(text);
+    received.value = String(parse(text));
+    update();
+  });
+
+  new MutationObserver(update).observe(totalEl, { childList: true, characterData: true, subtree: true });
+  const pay = byId('pay-mode');
+  if (pay) new MutationObserver(update).observe(pay, { attributes: true, subtree: true, attributeFilter: ['aria-pressed'] });
+
+  const syncSearch = () => {
+    const searching = document.activeElement === search || search.value.trim() !== '';
+    pos.classList.toggle('searching', searching);
+  };
+  search.addEventListener('focus', syncSearch);
+  search.addEventListener('blur', () => setTimeout(syncSearch, 0));
+  search.addEventListener('input', syncSearch);
+
+  let wasEmpty = cart.classList.contains('is-empty');
+  new MutationObserver(() => {
+    const empty = cart.classList.contains('is-empty');
+    if (wasEmpty && !empty) {
+      state.fresh = true;
+      if (!pos.classList.contains('searching')) {
+        cart.classList.add('open');
+        const t = byId('cart-toggle');
+        if (t) t.setAttribute('aria-expanded', 'true');
+      }
+    }
+    if (!wasEmpty && empty) {
+      received.value = '';
+      result.textContent = '';
+      state.fresh = true;
+    }
+    wasEmpty = empty;
+  }).observe(cart, { attributes: true, attributeFilter: ['class'] });
+
+  update();
+}
+
 function wireApp() {
   document.addEventListener('click', (event) => {
     const nav = event.target.closest('[data-nav]');
@@ -646,28 +858,36 @@ function wireApp() {
     if (Date.now() - lastRefresh > 5 * 60 * 1000) refreshAccount().catch(ignore);
   });
 
-  const banner = $('#install-banner');
-  const standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     installEvent = event;
-    if (!standalone) setHidden(banner, false);
+    lsDel(K_INSTALLED); // le navigateur propose l'installation : l'app n'est donc pas installée
+    renderInstall();
   });
   window.addEventListener('appinstalled', () => {
     installEvent = null;
-    setHidden(banner, true);
+    lsSet(K_INSTALLED, '1');
+    renderInstall();
+    toast('Kontra Africa est installée sur cet appareil.', 'ok');
   });
   $('#btn-install').addEventListener('click', async () => {
-    if (!installEvent) return;
-    const prompt = installEvent;
-    installEvent = null;
-    setHidden(banner, true);
-    try {
-      await prompt.prompt();
-    } catch (_e) {
-      ignore();
+    if (isInstalled()) return;
+    if (installEvent) {
+      const prompt = installEvent;
+      installEvent = null;
+      try {
+        await prompt.prompt();
+        const choice = await prompt.userChoice;
+        if (choice && choice.outcome === 'accepted') lsSet(K_INSTALLED, '1');
+      } catch (_e) {
+        ignore();
+      }
+      renderInstall();
+      return;
     }
+    showInstallHelp();
   });
+  renderInstall();
 }
 
 function registerWorker() {
@@ -681,6 +901,7 @@ function boot() {
   initUI();
   watchNetwork();
   wireApp();
+  initPosCalc();
   registerWorker();
   onUser((user) => {
     routeUser(user);
