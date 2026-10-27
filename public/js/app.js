@@ -51,6 +51,7 @@ const ACTIONS = {
 const K_PLAN = 'kontra_plan';
 const K_PAYMENT = 'kontra_payment';
 const K_LOOP = 'kontra_loop';
+const ACCOUNT_WAIT_MS = 8000;
 
 const ignore = () => undefined;
 
@@ -207,6 +208,14 @@ function writeCached(uid, data) {
   lsSet('kontra_acct_' + uid, JSON.stringify({ isAdmin: data.isAdmin === true, subscription: data.subscription }));
 }
 
+function withTimeout(promise, wait) {
+  let timer = 0;
+  const limit = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject({ code: 'timeout' }), wait);
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+}
+
 async function routeUser(user) {
   const rid = ++routeId;
   stopTimers();
@@ -249,27 +258,33 @@ async function enter(user, rid) {
   let data = null;
   let offline = false;
 
-  try {
-    data = await loadAccount();
-    writeCached(user.uid, data);
-  } catch (err) {
-    clearTimeout(slow);
-    if (rid !== routeId) return;
-    if (err && (err.status === 404 || err.code === 'no_subscription')) {
-      goLoginGuarded();
-      return;
-    }
-    if (err && (err.code === 'network' || err.code === 'timeout')) {
-      const cached = readCached(user.uid);
-      if (!cached) {
+  const known = readCached(user.uid);
+
+  if (known && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    data = known;
+    offline = true;
+  } else {
+    try {
+      data = await (known ? withTimeout(loadAccount(), ACCOUNT_WAIT_MS) : loadAccount());
+      writeCached(user.uid, data);
+    } catch (err) {
+      clearTimeout(slow);
+      if (rid !== routeId) return;
+      if (err && (err.status === 404 || err.code === 'no_subscription')) {
+        goLoginGuarded();
+        return;
+      }
+      if (err && (err.code === 'network' || err.code === 'timeout')) {
+        if (!known) {
+          fail(err);
+          return;
+        }
+        data = known;
+        offline = true;
+      } else {
         fail(err);
         return;
       }
-      data = cached;
-      offline = true;
-    } else {
-      fail(err);
-      return;
     }
   }
 
@@ -283,7 +298,7 @@ async function enter(user, rid) {
 
   ssDel(K_LOOP);
   finishEntry(user, data);
-  if (offline) toast('Mode hors ligne : consultation uniquement.', 'warn', 5000);
+  if (offline) toast('Mode hors ligne : vous pouvez continuer à vendre. Tout sera synchronisé au retour de la connexion.', 'warn', 6000);
   afterBoot();
 }
 
@@ -619,6 +634,10 @@ function wireApp() {
 
   window.addEventListener('popstate', () => {
     if (session) showView(guardName(hashName()));
+  });
+
+  window.addEventListener('online', () => {
+    if (session) refreshAccount().catch(ignore);
   });
 
   document.addEventListener('visibilitychange', () => {
