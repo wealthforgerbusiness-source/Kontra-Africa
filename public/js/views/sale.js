@@ -1,5 +1,4 @@
 import { $, $$, h, clear, money, toast, setLoading, debounce } from '../ui.js';
-import { rateOf, symbol, openRateSheet } from '../fx.js';
 
 const SHOW_MAX = 120;
 const TZ_CURRENCY = { 'Africa/Kinshasa': 'CDF', 'Africa/Lubumbashi': 'CDF', 'Africa/Douala': 'XAF' };
@@ -13,8 +12,6 @@ let mode = 'paid';
 let customerId = '';
 let creditSignature = '';
 let busy = false;
-let givenCur = 'local';
-let backCur = 'local';
 const cart = new Map();
 
 function currency() {
@@ -48,7 +45,10 @@ function cleanCart() {
   cart.forEach((qty, id) => {
     const p = ctx.store.findProduct(id);
     if (!p || p.qty <= 0) cart.delete(id);
-    else if (qty > p.qty) cart.set(id, Math.max(1, Math.floor(p.qty)) > p.qty ? p.qty : Math.floor(p.qty) || p.qty);
+    else if (qty > p.qty) {
+      const whole = Math.floor(p.qty);
+      cart.set(id, whole >= 1 ? whole : p.qty);
+    }
   });
 }
 
@@ -61,150 +61,29 @@ function cartTotal() {
   return Math.round(total * 100) / 100;
 }
 
-/* ---------- Monnaie à rendre ---------- */
-
-function round2(n) {
-  return Math.round(n * 100) / 100;
-}
-
-function showIn(localAmount, which, rate, cur) {
-  if (which === 'usd' && rate > 0) return money(round2(localAmount / rate), 'USD');
-  return money(round2(localAmount), cur);
-}
-
-function cashInfo() {
-  const input = $('#cash-given');
-  const raw = input ? input.value.trim() : '';
-  if (mode !== 'paid' || raw === '') return { typed: false };
-  const rate = rateOf(ctx.store.getProfile());
-  const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
-  if (!Number.isFinite(n) || n < 0) return { typed: true, invalid: true };
-  if (givenCur === 'usd' && !rate) return { typed: true, invalid: true };
-  const givenLocal = givenCur === 'usd' ? n * rate : n;
-  const diff = round2(givenLocal - cartTotal());
-  return { typed: true, n, rate, givenLocal, diff, short: diff < -0.005 };
-}
-
-function ensureChangeBox() {
-  if ($('#change-box')) return;
-
-  const mkSeg = (id, label, onPick) => {
-    const wrap = h('div', { class: 'seg', id, role: 'group', 'aria-label': label });
-    wrap.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-cur]');
-      if (button) onPick(button.dataset.cur);
-    });
-    return wrap;
-  };
-
-  const box = h(
-    'div',
-    { id: 'change-box', class: 'change-box' },
-    h('div', { class: 'change-head' }, h('b', { text: 'Monnaie à rendre' }), h('button', { type: 'button', class: 'link-btn', id: 'change-rate', 'data-act-rate': '1', text: '' })),
-    h(
-      'label',
-      { class: 'field' },
-      h('span', { text: 'Le client donne' }),
-      h('input', { id: 'cash-given', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0' })
-    ),
-    mkSeg('given-cur', 'Monnaie donnée par le client', (value) => pickCurrency('given', value)),
-    h('span', { class: 'change-label', text: 'Vous rendez en' }),
-    mkSeg('back-cur', 'Monnaie rendue au client', (value) => pickCurrency('back', value)),
-    h('div', { id: 'change-result', class: 'change-result', 'aria-live': 'polite' })
-  );
-
-  $('#btn-checkout').before(box);
-
-  $('#cash-given').addEventListener('input', () => {
-    updateChange();
-    updateCheckout();
+function cartItems() {
+  let items = 0;
+  cart.forEach((qty) => {
+    items += qty;
   });
-  $('#change-rate').addEventListener('click', () => openRateSheet(ctx, currency(), false));
+  return items;
 }
 
-function pickCurrency(which, value) {
-  const rate = rateOf(ctx.store.getProfile());
-  if (value === 'usd' && !rate) {
-    openRateSheet(ctx, currency(), false);
-    return;
-  }
-  const next = value === 'usd' ? 'usd' : 'local';
-  if (which === 'given') givenCur = next;
-  else backCur = next;
-  updateChange();
-  updateCheckout();
+function setOpen(on) {
+  const box = $('#cart');
+  const toggle = $('#cart-toggle');
+  if (!box || !toggle) return;
+  box.classList.toggle('open', Boolean(on));
+  toggle.setAttribute('aria-expanded', String(Boolean(on)));
 }
 
-function updateChange() {
-  const box = $('#change-box');
-  if (!box) return;
-  box.classList.toggle('hide', mode !== 'paid');
-  if (mode !== 'paid') return;
-
-  const cur = currency();
-  const sym = symbol(cur);
-  const rate = rateOf(ctx.store.getProfile());
-  if (!rate) {
-    givenCur = 'local';
-    backCur = 'local';
-  }
-
-  const paint = (id, selected) => {
-    const wrap = $(id);
-    clear(wrap);
-    [
-      ['local', sym],
-      ['usd', '$']
-    ].forEach(([value, label]) =>
-      wrap.append(h('button', { type: 'button', 'data-cur': value, 'aria-pressed': String(selected === value), text: label }))
-    );
-  };
-  paint('#given-cur', givenCur);
-  paint('#back-cur', backCur);
-
-  $('#change-rate').textContent = rate > 0 ? '1 $ = ' + new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(rate) + ' ' + sym + ' · Modifier' : 'Définir le taux de change';
-
-  const out = $('#change-result');
-  clear(out);
-  const total = cartTotal();
-
-  if (!cart.size) {
-    out.append(h('p', { class: 'muted', text: 'Ajoutez des produits pour calculer la monnaie.' }));
-    return;
-  }
-
-  const totalLine = showIn(total, 'local', rate, cur) + (rate > 0 ? ' · ' + showIn(total, 'usd', rate, cur) : '');
-  out.append(h('div', { class: 'kv' }, h('small', { text: 'Total à payer' }), h('b', { text: totalLine })));
-
-  const info = cashInfo();
-  if (!info.typed) {
-    out.append(h('p', { class: 'muted', text: 'Saisissez le montant donné par le client.' }));
-    return;
-  }
-  if (info.invalid) {
-    out.append(h('p', { class: 'error', text: givenCur === 'usd' && !rate ? 'Définissez d’abord le taux de change.' : 'Montant invalide.' }));
-    return;
-  }
-  if (info.short) {
-    out.append(h('div', { class: 'kv' }, h('small', { text: 'Il manque' }), h('b', { class: 'change-short', text: showIn(-info.diff, givenCur, rate, cur) })));
-    return;
-  }
-  if (info.diff === 0) {
-    out.append(h('div', { class: 'kv' }, h('small', { text: 'Monnaie à rendre' }), h('b', { class: 'change-ok', text: 'Compte exact, rien à rendre' })));
-    return;
-  }
-  out.append(
-    h(
-      'div',
-      { class: 'kv' },
-      h('small', { text: 'Monnaie à rendre' }),
-      h('b', { class: 'change-ok', text: showIn(info.diff, backCur, rate, cur) }),
-      rate > 0 ? h('small', { text: '≈ ' + showIn(info.diff, backCur === 'usd' ? 'local' : 'usd', rate, cur) }) : null
-    )
-  );
+function bump() {
+  const bar = $('#cart-toggle');
+  if (!bar) return;
+  bar.classList.remove('bump');
+  void bar.offsetWidth;
+  bar.classList.add('bump');
 }
-
-/* ---------- Produits et panier ---------- */
 
 function renderProducts() {
   const box = $('#pos-products');
@@ -240,12 +119,12 @@ function renderProducts() {
     const left = Math.max(0, p.qty - inCart);
     const button = h(
       'button',
-      { type: 'button', class: 'pos-product', 'data-add': p.id },
+      { type: 'button', class: 'pos-product' + (inCart ? ' in-cart' : ''), 'data-add': p.id },
       h('b', { text: p.name }),
-      h('span', { text: left <= 0 ? (p.qty <= 0 ? 'Épuisé' : 'Tout dans le panier') : qtyText(left) + ' dispo' + (inCart ? ' · ' + inCart + ' au panier' : '') }),
+      h('span', { text: left <= 0 ? (p.qty <= 0 ? 'Épuisé' : 'Tout dans le panier') : qtyText(left) + ' dispo' + (inCart ? ' · ' + qtyText(inCart) + ' au panier' : '') }),
       h('em', { text: money(p.sellPrice, cur) })
     );
-    if (left < 1 && !(left > 0)) button.setAttribute('disabled', '');
+    if (left <= 0) button.setAttribute('disabled', '');
     box.append(button);
   });
 
@@ -275,7 +154,7 @@ function renderCart() {
             'div',
             { class: 'qty', role: 'group', 'aria-label': 'Quantité de ' + p.name },
             h('button', { type: 'button', 'data-act': 'dec', 'data-id': id, 'aria-label': 'Retirer un', text: '−' }),
-            h('span', { text: qtyText(qty) }),
+            h('input', { class: 'qty-input', type: 'text', inputmode: 'decimal', autocomplete: 'off', 'data-id': id, 'aria-label': 'Quantité', value: qtyText(qty) }),
             h('button', { type: 'button', 'data-act': 'inc', 'data-id': id, 'aria-label': 'Ajouter un', text: '+' })
           ),
           h('button', { type: 'button', class: 'link-btn', 'data-act': 'del', 'data-id': id, style: 'justify-self:end;font-size:.85rem', text: 'Retirer' })
@@ -284,9 +163,13 @@ function renderCart() {
     });
   }
 
-  $('#cart-total').textContent = money(cartTotal(), cur);
-  ensureChangeBox();
-  updateChange();
+  const total = cartTotal();
+  const items = cartItems();
+  $('#cart-total').textContent = money(total, cur);
+  $('#cart-total-bar').textContent = money(total, cur);
+  $('#cart-count').textContent = qtyText(items);
+  $('#cart').classList.toggle('is-empty', cart.size === 0);
+  if (!cart.size) setOpen(false);
   updateCheckout();
 }
 
@@ -329,26 +212,24 @@ function updateCheckout() {
   if (busy) return;
   const total = cartTotal();
   const missing = mode === 'credit' && !customerId;
-  const cash = cashInfo();
-  const cashBad = cash.typed && (cash.invalid || cash.short);
-  button.disabled = !cart.size || missing || cashBad;
+  button.disabled = !cart.size || missing;
   button.textContent = !cart.size
     ? 'Valider la vente'
     : missing
       ? 'Choisissez le client'
-      : cashBad
-        ? cash.invalid
-          ? 'Montant reçu invalide'
-          : 'Montant reçu insuffisant'
-        : 'Valider · ' + money(total, currency());
+      : 'Valider · ' + money(total, currency());
 }
 
 function setMode(next) {
   mode = next === 'credit' ? 'credit' : 'paid';
   $$('#pay-mode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   renderCredit();
-  updateChange();
   updateCheckout();
+}
+
+function refresh() {
+  renderProducts();
+  renderCart();
 }
 
 function addToCart(id) {
@@ -360,8 +241,8 @@ function addToCart(id) {
     return;
   }
   cart.set(id, current + 1);
-  renderProducts();
-  renderCart();
+  refresh();
+  bump();
 }
 
 function changeQty(id, delta) {
@@ -373,17 +254,32 @@ function changeQty(id, delta) {
     toast('Stock maximum atteint pour ' + p.name + '.', 'warn');
     return;
   } else cart.set(id, next);
-  renderProducts();
-  renderCart();
+  refresh();
 }
 
-function receiptText(sale, paidNow, cash) {
+function setQty(id, raw) {
+  const p = ctx.store.findProduct(id);
+  if (!p) return;
+  const value = Math.round(Number(String(raw).replace(/\s/g, '').replace(',', '.')) * 100) / 100;
+  if (!Number.isFinite(value)) {
+    refresh();
+    return;
+  }
+  if (value <= 0) cart.delete(id);
+  else if (value > p.qty) {
+    cart.set(id, p.qty);
+    toast('Stock maximum atteint pour ' + p.name + '.', 'warn');
+  } else cart.set(id, value);
+  refresh();
+  bump();
+}
+
+function receiptText(sale, paidNow) {
   const cur = currency();
   const profile = ctx.store.getProfile();
   const lines = ['*' + (profile.businessName || 'Kontra Africa') + '*', 'Reçu n° ' + sale.invoiceNo, new Date(sale.createdAtMs).toLocaleString('fr-FR'), ''];
   sale.items.forEach((i) => lines.push(qtyText(i.qty) + ' × ' + i.name + ' : ' + money(i.price * i.qty, cur)));
   lines.push('', 'Total : ' + money(sale.total, cur));
-  if (cash) lines.push('Reçu : ' + cash.given, 'Rendu : ' + cash.change);
   if (sale.status === 'credit') {
     lines.push('Payé : ' + money(paidNow, cur), 'Reste à payer : ' + money(sale.total - paidNow, cur));
   }
@@ -391,11 +287,11 @@ function receiptText(sale, paidNow, cash) {
   return lines.join('\n');
 }
 
-function showReceipt(sale, paidNow, cash) {
+function showReceipt(sale, paidNow) {
   const cur = currency();
   const share = h('a', {
     class: 'btn btn-gold btn-block',
-    href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale, paidNow, cash)),
+    href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale, paidNow)),
     target: '_blank',
     rel: 'noopener',
     text: 'Envoyer le reçu par WhatsApp'
@@ -408,8 +304,6 @@ function showReceipt(sale, paidNow, cash) {
       'div',
       { class: 'panel', style: 'margin:0 0 1rem' },
       h('div', { class: 'kv' }, h('small', { text: 'Total' }), h('b', { text: money(sale.total, cur) })),
-      cash ? h('div', { class: 'kv' }, h('small', { text: 'Reçu du client' }), h('b', { text: cash.given })) : null,
-      cash ? h('div', { class: 'kv' }, h('small', { text: 'Monnaie à rendre' }), h('b', { text: cash.change })) : null,
       sale.status === 'credit'
         ? h('div', { class: 'kv' }, h('small', { text: 'Reste à payer par ' + sale.customerName }), h('b', { text: money(sale.total - paidNow, cur) }))
         : null
@@ -426,20 +320,6 @@ async function checkout() {
   cart.forEach((qty, productId) => lines.push({ productId, qty }));
   const paidNow = mode === 'credit' && paidInput ? paidInput.value.trim() : '';
 
-  let cash = null;
-  const info = cashInfo();
-  if (info.typed) {
-    if (info.invalid || info.short) {
-      toast('Vérifiez le montant donné par le client.', 'warn');
-      return;
-    }
-    const cur = currency();
-    cash = {
-      given: givenCur === 'usd' ? money(info.n, 'USD') : money(info.n, cur),
-      change: info.diff === 0 ? 'Aucune' : showIn(info.diff, backCur, info.rate, cur)
-    };
-  }
-
   busy = true;
   setLoading(button, true);
   try {
@@ -450,10 +330,9 @@ async function checkout() {
       paidNow: paidNow === '' ? 0 : paidNow
     });
     cart.clear();
+    setOpen(false);
     if (paidInput) paidInput.value = '';
-    const cashInput = $('#cash-given');
-    if (cashInput) cashInput.value = '';
-    showReceipt(sale, sale.paid, cash);
+    showReceipt(sale, sale.paid);
   } catch (err) {
     toast(ctx.store.storeError(err), 'error', 5000);
     if (isLimit(err)) ctx.openPaywall();
@@ -462,8 +341,7 @@ async function checkout() {
     busy = false;
     setLoading(button, false);
     cleanCart();
-    renderProducts();
-    renderCart();
+    refresh();
   }
 }
 
@@ -482,6 +360,9 @@ function wire() {
     const button = event.target.closest('[data-add]');
     if (button) addToCart(button.dataset.add);
   });
+  $('#cart-toggle').addEventListener('click', () => {
+    setOpen(!$('#cart').classList.contains('open'));
+  });
   $('#cart-lines').addEventListener('click', (event) => {
     const button = event.target.closest('[data-act]');
     if (!button) return;
@@ -490,9 +371,15 @@ function wire() {
     else if (button.dataset.act === 'dec') changeQty(id, -1);
     else {
       cart.delete(id);
-      renderProducts();
-      renderCart();
+      refresh();
     }
+  });
+  $('#cart-lines').addEventListener('change', (event) => {
+    const input = event.target.closest('.qty-input');
+    if (input) setQty(input.dataset.id, input.value);
+  });
+  $('#cart-lines').addEventListener('focusin', (event) => {
+    if (event.target.classList && event.target.classList.contains('qty-input')) event.target.select();
   });
   $('#pay-mode').addEventListener('click', (event) => {
     const button = event.target.closest('[data-mode]');
@@ -511,8 +398,7 @@ export function init(context) {
   ctx.store.subscribe(() => {
     if (!active || busy) return;
     cleanCart();
-    renderProducts();
-    renderCart();
+    refresh();
     renderCredit();
   });
 }
@@ -525,19 +411,18 @@ export async function show(_name, context) {
   }
   active = true;
   const mine = ++token;
-  renderProducts();
-  renderCart();
+  setOpen(false);
+  refresh();
   setMode(mode);
   try {
-    await Promise.all([ctx.store.loadProducts(), ctx.store.loadCustomers(), ctx.store.loadStats(), ctx.store.loadProfile()]);
+    await Promise.all([ctx.store.loadProducts(), ctx.store.loadCustomers(), ctx.store.loadStats()]);
   } catch (err) {
     if (mine === token) toast(ctx.store.storeError(err), 'error', 5000);
     return;
   }
   if (mine !== token) return;
   cleanCart();
-  renderProducts();
-  renderCart();
+  refresh();
   renderCredit();
 }
 
