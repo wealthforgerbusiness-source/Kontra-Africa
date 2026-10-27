@@ -56,12 +56,11 @@
         <button type="button" data-nav="debts"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg>Dettes clients</button>
         <button type="button" data-nav="history"><svg viewBox="0 0 24 24"><use href="#i-cart"/></svg>Ventes</button>
         <button type="button" data-nav="finance"><svg viewBox="0 0 24 24"><use href="#i-cash"/></svg>Finances</button>
-        <button type="button" data-nav="closing"><svg viewBox="0 0 24 24"><use href="#i-chart"/></svg>Clôture</button>
         <button type="button" data-nav="account"><svg viewBox="0 0 24 24"><use href="#i-menu"/></svg>Compte et offre</button>
       </nav>
       <div class="side-foot">
         <span id="side-email"></span>
-        <button class="btn btn-ghost btn-sm btn-block" id="btn-logout-side" type="button" style="color:#fff;border-color:#475569">Se déconnecter</button>
+        <button class="btn btn-ghost btn-sm btn-block" id="btn-logout-side" type="button" style="color:#fff">Se déconnecter</button>
       </div>
     </aside>
 
@@ -77,11 +76,6 @@
     <main class="content" id="content">
       <div class="notice-stack" id="notices" aria-live="polite"></div>
 
-      <div class="install-banner hide" id="install-banner">
-        <span>Installez Kontra Africa sur votre écran d’accueil.</span>
-        <button class="btn btn-gold btn-sm" id="btn-install" type="button">Installer</button>
-      </div>
-
       <section class="view" id="view-home" data-view="home" aria-label="Accueil">
         <div class="view-head">
           <div>
@@ -89,7 +83,6 @@
             <h1 id="home-greet">Bonjour</h1>
           </div>
         </div>
-        <div id="home-fx"></div>
         <div class="stats" id="home-stats"></div>
         <div class="quick">
           <button type="button" data-nav="sale"><svg viewBox="0 0 24 24"><use href="#i-cart"/></svg>Vendre</button>
@@ -97,7 +90,6 @@
           <button type="button" data-action="add-customer"><svg viewBox="0 0 24 24"><use href="#i-users"/></svg>Client</button>
           <button type="button" data-action="add-tx"><svg viewBox="0 0 24 24"><use href="#i-cash"/></svg>Dépense</button>
         </div>
-        <button class="btn btn-gold btn-block" type="button" data-nav="closing" style="margin-top:.75rem">Clôturer la journée</button>
         <div class="panel">
           <div class="panel-head"><h2>Stock bas</h2><button class="link-btn" type="button" data-nav="stock">Voir le stock</button></div>
           <div class="list" id="home-low"></div>
@@ -130,28 +122,35 @@
 
       <section class="view" id="view-sale" data-view="sale" aria-label="Nouvelle vente">
         <div class="view-head">
-          <div><h1>Nouvelle vente</h1><p class="muted">Touchez un produit pour l’ajouter.</p></div>
+          <div><h1>Nouvelle vente</h1></div>
         </div>
         <div class="pos">
-          <div>
-            <div class="toolbar">
+          <div class="pos-main">
+            <div class="pos-search">
               <label class="search"><span class="sr-only">Rechercher un produit</span><input type="search" id="pos-search" placeholder="Rechercher un produit" autocomplete="off" maxlength="80"></label>
             </div>
             <div class="pos-products" id="pos-products"></div>
           </div>
-          <aside class="cart" aria-label="Panier">
+          <aside class="cart is-empty" id="cart" aria-label="Panier">
+            <button class="cart-bar" id="cart-toggle" type="button" aria-expanded="false" aria-controls="cart-body">
+              <span class="cart-bar-main"><b>Panier</b><span class="cart-bar-count" id="cart-count">0</span></span>
+              <span class="cart-bar-total" id="cart-total-bar">0</span>
+              <span class="cart-bar-chevron" aria-hidden="true">▲</span>
+            </button>
             <div class="cart-head">Panier</div>
-            <div id="cart-lines"></div>
-            <div class="cart-total"><span>Total</span><span id="cart-total">0</span></div>
-            <div class="cart-actions">
-              <div class="seg" id="pay-mode" role="group" aria-label="Mode de paiement">
-                <button type="button" data-mode="paid" aria-pressed="true">Payé</button>
-                <button type="button" data-mode="credit" aria-pressed="false">À crédit</button>
+            <div class="cart-body" id="cart-body">
+              <div id="cart-lines"></div>
+              <div class="cart-total"><span>Total</span><span id="cart-total">0</span></div>
+              <div class="cart-actions">
+                <div class="seg" id="pay-mode" role="group" aria-label="Mode de paiement">
+                  <button type="button" data-mode="paid" aria-pressed="true">Payé</button>
+                  <button type="button" data-mode="credit" aria-pressed="false">À crédit</button>
+                </div>
+                <div id="credit-fields" class="hide">
+                  <label class="field"><span>Client</span><select id="credit-customer"></select></label>
+                </div>
+                <button class="btn btn-lg btn-block" id="btn-checkout" type="button" disabled>Valider la vente</button>
               </div>
-              <div id="credit-fields" class="hide">
-                <label class="field"><span>Client</span><select id="credit-customer"></select></label>
-              </div>
-              <button class="btn btn-lg btn-block" id="btn-checkout" type="button" disabled>Valider la vente</button>
             </div>
           </aside>
         </div>
@@ -173,8 +172,11 @@
         <div class="view-head"><div><h1>Plus</h1></div></div>
         <div class="panel" style="margin-top:0">
           <div class="settings-list">
+            <div class="setting hide" id="install-banner">
+              <span><b>Installer Kontra Africa</b><small>Ajoutez l’application sur votre écran d’accueil</small></span>
+              <button class="btn btn-gold btn-sm" id="btn-install" type="button">Installer</button>
+            </div>
             <button class="setting tap" type="button" data-nav="history"><span><b>Historique des ventes</b><small>Toutes vos ventes récentes</small></span><span aria-hidden="true">›</span></button>
-            <button class="setting tap" type="button" data-nav="closing"><span><b>Clôturer la journée</b><small>Bilan du jour et du mois</small></span><span aria-hidden="true">›</span></button>
             <button class="setting tap" type="button" data-nav="finance"><span><b>Finances</b><small>Entrées et dépenses</small></span><span aria-hidden="true">›</span></button>
             <button class="setting tap" type="button" data-nav="account"><span><b>Compte et offre</b><small>Abonnement, profil de la boutique</small></span><span aria-hidden="true">›</span></button>
             <button class="setting tap" type="button" data-action="open-paywall"><span><b>Changer d’offre</b><small>Starter, Business ou Pro</small></span><span aria-hidden="true">›</span></button>
@@ -201,23 +203,11 @@
           <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Finances</h1></div>
           <button class="btn btn-sm" type="button" data-action="add-tx">+ Opération</button>
         </div>
-        <div id="finance-fx"></div>
         <div class="stats" id="finance-stats"></div>
         <div class="panel">
           <div class="panel-head"><h2>Opérations récentes</h2></div>
           <div class="list" id="finance-list"></div>
         </div>
-      </section>
-
-      <section class="view" id="view-closing" data-view="closing" aria-label="Clôture de la journée">
-        <div class="view-head">
-          <div><button class="link-btn hide-desktop" type="button" data-nav="more">← Plus</button><h1>Clôture</h1></div>
-        </div>
-        <div class="seg" id="closing-tabs" role="group" aria-label="Période">
-          <button type="button" data-tab="day" aria-pressed="true">Journée</button>
-          <button type="button" data-tab="month" aria-pressed="false">Mois</button>
-        </div>
-        <div id="closing-body"></div>
       </section>
 
       <section class="view" id="view-account" data-view="account" aria-label="Compte et offre">
@@ -237,7 +227,6 @@
             </div>
             <label class="field"><span>Adresse</span><input type="text" id="pf-address" maxlength="160" autocomplete="street-address"></label>
             <label class="field"><span>Objectif d’épargne</span><input type="number" id="pf-goal" min="0" step="1" inputmode="numeric"></label>
-            <label class="field"><span>Taux de change : 1 $ = … <b id="pf-rate-cur">FC</b></span><input type="number" id="pf-rate" min="0" step="any" inputmode="decimal" placeholder="Ex. 2250"><small class="hint">Sert à afficher vos gains en dollars sur l’accueil et les finances. Modifiable à tout moment.</small></label>
             <div class="form-actions"><button class="btn" id="btn-profile" type="submit">Enregistrer</button></div>
           </form>
         </div>
@@ -292,9 +281,7 @@
         </div>
         <p class="text-center muted methods-line">Paiement possible avec : <b id="pw-methods"></b></p>
 
-        <div class="pw-carousel">
-          <button class="pw-arrow prev" id="pw-prev" type="button" aria-label="Offre précédente" hidden>‹</button>
-          <div class="plans" id="pw-plans" aria-label="Les offres">
+        <div class="plans">
           <article class="plan" data-plan-card="starter">
             <h3>Starter</h3>
             <p class="muted">Pour démarrer et ranger votre boutique.</p>
@@ -318,6 +305,7 @@
               <li>5 000 ventes par mois</li>
               <li>500 clients à crédit</li>
               <li>300 relances par mois</li>
+              <li>Export PDF et Excel</li>
             </ul>
             <button class="btn btn-gold btn-block" type="button" data-choose="business">Choisir Business</button>
           </article>
@@ -331,13 +319,11 @@
               <li>20 000 ventes par mois</li>
               <li>2 000 clients à crédit</li>
               <li>1 000 relances par mois</li>
+              <li>Export PDF et Excel</li>
             </ul>
             <button class="btn btn-ghost btn-block" type="button" data-choose="pro">Choisir Pro</button>
           </article>
-          </div>
-          <button class="pw-arrow next" id="pw-next" type="button" aria-label="Offre suivante" hidden>›</button>
         </div>
-        <div class="pw-dots" id="pw-dots" hidden></div>
 
         <div class="pay-summary hide" id="pay-summary" aria-live="polite"></div>
         <div class="pay-wait hide" id="pay-wait" role="status" aria-live="polite">
@@ -355,5 +341,6 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/export-ui.js"></script>
 </body>
 </html>
