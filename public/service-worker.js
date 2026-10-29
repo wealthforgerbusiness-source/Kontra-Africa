@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'kontra-v5';
+const VERSION = 'kontra-v6';
 const STATIC_CACHE = VERSION + '-static';
 const CDN_CACHE = 'kontra-cdn';
 const NETWORK_TIMEOUT_MS = 3000;
