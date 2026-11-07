@@ -207,29 +207,17 @@ async function routeUser(user) {
   if (takePending() && user.email) saveAcceptance(user.email);
   setSplash(true, '');
 
-  if (!user.emailVerified) {
+  // La vérification par email est désactivée : plus d'écran « Confirmez votre email ».
+  // Les comptes Google sont déjà vérifiés par Google.
+  if (user.emailVerified) {
     try {
-      await user.reload();
+      const result = await user.getIdTokenResult();
+      if (result.claims.email_verified !== true) await user.getIdToken(true);
     } catch (_e) {
       lsGet('kontra_noop');
     }
     if (rid !== routeId) return;
   }
-
-  if (!user.emailVerified) {
-    $('#verify-email').textContent = user.email || '';
-    showAuthScreen('verify');
-    startVerifyPolling();
-    return;
-  }
-
-  try {
-    const result = await user.getIdTokenResult();
-    if (result.claims.email_verified !== true) await user.getIdToken(true);
-  } catch (_e) {
-    lsGet('kontra_noop');
-  }
-  if (rid !== routeId) return;
 
   await enter(user, rid);
 }
