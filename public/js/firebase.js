@@ -145,7 +145,7 @@ export async function signUpEmail(name, email, password) {
   if (String(password || '').length < 8) throw Object.assign(new Error('weak'), { code: 'auth/weak-password' });
   const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
   if (cleanName) await updateProfile(cred.user, { displayName: cleanName });
-  await sendEmailVerification(cred.user, actionSettings());
+  // Plus d'email de vérification à l'inscription.
   return cred.user;
 }
 
@@ -204,7 +204,6 @@ export async function logout() {
 export async function completeLogin() {
   const user = auth.currentUser;
   if (!user) throw new ApiError('unauthorized', 401);
-  if (!user.emailVerified) return { verified: false };
 
   const data = await api('/api/auth/init', { method: 'POST', body: {}, retry: true });
   if (data.refreshToken) await user.getIdToken(true);
