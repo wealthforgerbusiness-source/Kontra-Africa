@@ -130,6 +130,9 @@ let ctx = null;
 let tab = 'day';
 let day = '';
 let month = '';
+let year = '';
+let yearData = null;
+const monthCache = new Map();
 let report = null;
 let monthReport = null;
 let editing = false;
@@ -151,6 +154,7 @@ function currency() {
 
 const todayId = () => ctx.store.dayId(new Date());
 const monthOf = (id) => id.slice(0, 7);
+const yearOf = (id) => id.slice(0, 4);
 
 function parseDay(id) {
   const [y, m, d] = id.split('-').map(Number);
@@ -180,6 +184,11 @@ function dayShort(id) {
 function monthLong(id) {
   const [y, m] = id.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+}
+
+function monthName(id) {
+  const [y, m] = id.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
 }
 
 function timeOf(msValue) {
@@ -306,6 +315,7 @@ async function submitClosing(calc, withCash, counted, note, button, errorBox, pr
     if (report && report.day === day) report.closing = saved;
     editing = false;
     draft = { day: '', counted: '', note: '' };
+    monthCache.clear();
     toast('Journée clôturée.');
     renderDay();
   } catch (err) {
@@ -380,29 +390,6 @@ function renderDay() {
     )
   );
 
-  if (showCash) {
-    const rows = [
-      row('Ventes encaissées', 'Comptant + acomptes reçus', '+ ' + f(cash.salesCash), 'ok'),
-      row('Dettes clients encaissées', null, '+ ' + f(cash.debtCollected), 'ok'),
-      row('Autres entrées', null, '+ ' + f(cash.otherIncome), 'ok'),
-      row('Dépenses', null, '− ' + f(cash.expenses), 'low'),
-      h('div', { class: 'item', style: 'cursor:default;background:var(--bg-soft)' }, h('div', { class: 'item-main' }, h('div', { class: 'item-title', text: 'Caisse attendue' })), h('div', { class: 'item-end', style: 'font-size:1.05rem', text: f(cash.expected) }))
-    ];
-    if (frozen && closing.counted !== null && !form) {
-      const gap = closing.gap === null ? r2(closing.counted - closing.expected) : closing.gap;
-      rows.push(row('Argent compté en caisse', null, f(closing.counted)));
-      rows.push(row(gap === 0 ? 'Caisse juste' : gap > 0 ? 'Surplus' : 'Manque', null, gap === 0 ? '0' : signed(gap, cur), gap < 0 ? 'low' : gap > 0 ? 'ok' : ''));
-    }
-    box.append(panel('Argent en caisse', ...rows));
-    if (isToday && !frozen && calc.touchedCredit > 0) {
-      box.append(h('p', { class: 'muted', style: 'font-size:.82rem;margin:.5rem .25rem 0', text: 'Note : l’acompte d’une vente à crédit déjà remboursée aujourd’hui n’est pas compté ici. Vérifiez avec votre comptage.' }));
-    }
-  }
-
-  if (calc.creditCount === 0 && calc.salesCount === 0 && calc.expenses === 0 && calc.income === 0) {
-    box.append(h('p', { class: 'muted', style: 'margin:.75rem .25rem 0', text: 'Aucune opération enregistrée ce jour-là.' }));
-  }
-
   if (form) {
     const withCash = isToday && !calc.partial;
     const mine = draft.day === day;
@@ -449,6 +436,7 @@ function renderDay() {
 
     const fields = [];
     if (withCash && isToday) {
+      fields.push(h('p', { style: 'margin:0 0 .75rem;font-size:.95rem', text: 'Caisse attendue : ' + f(cash.expected) }));
       fields.push(h('label', { class: 'field' }, h('span', { text: 'Argent compté en caisse (facultatif)' }), counted, gapLine));
     }
     fields.push(h('label', { class: 'field', style: 'margin-top:1rem' }, h('span', { text: 'Remarque (facultatif)' }), note));
@@ -457,6 +445,29 @@ function renderDay() {
     box.append(h('div', { style: 'margin-top:1rem' }, h('button', { type: 'button', class: 'btn btn-ghost btn-block', text: 'Modifier la clôture', onclick: () => { editing = true; renderDay(); } })));
   } else if (!canWrite && !closing) {
     box.append(h('div', { class: 'banner banner-danger', style: 'margin-top:1rem' }, 'Votre accès est suspendu : vous pouvez consulter le bilan, mais plus clôturer. Choisissez une offre pour continuer.'));
+  }
+
+  if (showCash) {
+    const rows = [
+      row('Ventes encaissées', 'Comptant + acomptes reçus', '+ ' + f(cash.salesCash), 'ok'),
+      row('Dettes clients encaissées', null, '+ ' + f(cash.debtCollected), 'ok'),
+      row('Autres entrées', null, '+ ' + f(cash.otherIncome), 'ok'),
+      row('Dépenses', null, '− ' + f(cash.expenses), 'low'),
+      h('div', { class: 'item', style: 'cursor:default;background:var(--bg-soft)' }, h('div', { class: 'item-main' }, h('div', { class: 'item-title', text: 'Caisse attendue' })), h('div', { class: 'item-end', style: 'font-size:1.05rem', text: f(cash.expected) }))
+    ];
+    if (frozen && closing.counted !== null && !form) {
+      const gap = closing.gap === null ? r2(closing.counted - closing.expected) : closing.gap;
+      rows.push(row('Argent compté en caisse', null, f(closing.counted)));
+      rows.push(row(gap === 0 ? 'Caisse juste' : gap > 0 ? 'Surplus' : 'Manque', null, gap === 0 ? '0' : signed(gap, cur), gap < 0 ? 'low' : gap > 0 ? 'ok' : ''));
+    }
+    box.append(panel('Argent en caisse', ...rows));
+    if (isToday && !frozen && calc.touchedCredit > 0) {
+      box.append(h('p', { class: 'muted', style: 'font-size:.82rem;margin:.5rem .25rem 0', text: 'Note : l’acompte d’une vente à crédit déjà remboursée aujourd’hui n’est pas compté ici. Vérifiez avec votre comptage.' }));
+    }
+  }
+
+  if (calc.creditCount === 0 && calc.salesCount === 0 && calc.expenses === 0 && calc.income === 0) {
+    box.append(h('p', { class: 'muted', style: 'margin:.75rem .25rem 0', text: 'Aucune opération enregistrée ce jour-là.' }));
   }
 
   if (closing && closing.note && !form) {
@@ -520,6 +531,93 @@ function renderMonth() {
   box.append(h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', { text: 'Jour par jour' }), h('span', { class: 'muted', style: 'font-size:.82rem', text: calc.closedDays + ' / ' + calc.rows.length + ' clôturées' })), h('div', { class: 'list' }, ...items)));
 }
 
+function renderYear() {
+  const box = $('#closing-body');
+  clear(box);
+  if (!yearData || yearData.year !== year) return;
+
+  const cur = currency();
+  const f = (v) => money(v, cur);
+  const thisMonth = monthOf(todayId());
+  const thisYear = yearOf(todayId());
+
+  box.append(
+    stepper(
+      year,
+      year < thisYear,
+      () => goYear(String(Number(year) - 1)),
+      () => goYear(String(Number(year) + 1)),
+      year === thisYear ? null : h('button', { type: 'button', class: 'link-btn', style: 'font-size:.8rem', text: 'Revenir à cette année', onclick: () => goYear(thisYear) })
+    )
+  );
+
+  const list = yearData.months.map((rep) => ({ id: rep.month, calc: computeMonth(rep) }));
+  const total = { revenue: 0, profit: 0, expenses: 0, salesCount: 0, net: 0 };
+  let best = null;
+  list.forEach((m) => {
+    total.revenue += m.calc.revenue;
+    total.profit += m.calc.profit;
+    total.expenses += m.calc.expenses;
+    total.salesCount += m.calc.salesCount;
+    total.net += m.calc.net;
+    if (m.calc.activeDays > 0 && (!best || m.calc.net > best.calc.net)) best = m;
+  });
+
+  box.append(
+    h(
+      'div',
+      { class: 'stats', style: 'margin-top:1rem' },
+      h('div', { class: 'stat hero' }, h('small', { text: 'Bénéfice net ' + year }), h('strong', { text: f(r2(total.net)) }), h('em', { style: 'font-style:normal;font-size:.82rem;color:var(--gold)', text: 'Bénéfice sur ventes ' + f(r2(total.profit)) + ' − dépenses ' + f(r2(total.expenses)) })),
+      stat('Ventes (chiffre d’affaires)', f(r2(total.revenue)), 'gold', total.salesCount + (total.salesCount > 1 ? ' ventes' : ' vente')),
+      stat('Meilleur mois', best ? f(best.calc.net) : '—', '', best ? monthName(best.id) : '')
+    )
+  );
+
+  const items = list
+    .slice()
+    .reverse()
+    .map((m) => {
+      const c = m.calc;
+      const sub = c.activeDays
+        ? c.salesCount + (c.salesCount > 1 ? ' ventes' : ' vente') + ' · ' + f(c.revenue) + (c.expenses > 0 ? ' · dép. ' + f(c.expenses) : '')
+        : 'Aucune activité';
+      return h(
+        'button',
+        { type: 'button', class: 'item', onclick: () => goMonth(m.id) },
+        h('div', { class: 'item-main' }, h('div', { class: 'item-title', style: 'text-transform:capitalize', text: monthName(m.id) + (m.id === thisMonth ? ' (en cours)' : '') }), h('div', { class: 'item-sub', text: sub })),
+        h('div', { class: 'item-end ' + (c.net < 0 ? 'low' : c.net > 0 ? 'ok' : ''), text: c.activeDays ? signed(c.net, cur) : '—' })
+      );
+    });
+  box.append(h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', { text: 'Mois par mois' })), h('div', { class: 'list' }, ...items)));
+}
+
+async function loadYear(silent) {
+  const mine = ++token;
+  if (!silent) renderLoading();
+  try {
+    const thisMonth = monthOf(todayId());
+    const ids = [];
+    for (let m = 1; m <= 12; m += 1) {
+      const id = year + '-' + pad(m);
+      if (id <= thisMonth) ids.push(id);
+    }
+    const reps = await Promise.all(
+      ids.map(async (id) => {
+        const cached = monthCache.get(id);
+        if (cached && id < thisMonth && silent !== true) return cached;
+        const rep = await ctx.store.loadMonthReport(id);
+        monthCache.set(id, rep);
+        return rep;
+      })
+    );
+    if (mine !== token) return;
+    yearData = { year, months: reps };
+    renderYear();
+  } catch (err) {
+    if (mine === token && !silent) renderError(err, () => loadYear());
+  }
+}
+
 async function loadDay(silent) {
   const mine = ++token;
   if (!silent) renderLoading();
@@ -558,6 +656,14 @@ function goDay(id, fromMonth) {
   if (fromMonth) window.scrollTo(0, 0);
 }
 
+function goYear(id) {
+  year = String(id);
+  tab = 'months';
+  yearData = null;
+  setTabs();
+  loadYear();
+}
+
 function goMonth(id) {
   month = id;
   tab = 'month';
@@ -573,7 +679,10 @@ export function init(context) {
     section.dataset.watched = '1';
     /* Quand l'utilisateur quitte l'écran, le prochain affichage repart d'aujourd'hui. */
     new MutationObserver(() => {
-      if (!section.classList.contains('active')) fresh = true;
+      if (!section.classList.contains('active')) {
+        fresh = true;
+        monthCache.clear();
+      }
     }).observe(section, { attributes: true, attributeFilter: ['class'] });
   }
   const tabs = $('#closing-tabs');
@@ -583,6 +692,7 @@ export function init(context) {
       const b = event.target.closest('button[data-tab]');
       if (!b || b.dataset.tab === tab) return;
       if (b.dataset.tab === 'month') goMonth(monthOf(day || todayId()));
+      else if (b.dataset.tab === 'months') goYear(yearOf(day || todayId()));
       else goDay(day || todayId());
     });
   }
@@ -601,7 +711,8 @@ export async function show(_name, context) {
     return;
   }
   /* Simple actualisation (compte rafraîchi) : on garde le jour, l'onglet et ce qui est saisi. */
-  if (tab === 'month') loadMonth(true);
+  if (tab === 'months') loadYear(true);
+  else if (tab === 'month') loadMonth(true);
   else loadDay(true);
 }
 
