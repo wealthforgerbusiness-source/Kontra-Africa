@@ -39,6 +39,29 @@ function dayStart(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
+function isTodaySale(sale) {
+  const day = sale.day || ctx.store.dayId(new Date(sale.createdAtMs));
+  return day === ctx.store.dayId();
+}
+
+async function removeSale(sale) {
+  const cur = currency();
+  const outstanding = sale.status === 'credit' ? Math.max(0, sale.total - sale.paid) : 0;
+  const parts = ['Le stock des produits vendus sera remis.', 'Les chiffres du jour et du mois seront corrigés.'];
+  if (outstanding > 0 && sale.customerName) {
+    parts.push('La dette de ' + sale.customerName + ' sera réduite de ' + money(outstanding, cur) + '.');
+  }
+  const ok = await ctx.confirm({ title: 'Retirer cette vente ?', text: parts.join(' '), ok: 'Retirer la vente', danger: true });
+  if (!ok) return;
+  try {
+    await ctx.store.removeSale(sale.id);
+    ctx.closeSheet();
+    toast('Vente retirée. Le stock a été remis.');
+  } catch (err) {
+    toast(ctx.store.storeError(err), 'error', 5000);
+  }
+}
+
 function dayLabel(ms) {
   const date = new Date(ms);
   const diff = Math.round((dayStart(new Date()) - dayStart(date)) / DAY_MS);
@@ -175,16 +198,24 @@ function openSale(saleId) {
       sale.status === 'credit' ? kv('Déjà payé', money(sale.paid, cur)) : null,
       sale.status === 'credit' ? kv('Reste à payer', money(Math.max(0, sale.total - sale.paid), cur)) : null
     ),
+    sale.status === 'cancelled'
+      ? h('p', { class: 'muted', style: 'margin-top:1rem;font-size:.88rem', text: 'Cette vente a été retirée : le stock a été remis et les chiffres corrigés.' })
+      : null,
     h(
       'div',
       { class: 'stack', style: '--gap:.6rem;margin-top:1.25rem' },
-      h('a', {
-        class: 'btn btn-gold btn-block',
-        href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale)),
-        target: '_blank',
-        rel: 'noopener',
-        text: 'Envoyer le reçu par WhatsApp'
-      }),
+      sale.status !== 'cancelled'
+        ? h('a', {
+            class: 'btn btn-gold btn-block',
+            href: 'https://wa.me/?text=' + encodeURIComponent(receiptText(sale)),
+            target: '_blank',
+            rel: 'noopener',
+            text: 'Envoyer le reçu par WhatsApp'
+          })
+        : null,
+      ctx.canWrite() && sale.status !== 'cancelled' && isTodaySale(sale)
+        ? h('button', { type: 'button', class: 'btn btn-danger btn-block', text: 'Retirer cette vente', onclick: () => removeSale(sale) })
+        : null,
       h('button', { type: 'button', class: 'btn btn-ghost btn-block', text: 'Fermer', onclick: () => ctx.closeSheet() })
     )
   ];
