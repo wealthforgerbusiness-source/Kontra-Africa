@@ -890,7 +890,7 @@ export async function removeSale(saleId) {
   batch.update(itemRef('sales', sale.id), { status: 'cancelled', updatedAt: serverTimestamp() });
 
   const delta = () => ({ revenue: increment(-sale.total), profit: increment(-sale.profit), salesCount: increment(-1) });
-  batch.set(itemRef('stats', month), delta(), { merge: true });
+  batch.set(itemRef('stats', month), Object.assign(delta(), { lastCancelled: sale.id }), { merge: true });
   batch.set(itemRef('stats', day), delta(), { merge: true });
 
   const restored = [];
@@ -908,9 +908,10 @@ export async function removeSale(saleId) {
     restored.push({ p, qty });
   });
 
-  if (customer) {
+  const debtDrop = customer ? Math.min(outstanding, customer.debt) : 0;
+  if (customer && debtDrop > 0) {
     batch.update(itemRef('customers', customer.id), {
-      debt: increment(-outstanding),
+      debt: increment(-debtDrop),
       updatedAt: serverTimestamp()
     });
   }
@@ -922,7 +923,7 @@ export async function removeSale(saleId) {
     p.soldQty = round2(Math.max(0, p.soldQty - qty));
     p.isLow = p.qty <= p.alertAt;
   });
-  if (customer) customer.debt = round2(Math.max(0, customer.debt - outstanding));
+  if (customer && debtDrop > 0) customer.debt = round2(Math.max(0, customer.debt - debtDrop));
   sale.status = 'cancelled';
   applyStats({ revenue: -sale.total, profit: -sale.profit, salesCount: -1 });
   emit();
