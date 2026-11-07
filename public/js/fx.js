@@ -129,12 +129,17 @@ export function renderFxBar(box, ctx, cur) {
     seg('$', usd, () => (rate > 0 ? setFxMode('usd') : openRateSheet(ctx, cur, true)), 'Afficher en dollars')
   );
 
-  const info = h('button', {
-    type: 'button',
-    class: 'fx-rate',
-    onclick: () => openRateSheet(ctx, cur, false),
-    text: rate > 0 ? '1 $ = ' + new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(rate) + ' ' + sym + ' · Modifier' : 'Définir le taux de change'
-  });
+  const fmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(rate);
+  const info = h(
+    'button',
+    { type: 'button', class: 'fx-rate', 'aria-label': 'Modifier le taux de change', onclick: () => openRateSheet(ctx, cur, false) },
+    h('span', { class: 'fx-rate-txt', text: rate > 0 ? '1 $ = ' + fmt + ' ' + sym : 'Définir le taux de change' })
+  );
+  const edit = document.createElement('span');
+  edit.className = 'fx-edit';
+  edit.setAttribute('aria-hidden', 'true');
+  edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  info.append(edit);
 
   box.append(h('div', { class: 'fx-bar' }, group, info));
 }
