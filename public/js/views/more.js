@@ -219,7 +219,7 @@ function openSale(saleId) {
       h('button', { type: 'button', class: 'btn btn-ghost btn-block', text: 'Fermer', onclick: () => ctx.closeSheet() })
     )
   ];
-  ctx.openSheet(body);
+  ctx.openSheet(body.filter(Boolean));
 }
 
 function renderFinance() {
