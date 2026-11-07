@@ -865,6 +865,70 @@ export async function createSale(input) {
   return local;
 }
 
+/* Retire une vente du jour : la vente reste dans l'historique avec le statut « annulée »,
+   le stock est remis, la dette du client est réduite et les chiffres du jour et du mois sont corrigés. */
+export async function removeSale(saleId) {
+  guard();
+  await Promise.all([loadProducts(), loadStats()]);
+
+  const sale = state.sales.find((s) => s.id === saleId);
+  if (!sale) throw new StoreError('invalid_sale');
+  if (sale.status === 'cancelled') throw new StoreError('sale_cancelled');
+
+  const day = sale.day || dayId(new Date(sale.createdAtMs));
+  if (day !== dayId()) throw new StoreError('sale_not_today');
+  const month = sale.month || day.slice(0, 7);
+
+  const outstanding = sale.status === 'credit' ? Math.max(0, round2(sale.total - sale.paid)) : 0;
+  let customer = null;
+  if (sale.customerId && outstanding > 0) {
+    await loadCustomers();
+    customer = findCustomer(sale.customerId);
+  }
+
+  const batch = writeBatch(db);
+  batch.update(itemRef('sales', sale.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+
+  const delta = () => ({ revenue: increment(-sale.total), profit: increment(-sale.profit), salesCount: increment(-1) });
+  batch.set(itemRef('stats', month), delta(), { merge: true });
+  batch.set(itemRef('stats', day), delta(), { merge: true });
+
+  const restored = [];
+  sale.items.forEach((item) => {
+    const p = findProduct(item.id);
+    const qty = Number(item.qty) || 0;
+    if (!p || qty <= 0) return;
+    const next = round2(p.qty + qty);
+    batch.update(itemRef('products', p.id), {
+      qty: increment(qty),
+      soldQty: increment(-qty),
+      isLow: next <= p.alertAt,
+      updatedAt: serverTimestamp()
+    });
+    restored.push({ p, qty });
+  });
+
+  if (customer) {
+    batch.update(itemRef('customers', customer.id), {
+      debt: increment(-outstanding),
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  await queued(batch.commit());
+
+  restored.forEach(({ p, qty }) => {
+    p.qty = round2(p.qty + qty);
+    p.soldQty = round2(Math.max(0, p.soldQty - qty));
+    p.isLow = p.qty <= p.alertAt;
+  });
+  if (customer) customer.debt = round2(Math.max(0, customer.debt - outstanding));
+  sale.status = 'cancelled';
+  applyStats({ revenue: -sale.total, profit: -sale.profit, salesCount: -1 });
+  emit();
+  return sale;
+}
+
 export async function collectDebt(customerId, amountInput) {
   guard();
   await Promise.all([loadCustomers(), loadStats()]);
@@ -1006,6 +1070,9 @@ const MESSAGES = {
   invalid_product: 'Produit introuvable. Actualisez la page.',
   invalid_customer: 'Client introuvable. Actualisez la page.',
   invalid_transaction: 'Opération introuvable.',
+  invalid_sale: 'Vente introuvable. Actualisez la page.',
+  sale_cancelled: 'Cette vente est déjà retirée.',
+  sale_not_today: 'Seule une vente d’aujourd’hui peut être retirée.',
   customer_required: 'Choisissez le client pour une vente à crédit.',
   no_debt: 'Ce client ne doit rien.',
   invalid_day: 'Date invalide.',
