@@ -25,11 +25,18 @@
   <link rel="stylesheet" href="css/app.css">
   <style>
     /* Barre du taux de change et du symbole (Accueil et Finances) */
-    .fx-bar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin: 0 0 .9rem; }
-    .fx-seg { display: inline-flex; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
-    .fx-seg button { border: 0; background: transparent; padding: .4rem .9rem; min-height: 36px; border-radius: 8px; font-weight: 700; color: var(--muted); cursor: pointer; }
+    .fx-bar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: 0 0 1rem; }
+    .fx-seg { display: inline-flex; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+    .fx-seg button { min-width: 52px; min-height: 36px; padding: 0 .9rem; border: 0; border-radius: 8px; background: transparent; font-weight: 700; font-size: .9rem; color: var(--muted); cursor: pointer; }
     .fx-seg button.on { background: var(--green); color: #fff; }
-    .fx-rate { border: 0; background: none; min-height: 36px; color: var(--green); font-weight: 600; font-size: .85rem; text-decoration: underline; cursor: pointer; }
+    .fx-rate { display: inline-flex; align-items: center; justify-content: space-between; gap: .6rem; flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 .85rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--navy); font-weight: 600; font-size: .85rem; text-decoration: none; cursor: pointer; }
+    .fx-rate:active { background: var(--green-l); }
+    .fx-rate-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fx-edit { display: inline-flex; flex: none; color: var(--green); }
+    .fx-edit svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    @media (min-width: 700px) { .fx-bar { justify-content: flex-start; gap: .75rem; } }
+    /* Messages d'abonnement : en bas de la page, jamais au-dessus du titre */
+    .notice-bottom { margin: 1.25rem 0 0; }
   </style>
 </head>
 <body class="app-body is-auth">
@@ -83,8 +90,6 @@
     </header>
 
     <main class="content" id="content">
-      <div class="notice-stack" id="notices" aria-live="polite"></div>
-
       <section class="view" id="view-home" data-view="home" aria-label="Accueil">
         <div class="view-head">
           <div>
@@ -294,6 +299,8 @@
           </form>
         </div>
       </section>
+
+      <div class="notice-stack notice-bottom" id="notices" aria-live="polite"></div>
     </main>
 
     <nav class="tabbar" aria-label="Navigation principale">
